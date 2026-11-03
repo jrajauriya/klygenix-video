@@ -11,7 +11,7 @@ from sqlalchemy.exc import IntegrityError
 from app.core.messages import err
 from app.video.models.media import Video
 from app.video.models.social import Channel, Comment, Danmaku, Follow, Like, Profile, WatchProgress
-from app.video.present import iso, video_card
+from app.video.present import iso
 from app.video.realtime.rooms import channel as room_channel
 from app.video.realtime.rooms import publish
 from app.video.routers import limits
@@ -439,43 +439,37 @@ def related(public_id: str, limit: int = Query(12, le=30), viewer: Viewer = Depe
     return _cards(viewer.db, picked, viewer.user.id if viewer.user else None)
 
 
-@router.websocket("/ws/videos/{public_id}")
-async def room(websocket: WebSocket, public_id: str):
-    from redis.asyncio import Redis
+def _room_video(public_id: str) -> int | None:
+    from sqlalchemy import text
 
-    from app.config import settings
     from app.database import SessionLocal
 
     db = SessionLocal()
     try:
         db.info["platform"] = True
-        from sqlalchemy import text
-
         db.execute(text("SELECT set_config('app.platform', 'on', true)"))
         v = db.execute(select(Video).where(Video.public_id == public_id, Video.status == "published",
                                            Video.is_deleted.is_(False))).scalars().first()
-        video_id = v.id if v is not None and v.visibility in ("public", "unlisted") else None
+        return v.id if v is not None and v.visibility in ("public", "unlisted") else None
     finally:
         db.close()
+
+
+@router.websocket("/ws/videos/{public_id}")
+async def room(websocket: WebSocket, public_id: str):
+    from app.video.realtime.hub import hub, relay
+
+    video_id = await asyncio.to_thread(_room_video, public_id)
     if video_id is None:
         await websocket.close(code=4404)
         return
     await websocket.accept()
-    client = Redis.from_url(settings.REDIS_URL)
-    pubsub = client.pubsub()
-    await pubsub.subscribe(room_channel(video_id))
+    client = await hub.client()
+    q = await hub.subscribe(room_channel(video_id))
     watchers_key = f"kv:watchers:{video_id}"
     await client.incr(watchers_key)
     await client.expire(watchers_key, 3600)
-
-    async def pump():
-        async for message in pubsub.listen():
-            if message.get("type") != "message":
-                continue
-            data = message["data"]
-            await websocket.send_text(data.decode() if isinstance(data, bytes) else data)
-
-    task = asyncio.create_task(pump())
+    task = asyncio.create_task(relay(websocket, q))
     try:
         watchers = int(await client.get(watchers_key) or 1)
         await websocket.send_text(json.dumps({"type": "hello", "watchers": watchers}))
@@ -488,6 +482,4 @@ async def room(websocket: WebSocket, public_id: str):
     finally:
         task.cancel()
         await client.decr(watchers_key)
-        await pubsub.unsubscribe(room_channel(video_id))
-        await pubsub.aclose()
-        await client.aclose()
+        await hub.unsubscribe(room_channel(video_id), q)

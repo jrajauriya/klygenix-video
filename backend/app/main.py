@@ -105,6 +105,9 @@ async def _inline_sweeps() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     configure_logging(settings.LOG_LEVEL)
+    import anyio.to_thread
+
+    anyio.to_thread.current_default_thread_limiter().total_tokens = max(4, settings.DB_POOL_SIZE)
     create_schemas()
     seed_admin_tenant_and_global_admin()
     _provision_admin_store()
@@ -113,7 +116,15 @@ async def lifespan(app: FastAPI):
 
     activity_task = asyncio.create_task(activity_writer_loop())
     sweeper = asyncio.create_task(_inline_sweeps()) if settings.JOBS_MODE == "inline" else None
+    if settings.LIVE_WORKER_INLINE and settings.LIVE_PROVIDER == "sandbox" and settings.SANDBOX_ENABLED:
+        from app.video.live.worker import start_inline
+
+        start_inline()
     yield
+    if settings.LIVE_WORKER_INLINE:
+        from app.video.live.worker import stop_inline
+
+        stop_inline()
     for task in (activity_task, sweeper):
         if task is None:
             continue

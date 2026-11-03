@@ -2,7 +2,7 @@
 
 The master plan (`../Klygenix_Docs/Klygenix_Video/klygenix-video-master-plan.html`) says what and
 why; this file says what is built, what each test proves, what runs only on sandbox providers and
-what is blocked. Built in one unattended run, 3 Nov 2026. **Nothing is committed** (the owner
+what is blocked. Built in unattended runs, 3 Nov 2026 (run 3 newest, below). **Run 3 is not committed** (the owner
 commits by hand) **and nothing is deployed.**
 
 **Done means:** `npx tsc --noEmit -p tsconfig.app.json` and `vite build` pass for every app it touches;
@@ -29,6 +29,78 @@ its suites green **twice over one database**; CLAUDE.md updated.
 | 13 Verification & docs | Suites ×2, parity, e2e, load test, docs (this file, LAUNCH, PROVIDERS, SECURITY, README, CLAUDE.md), plan HTML updated | See results below | — |
 | 14 Stretch | Playlists and series with progress (V1.7 / V3.1); watch parties with a shared playhead and chat (V3.7); AI thumbnail ideas + custom thumbnails shown (V1.3); data export / erasure; studio analytics with daily series; comment inbox with hide/unhide | Done | `test_playlists.py`, `test_parties.py`, `test_thumbnails.py`, `test_viewer_extras.py` |
 | 14 not started | Tips, boost danmaku, channel memberships, paid videos (V2.2–V2.5) | Waiting | They pay creators: rule S11 needs Razorpay Route linked accounts and creator KYC (V2.1), not forked yet |
+
+## Run 3 — V4 Live on the sandbox, mobile store-ready, launch hardening (3 Nov 2026)
+
+Owner's choice: all three tracks, overnight, no stops. Runs 1 and 2 committed as `d95dd50` and `cccf074`.
+**Nothing from run 3 is committed** (the owner commits by hand) **and nothing is deployed.**
+
+| Track | Built | Proven by |
+|---|---|---|
+| V4.1 provider | `live/service.py` behind `LIVE_PROVIDER`; sandbox ingest; `live/cloudflare.py` written to Cloudflare Stream Live's API (**not wired yet**) | `test_live.py` |
+| V4.2 go live | OBS/RTMP: one always-on gate per pool port checks the AMF0 `publish` key (`live/gate.py`, `hmac.compare_digest`) and forwards to `ffmpeg -listen` on loopback; 1 s HLS + recording (tee); browser camera over `/ws/live/{id}/ingest` with a signed ticket; keys sealed, hashed, rotatable; auto-end after 45 s idle; `live` and `ended` events on the room | `test_live.py` 53 checks (wrong key never goes live) |
+| V4.3 chat | live rooms on `realtime/hub.py` (one Redis pubsub per process; V07); presence and peak in Redis; run-1 filter; slow mode; timeouts by message; channel moderators; `mine` flag | `test_live.py`, `tests/load/live.py` |
+| V4.4 paid live | super chats (₹49/₹199/₹499, pinned 30 s/2 min/5 min) and gifts (₹19/₹49/₹199) as support purposes split through `record_split`; hiding a paid message (creator **or moderator**) refunds it | `test_live.py` |
+| V4.5 replays | on end the recording becomes an MP4 → `ingest_file` → the normal pipeline (scan, AI, publish rules); replays can be turned off | `test_live.py`, stack smoke live journey |
+| V4.6 load | `tests/load/live.py` (watchers + chatters + HLS pollers) | see results |
+| Push | `PUSH_PROVIDER=sandbox|expo` (`services/push.py`): render ready, published, followed channel live, membership lapsing; per-user switches; dedupe keys; Expo adapter untested live | `test_push.py` 14 |
+| Mobile | Expo SDK 58 / RN 0.88.1 / React 19.3.0; EAS profiles (development, preview, production) with env; icons, splash, permissions, privacy manifest; live watch + chat; Study tab (`/me/study`); notification switches + history; Hindi strings for the core screens; `docs/STORE.md` listing kit | tsc, `expo export` iOS + Android, native imports 12/0 |
+| Instagram (V2.9) | Instagram API with Instagram Login (sandbox fake professional account), connect/callback, publish targets need a connected account | `test_publishing.py` 29 |
+| Retention | sweep: Ask history 365 d, push log 90 d, live chat 90 d after the stream, translations 180 d, leftover deleted media 30 d, live segments 24 h; streams that never went live close after 24 h (each held a sandbox RTMP port) | `test_retention.py` 10 |
+| Admin ops | audit log viewer (filters, totals, JSON diffs), failed jobs with retry (render, dub, publish, payment event, AI re-analysis), live streams with force stop | `test_admin_ops.py` 21; admin pages in e2e |
+| Legal drafts | Terms, Privacy, Guidelines, Copyright & counter-notice, Grievance, Creator Monetisation, Live Rules — each "Draft — pending legal review"; every placeholder in `docs/LEGAL-OPEN.md` | web pages; e2e screens |
+| Deploy | `deploy.sh` keeps the previous image (`:current-prev`) and `dist.prev`; `--rollback` restores them; rehearsed against a throwaway SSH host (guard → deploy → second deploy → rollback) | rehearsal (docs/LAUNCH.md §12) |
+| Monitoring | `kv_live_streams`, `kv_live_ingest_stale`, `kv_realtime_dropped_total`; alerts `KvLiveIngestDown`, `KvLiveFanoutSlow` with promtool unit tests | `monitoring.sh check` (33 rules) |
+
+### Run 3 results
+| Check | Result |
+|---|---|
+| API suites, **twice over one database** | **34 suites, 894 checks per pass, 0 failed both passes.** New: live 53, push 14, retention 9 (10 after a last check added below, rerun alone), admin ops 21; grown: publishing 29, learning 36, viewer extras 64 |
+| Migrations | 10 revisions (`kv0000000008_live`, `…09_push_and_live_provider`, `…10_instagram_connect`); `alembic check` clean; schema re-dumped (80 tables); parity green (public-read policies 15 → 17) |
+| Frontends | tsc + vite build green for web, studio, admin; mobile tsc + `expo export` iOS + Android on SDK 58 |
+| Browser (`node tests/e2e/run.mjs`) | screens **150/0** (incl. studio Live, admin Audit log / Failed jobs / Live streams), axe **80/0**, speed **14/0** (reels video start 1.65 s, LCP 1.2–1.5 s) |
+| Production stack `play.localhost:8443` (now with the `live` service) | **smoke 111/0** incl. the live journey (RTMP publish into the stack → live playlist → chat → end → replay published by the workers); **CSP 27/0** |
+| Viewer load on the stack (100 continuous viewers + 200 sockets, nginx + TLS, 4 API workers) | **924 req/s, 0 errors, p95 6–15 ms** per step (run 2: 471 req/s at p95 300–380 ms); 198/200 sockets opened, live danmaku delivered |
+| Viewer load, dev API, 4 workers | 100 viewers p95 ≤ 33 ms; **300 viewers + 300 sockets: 1,251 req/s, p95 ≤ 200 ms, 0 errors** |
+| Live room on the stack | **1,000/1,000 watchers, 55,000/55,000 deliveries, fan-out p95 63 ms** (target < 500 ms), HLS playlist + segment p95 99 ms, 0 errors |
+| Backups | off-host rehearsal 12/0 |
+| Security | gitleaks 0 · bandit 0 medium+ (1 fixed: the RTMP gate bound all interfaces — now `LIVE_GATE_BIND`, loopback by default) · semgrep 0 · pip-audit 0 · npm audit pass with 3 allow-listed dev-tool findings (5 Expo findings cleared by SDK 58) |
+
+### Bugs found and fixed in run 3
+- **Two real throughput bugs behind run 2's p95**: the API ran as one process, and `/ws/videos` ran a sync DB query on the
+  event loop — with the pool empty it froze the whole worker for the 10 s pool timeout. Now `WEB_CONCURRENCY` workers,
+  WebSocket lookups in a thread, request threads capped at the pool size, HTTP metrics shared through Redis.
+- **nginx had no upstream keepalive**: at ~900 req/s it ran out of local ports and every request 502'd. Upstream with
+  `keepalive` + `resolve` on `nginx:1.30-alpine`.
+- **IST dates**: analytics windows, GST invoice/credit-note dates, ledger dates and FY number series used the server's
+  local date (UTC in containers) — wrong between 00:00 and 05:30 IST and on 1 April. Now `clock.ist_today()`.
+- **Audit actor was "unknown"** for every platform admin action; admin routes now record the admin and IP, background work
+  is `system`, nested values stay JSON.
+- Data export and erase missed live chat and the push log; the analytics test caught the date bug at 00:30 IST.
+- A wrong RTMP key went live (ffmpeg only warns) — the gate; the gate's first versions deadlocked the handshake.
+- The load tool measured its own event-loop lag (600 ms "p95" vs 10 ms on the server) — `--procs`.
+
+### Decisions taken in run 3
+- **A channel moderator hiding a paid live super chat or gift refunds it**, like the creator. The buyer paid for
+  visibility. (Boosted danmaku is unchanged: only the creator deleting it refunds.)
+- Moderators time out by message, so numeric user ids are not published in chat.
+- Live is India/INR money only, never on embeds; the mobile app links to the web for super chats and gifts.
+- Production live goes through Cloudflare Stream; the sandbox `live` service must never run on the production host.
+- Dev and staging RTMP port ranges differ (19350–59 / 19450–59).
+
+### Still blocked or open after run 3
+| Item | Needs |
+|---|---|
+| Live in production | Cloudflare Stream account + token; wire `live/cloudflare.py` into `live/service.py` (create input, ingest details, `connected`/`disconnected` webhooks, replay import) |
+| Live money | CA sign-off and Route keys (as run 2) |
+| Store builds, device run, in-app purchases | Apple and Google developer accounts; `eas init`; APNs key and FCM in EAS; a simulator or device; designed icon and screenshots |
+| Instagram live | Meta app review (`instagram_business_content_publish`); a token-refresh job (60-day tokens) |
+| Reporting live chat/streams | `/reports` targets `live_message` and `live` (migration + moderation queue) — in-room moderation and the admin stop exist |
+| Counter-notices | an endpoint writing `kv_trust.takedowns.counter_notice` (the web uses the appeal route) |
+| Takedown clocks | lawyer to confirm 72 h / 36 h windows (`routers/trust.py` SLA) — in `docs/LEGAL-OPEN.md` |
+| Legal | lawyer review of the seven drafts and every `[PLACEHOLDER]` |
+| The server rerun | 500 viewers on the real VPS (this Mac: 300 viewers p95 ≤ 200 ms on dev, 100 viewers p95 ≤ 15 ms on the stack) |
+| VPS / DNS | the host and domain |
 
 ## Run 2 — V1 gaps, V2 Earn on the sandbox rail, V3 Community & learning (3 Nov 2026)
 

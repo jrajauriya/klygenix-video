@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-from datetime import date, datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -21,6 +21,7 @@ from app.video.models.tax import TaxInvoice
 from app.video.rails import RailError, rail_for, rail_named
 from app.video.services.numbering import next_number
 from app.video.tax.gst import split_amount, treatment
+from app.video.clock import ist_today
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +48,7 @@ def quote(db: Session, plan: Plan, country: str, state_code: str | None) -> dict
     amount, currency = price(plan, country)
     seller = admin_tenant(db)
     seller_state = (seller.gst_number or "")[:2] or None
-    t = treatment(db, code=TAX_CODE, on=date.today(), seller_gstin=seller.gst_number, seller_state=seller_state,
+    t = treatment(db, code=TAX_CODE, on=ist_today(), seller_gstin=seller.gst_number, seller_state=seller_state,
                   buyer_country=country, buyer_state=state_code)
     parts = split_amount(amount, t, inclusive=True)
     return {"plan_key": plan.key, "amount_minor": amount, "currency": currency, "taxable_minor": parts["taxable_minor"],
@@ -120,8 +121,8 @@ def _invoice(db: Session, chk: Checkout, payment: Payment, buyer: User) -> TaxIn
     profile = db.get(Profile, buyer.id)
     kind = "plan" if chk.country == "IN" else "export"
     inv = TaxInvoice(
-        tenant_id=seller.id, kind=kind, number=next_number(db, tenant_id=seller.id, series="PLY", day=date.today()),
-        invoice_date=date.today(), order_id=chk.id,
+        tenant_id=seller.id, kind=kind, number=next_number(db, tenant_id=seller.id, series="PLY", day=ist_today()),
+        invoice_date=ist_today(), order_id=chk.id,
         seller={"name": seller.name, "address": seller.address, "email": seller.email, "gstin": seller.gst_number,
                 "order_number": f"CHK-{chk.id}"},
         buyer={"name": buyer.name, "email": buyer.email, "country": chk.country, "state": chk.state_code,
@@ -158,7 +159,7 @@ def _post_sale(db: Session, chk: Checkout, payment: Payment, inv: TaxInvoice) ->
              .dr("gateway_fees", payment.fee_minor).dr("tax_input", payment.tax_on_fee_minor)
              .cr("sales", chk.taxable_minor).cr("tax_output_cgst", inv.cgst_minor)
              .cr("tax_output_sgst", inv.sgst_minor).cr("tax_output_igst", inv.igst_minor))
-    j = post(db, tenant_id=seller.id, business_date=date.today(), source_type="plan_payment", source_id=payment.id,
+    j = post(db, tenant_id=seller.id, business_date=ist_today(), source_type="plan_payment", source_id=payment.id,
              lines=entry, idempotency_key=f"plan-payment-{payment.id}", currency="INR",
              memo=f"Plan {chk.plan_key} for user {chk.user_id}")
     return j.id

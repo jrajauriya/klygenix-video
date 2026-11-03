@@ -12,7 +12,7 @@ export SENTRY_RELEASE="${SENTRY_RELEASE:-klygenix-video@$(git -C "$ROOT" rev-par
 export VITE_SENTRY_RELEASE="${VITE_SENTRY_RELEASE:-$SENTRY_RELEASE}"
 
 compose() {
-  docker compose -p "$PROJECT" --project-directory "$INFRA" --env-file "$ENV_FILE" \
+  COMPOSE_PROFILES=sandbox-live docker compose -p "$PROJECT" --project-directory "$INFRA" --env-file "$ENV_FILE" \
     -f "$INFRA/docker-compose.prod.yml" -f "$INFRA/docker-compose.staging.yml" "$@"
 }
 value() { grep -E "^$1=" "$ENV_FILE" | tail -n1 | cut -d= -f2- || true; }
@@ -121,7 +121,7 @@ smoke() {
   py="$ROOT/backend/venv/bin/python"; [[ -x "$py" ]] || py=python3
   KV_METRICS_TOKEN="$(value METRICS_TOKEN)" KV_ADMIN_EMAIL="$(value GLOBAL_ADMIN_EMAIL)" \
     KV_ADMIN_PASSWORD="$(value GLOBAL_ADMIN_PASSWORD)" "$py" "$ROOT/tests/smoke/post_deploy.py" --base "https://$domain:$port" --insecure \
-      --http-base "http://$domain:$(value STAGING_HTTP_PORT)" "$@"
+      --http-base "http://$domain:$(value STAGING_HTTP_PORT)" --rtmp-host 127.0.0.1 "$@"
 }
 
 csp() {

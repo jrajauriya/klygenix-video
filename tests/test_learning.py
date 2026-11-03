@@ -40,6 +40,10 @@ print("\n== Personal notes")
 n = learner.post(f"/api/video/videos/{pid}/notes", json={"t_ms": 42_000, "body": "validate-jwt checks audience"})
 check("a note is saved at a moment", (n.status_code, n.json()["label"]), (201, "00:42"))
 check("notes are private", other.get(f"/api/video/videos/{pid}/notes").json(), [])
+mine = [x for x in learner.get("/api/video/me/study").json() if x["video"]["id"] == pid]
+check("my study list shows the video with its note and best score", mine and (mine[0]["notes"], mine[0]["best_score"], mine[0]["best_total"]),
+      (1, len(right), len(right)))
+ok("someone else's study list does not", not [x for x in other.get("/api/video/me/study").json() if x["video"]["id"] == pid])
 check("only the author deletes a note", other.delete(f"/api/video/notes/{n.json()['id']}").status_code, 404)
 check("the author deletes it", learner.delete(f"/api/video/notes/{n.json()['id']}").status_code, 204)
 

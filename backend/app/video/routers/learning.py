@@ -124,6 +124,36 @@ def note_out(n: Note) -> dict:
     return {"id": n.id, "t_ms": n.t_ms, "label": fmt_ts(n.t_ms), "body": n.body, "created_at": iso(n.created_at)}
 
 
+@router.get("/me/study")
+def my_study(limit: int = 50, ctx: Ctx = Depends(signed_in)):
+    uid = ctx.user.id
+    notes = dict(ctx.db.execute(select(Note.video_id, func.count(Note.id)).where(Note.user_id == uid)
+                                .group_by(Note.video_id)).all())
+    noted = dict(ctx.db.execute(select(Note.video_id, func.max(Note.created_at)).where(Note.user_id == uid)
+                                .group_by(Note.video_id)).all())
+    best: dict[int, tuple[int, int]] = {}
+    tried: dict = {}
+    for vid, score, total, at in ctx.db.execute(select(QuizAttempt.video_id, QuizAttempt.score, QuizAttempt.total,
+                                                       QuizAttempt.created_at).where(QuizAttempt.user_id == uid)).all():
+        if vid not in best or score * best[vid][1] > best[vid][0] * total:
+            best[vid] = (score, total)
+        tried[vid] = max(tried.get(vid, at), at)
+    ids = set(notes) | set(best)
+    if not ids:
+        return []
+    videos = {v.id: v for v in ctx.db.execute(select(Video).where(Video.id.in_(ids), Video.is_deleted.is_(False),
+                                                                  Video.status == "published")).scalars()}
+    out = []
+    for vid, v in videos.items():
+        last = max(x for x in (noted.get(vid), tried.get(vid)) if x is not None)
+        score = best.get(vid)
+        out.append({"video": {"id": v.public_id, "title": v.title, "duration_ms": v.duration_ms},
+                    "notes": notes.get(vid, 0), "best_score": score[0] if score else None,
+                    "best_total": score[1] if score else None, "last_activity_at": iso(last)})
+    out.sort(key=lambda x: x["last_activity_at"] or "", reverse=True)
+    return out[:max(1, min(limit, 200))]
+
+
 @router.get("/videos/{public_id}/notes")
 def list_notes(public_id: str, ctx: Ctx = Depends(signed_in)):
     v = readable(Viewer(db=ctx.db, user=ctx.user), public_id)

@@ -7,6 +7,8 @@ from app.core.services import secrets
 class Settings(BaseSettings):
     DATABASE_URL: str = "postgresql://klygenix_video:klygenix_video@localhost:25436/klygenix_video"
     APP_DATABASE_URL: str = ""
+    DB_POOL_SIZE: int = 10
+    DB_MAX_OVERFLOW: int = 20
     SECRET_KEY: str = "dev-secret-key-change-in-production"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 480
@@ -152,6 +154,20 @@ class Settings(BaseSettings):
     YOUTUBE_PROVIDER: str = "sandbox"
     FACE_PROVIDER: str = "sandbox"
     PUBLISH_PROVIDER: str = "sandbox"
+    LIVE_PROVIDER: str = "sandbox"
+    LIVE_RTMP_HOST: str = "localhost"
+    LIVE_GATE_BIND: str = "127.0.0.1"
+    LIVE_RTMP_PORTS: str = "19350-19359"
+    LIVE_IDLE_END_SECONDS: int = 45
+    LIVE_WORKER_INLINE: bool = True
+    CF_ACCOUNT_ID: str = ""
+    PUSH_PROVIDER: str = "sandbox"
+    INSTAGRAM_PROVIDER: str = "sandbox"
+    INSTAGRAM_APP_ID: str = ""
+    INSTAGRAM_APP_SECRET: str = ""
+    EXPO_ACCESS_TOKEN: str = ""
+    CF_STREAM_TOKEN: str = ""
+    CF_STREAM_CUSTOMER_HOST: str = ""
     TTS_PROVIDER: str = "sandbox"
     AZURE_TTS_KEY: str = ""
     AZURE_TTS_REGION: str = "centralindia"

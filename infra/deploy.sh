@@ -1,10 +1,11 @@
 #!/bin/bash
-# Usage: VPS_HOST=root@1.2.3.4 bash infra/deploy.sh [--staging] [--env-file infra/.env.staging] [--dry-run] [--skip-readiness]
+# Usage: VPS_HOST=root@1.2.3.4 bash infra/deploy.sh [--staging] [--env-file infra/.env.staging] [--dry-run] [--skip-readiness] [--rollback]
 set -euo pipefail
 
 STAGING=0
 DRY_RUN=0
 SKIP_READINESS=0
+ROLLBACK=0
 HOST_ARG=""
 STAGING_ENV=""
 
@@ -13,6 +14,7 @@ while [[ $# -gt 0 ]]; do
     --staging) STAGING=1; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
     --skip-readiness) SKIP_READINESS=1; shift ;;
+    --rollback) ROLLBACK=1; shift ;;
     --env-file) STAGING_ENV="$2"; shift 2 ;;
     -h|--help) sed -n 2p "$0"; exit 0 ;;
     -*) echo "unknown option: $1"; exit 2 ;;
@@ -38,6 +40,7 @@ APPS=(web studio admin)
 APP_UID=10001
 if [[ "$STAGING" == "1" ]]; then
   TARGET="staging"
+  IMAGE="klygenix-video-backend:staging"
   REMOTE_DIR="${REMOTE_DIR:-/opt/klygenix-video-staging}"
   COMPOSE="docker compose -p klygenix-video-staging --env-file .env.staging -f docker-compose.prod.yml -f docker-compose.staging.yml"
   REMOTE_ENV="$REMOTE_DIR/infra/.env.staging"
@@ -47,6 +50,7 @@ if [[ "$STAGING" == "1" ]]; then
   REQUIRED_REMOTE=("$REMOTE_ENV" "$KEY_FILE" "$REMOTE_DIR/infra/build/staging/ssl/origin.pem" "$REMOTE_DIR/infra/build/staging/ssl/origin-key.pem")
 else
   TARGET="production"
+  IMAGE="klygenix-video-backend:current"
   REMOTE_DIR="${REMOTE_DIR:-/opt/klygenix-video}"
   COMPOSE="docker compose -f docker-compose.prod.yml"
   REMOTE_ENV="$REMOTE_DIR/backend/.env.prod"
@@ -85,6 +89,20 @@ remote "$checks"
 echo "      The containers run as uid $APP_UID: the master key is handed to it, mode 0400."
 remote "chown $APP_UID:$APP_UID $KEY_FILE && chmod 0400 $KEY_FILE"
 
+if [[ "$ROLLBACK" == "1" ]]; then
+  echo "[rollback] Restoring the previous backend image and frontends (migrations are not reverted: forward-fix them)..."
+  remote "docker image inspect $IMAGE-prev >/dev/null 2>&1 || { echo 'no previous image ($IMAGE-prev) on host'; exit 1; }; docker image tag $IMAGE-prev $IMAGE"
+  for app in "${APPS[@]}"; do
+    d="$REMOTE_DIR/apps/$app"
+    remote "if [ -d $d/dist.prev ]; then find $d/dist -mindepth 1 -delete && cp -a $d/dist.prev/. $d/dist/; else echo 'no dist.prev for $app'; fi"
+  done
+  remote "$IN_INFRA $COMPOSE up -d --no-build backend worker-ai worker-render scheduler"
+  remote "$IN_INFRA $COMPOSE restart nginx"
+  echo
+  echo "=== Rolled back ($TARGET) ==="
+  exit 0
+fi
+
 echo "[2/9] Typechecking..."
 for app in "${APPS[@]}"; do
   run npx tsc --noEmit -p "apps/$app/tsconfig.app.json"
@@ -114,12 +132,16 @@ if [[ "$STAGING" == "1" ]]; then
   upload infra/staging/seed.py "$VPS_HOST:$REMOTE_DIR/infra/staging/"
   remote "mkdir -p $(printf "$REMOTE_DIR/apps/%s " "${APPS[@]}")"
   for app in "${APPS[@]}"; do
+    d="$REMOTE_DIR/apps/$app"
+    remote "if [ -d $d/dist ]; then rm -rf $d/dist.prev && cp -a $d/dist $d/dist.prev; fi"
     upload "apps/$app/dist" "$VPS_HOST:$REMOTE_DIR/apps/$app/"
   done
   upload infra/nginx/prod.conf.template infra/nginx/render.sh infra/nginx/snippets "$VPS_HOST:$REMOTE_DIR/infra/nginx/"
 else
   remote "mkdir -p $(printf "$REMOTE_DIR/apps/%s " "${APPS[@]}")"
   for app in "${APPS[@]}"; do
+    d="$REMOTE_DIR/apps/$app"
+    remote "if [ -d $d/dist ]; then rm -rf $d/dist.prev && cp -a $d/dist $d/dist.prev; fi"
     upload "apps/$app/dist" "$VPS_HOST:$REMOTE_DIR/apps/$app/"
   done
   snippets="infra/nginx/snippets"
@@ -131,7 +153,8 @@ else
   upload infra/nginx/prod.conf.template infra/nginx/render.sh "$snippets" "$VPS_HOST:$REMOTE_DIR/infra/nginx/"
 fi
 
-echo "[5/9] Building the backend image..."
+echo "[5/9] Building the backend image (the running one is kept as $IMAGE-prev for --rollback)..."
+remote "docker image inspect $IMAGE >/dev/null 2>&1 && docker image tag $IMAGE $IMAGE-prev || true"
 remote "$IN_INFRA $COMPOSE build backend"
 
 echo "[6/9] Readiness gate (python -m app.readiness inside the new image)..."

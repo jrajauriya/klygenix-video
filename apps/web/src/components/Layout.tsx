@@ -224,6 +224,8 @@ export function Footer() {
     { to: "/legal/guidelines", label: "Community guidelines" },
     { to: "/legal/copyright", label: "Copyright" },
     { to: "/legal/grievance", label: "Grievance officer" },
+    { to: "/legal/monetisation", label: "Creator monetisation" },
+    { to: "/legal/live", label: "Live rules" },
     { to: "/plans", label: "Plans" },
   ]
   return (

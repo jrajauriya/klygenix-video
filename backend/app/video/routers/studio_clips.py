@@ -223,6 +223,12 @@ def add_target(clip_id: int, data: TargetIn, ctx: StudioCtx = Depends(studio("vi
         raise err(400, "action_not_allowed")
     if c.status not in ("rendered", "published") or not c.output_key:
         raise err(409, "video_not_ready")
+    from app.video.models.social import ConnectedChannel
+
+    if not ctx.db.execute(select(ConnectedChannel.id).where(ConnectedChannel.tenant_id == ctx.tenant_id,
+                                                            ConnectedChannel.platform == data.platform,
+                                                            ConnectedChannel.status == "active")).first():
+        raise err(409, "connect_account_first")
     t = ctx.db.execute(select(PublishTarget).where(PublishTarget.clip_id == c.id,
                                                    PublishTarget.platform == data.platform)).scalars().first()
     if t is not None and t.status in ("queued", "publishing", "published"):

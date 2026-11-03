@@ -10,10 +10,11 @@ from sqlalchemy import delete, select, update
 from app.core import audit
 from app.core.messages import err
 from app.video.models.ai import AskMessage
+from app.video.models.community import LiveMessage
 from app.video.models.commerce import Checkout, Subscription, UsageCounter
 from app.video.models.media import Video
 from app.video.models.social import (
-    Channel, Comment, Danmaku, DeviceToken, Follow, Like, Playlist, Profile, WatchProgress,
+    Channel, Comment, Danmaku, DeviceToken, Follow, Like, Playlist, Profile, PushMessage, WatchProgress,
 )
 from app.video.models.trust import Appeal, Report
 from app.video.present import iso
@@ -87,6 +88,10 @@ def export(ctx: Ctx = Depends(signed_in)):
                     for r in rows(db, Danmaku, Danmaku.user_id == uid)],
         "questions": [{"video_id": r.video_id, "question": r.question, "answer": r.answer, "status": r.status,
                        "created_at": iso(r.created_at)} for r in rows(db, AskMessage, AskMessage.user_id == uid)],
+        "live_chat": [{"id": r.id, "stream_id": r.stream_id, "kind": r.kind, "body": r.body, "paid_minor": r.paid_minor,
+                       "status": r.status, "created_at": iso(r.created_at)} for r in rows(db, LiveMessage, LiveMessage.user_id == uid)],
+        "notifications": [{"kind": r.kind, "title": r.title, "body": r.body, "status": r.status, "created_at": iso(r.created_at)}
+                          for r in rows(db, PushMessage, PushMessage.user_id == uid)],
         "playlists": [{"id": r.id, "title": r.title, "visibility": r.visibility} for r in rows(db, Playlist, Playlist.tenant_id == ctx.tenant_id)],
         "subscriptions": [{"plan_key": r.plan_key, "status": r.status, "current_period_end": iso(r.current_period_end)}
                           for r in rows(db, Subscription, Subscription.user_id == uid)],
@@ -115,8 +120,9 @@ def erase(data: EraseIn, ctx: Ctx = Depends(signed_in)):
                                                  Subscription.cancel_at_period_end.is_(False))).scalars().first()
     if paid is not None:
         raise err(409, "cancel_plan_first")
-    for model in (Follow, Like, WatchProgress, AskMessage, UsageCounter, DeviceToken):
+    for model in (Follow, Like, WatchProgress, AskMessage, UsageCounter, DeviceToken, PushMessage):
         db.execute(delete(model).where(model.user_id == uid))
+    db.execute(update(LiveMessage).where(LiveMessage.user_id == uid).values(status="deleted", body="", author_name="Deleted user"))
     db.execute(update(Comment).where(Comment.user_id == uid).values(status="deleted", body="", author_name="Deleted user"))
     db.execute(update(Danmaku).where(Danmaku.user_id == uid).values(status="deleted", text=""))
     db.execute(update(Playlist).where(Playlist.tenant_id == ctx.tenant_id).values(visibility="private"))
@@ -144,3 +150,39 @@ def erase(data: EraseIn, ctx: Ctx = Depends(signed_in)):
                  after={"kept": "invoices, payments and ledger entries (tax law)"})
     db.commit()
     return Response(status_code=204)
+
+
+class NotifyIn(BaseModel):
+    render_ready: bool | None = None
+    published: bool | None = None
+    live: bool | None = None
+    membership: bool | None = None
+
+
+@router.get("/me/notifications")
+def get_notifications(ctx: Ctx = Depends(signed_in)):
+    from app.video.services.push import prefs
+
+    return prefs(ctx.user)
+
+
+@router.put("/me/notifications")
+def put_notifications(data: NotifyIn, ctx: Ctx = Depends(signed_in)):
+    from app.video.services.push import prefs
+
+    current = prefs(ctx.user)
+    current.update({k: v for k, v in data.model_dump().items() if v is not None})
+    ctx.user.settings = {**(ctx.user.settings or {}), "notify": current}
+    ctx.db.commit()
+    return current
+
+
+@router.get("/me/notifications/history")
+def notification_history(ctx: Ctx = Depends(signed_in)):
+    from app.video.models.social import PushMessage
+    from app.video.present import iso
+
+    rows = ctx.db.execute(select(PushMessage).where(PushMessage.user_id == ctx.user.id)
+                          .order_by(PushMessage.id.desc()).limit(50)).scalars().all()
+    return [{"id": m.id, "kind": m.kind, "title": m.title, "body": m.body, "data": m.data, "status": m.status,
+             "created_at": iso(m.created_at)} for m in rows]

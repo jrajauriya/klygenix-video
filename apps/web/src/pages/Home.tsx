@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query"
 import { Clapperboard, History, Users, Video } from "lucide-react"
 import { PageShell } from "../components/Layout"
 import { Shelf } from "../components/Shelf"
+import { LiveNowShelf } from "../components/Live"
 import { CardSkeletons, Empty, Skel, Tabs } from "../components/bits"
 import { ReelTile, Thumb, VideoGridCard } from "../components/VideoCards"
 import { getJson, useSignedIn } from "../lib/api"
@@ -64,6 +65,8 @@ export default function HomePage() {
         </section>
       ) : (
         <>
+          <LiveNowShelf />
+
           {resume.length > 0 && (
             <Shelf title="Continue watching" icon={<History size={18} className="text-brand-soft" />}>
               {resume.map((h) => (

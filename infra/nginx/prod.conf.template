@@ -2,8 +2,15 @@ server_tokens off;
 include /etc/nginx/snippets/csp-extra.conf;
 
 resolver 127.0.0.11 valid=10s ipv6=off;
-map $host $kv_backend { default backend:9300; }
-map $http_upgrade $kv_connection { default upgrade; '' close; }
+upstream kv_api {
+    zone kv_api 64k;
+    server backend:9300 resolve;
+    keepalive 64;
+    keepalive_requests 10000;
+    keepalive_timeout 60s;
+}
+map $host $kv_backend { default kv_api; }
+map $http_upgrade $kv_connection { default upgrade; '' ''; }
 
 gzip on;
 gzip_vary on;
@@ -37,9 +44,6 @@ server {
 
     location /api/video/ws/ {
         proxy_pass http://$kv_backend;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection $kv_connection;
         include /etc/nginx/snippets/proxy-backend.conf;
         proxy_read_timeout 3600s;
         proxy_send_timeout 3600s;

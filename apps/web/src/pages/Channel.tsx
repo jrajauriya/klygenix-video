@@ -5,6 +5,7 @@ import { BadgeCheck, Clapperboard, Coins, Crown, Flag, ListVideo, Megaphone, Mes
 import { PageShell } from "../components/Layout"
 import { Btn, CardSkeletons, ChannelAvatar, Empty, Skel, Tabs } from "../components/bits"
 import { FollowButton } from "../components/FollowButton"
+import { ChannelLiveLink, LiveBadge, useChannelLiveNow } from "../components/Live"
 import { PlaylistTile } from "../components/Playlists"
 import { ReportDialog, type ReportTarget } from "../components/ReportDialog"
 import { MembershipTiers, TipSheet } from "../components/Support"
@@ -48,6 +49,7 @@ function Channel({ handle }: { handle: string }) {
     queryFn: () => getJson<PlaylistSummary[]>(`/api/video/channels/${handle}/playlists`),
   })
   const support = useChannelSupport(handle, ch.isSuccess)
+  const onAir = useChannelLiveNow(handle, ch.isSuccess)
   useTitle(ch.data?.name)
 
   if (ch.isError) return <NotFound what="channel" />
@@ -62,12 +64,15 @@ function Channel({ handle }: { handle: string }) {
       <div className="relative h-32 w-full overflow-hidden bg-gradient-to-br from-[#4A044E] via-[#1b1b27] to-[#0b0b12] sm:h-48 lg:h-56">
         {c?.banner && <img src={c.banner} alt="" className="h-full w-full object-cover" />}
       </div>
-      <PageShell className="-mt-10 sm:-mt-14">
+      <PageShell className="relative -mt-10 sm:-mt-14">
         {!c ? (
           <div className="flex items-end gap-4"><Skel className="h-24 w-24 rounded-full" /><div className="space-y-2"><Skel className="h-6 w-48" /><Skel className="h-4 w-32" /></div></div>
         ) : (
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
-            <ChannelAvatar channel={c} size={104} className="ring-4 ring-bg" />
+            <div className="relative w-fit shrink-0">
+              <ChannelAvatar channel={c} size={104} className={onAir.live ? "ring-4 ring-[#dc2626]" : "ring-4 ring-bg"} />
+              {onAir.live && <LiveBadge className="absolute -bottom-1 left-1/2 -translate-x-1/2 ring-2 ring-bg" />}
+            </div>
             <div className="min-w-0 flex-1">
               <h1 className="flex items-center gap-2 text-2xl font-bold sm:text-3xl">
                 <span className="truncate">{c.name}</span>
@@ -78,6 +83,7 @@ function Channel({ handle }: { handle: string }) {
                 {c.created_at && <> · Joined {longDate(c.created_at)}</>}
               </p>
               {c.about && <p className="mt-2 line-clamp-3 max-w-2xl text-sm text-ink/80">{c.about}</p>}
+              {(onAir.live || onAir.upcoming) && <div className="mt-3"><ChannelLiveLink live={onAir.live} upcoming={onAir.upcoming} /></div>}
             </div>
             <div className="flex items-center gap-2">
               {!mine && <FollowButton handle={c.handle} following={c.following} />}

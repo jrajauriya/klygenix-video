@@ -15,6 +15,7 @@ import { ProductLinks } from "../../components/ProductLinks"
 import { api, detail } from "../../lib/api"
 import { useAuth } from "../../lib/auth"
 import { clock, compact } from "../../lib/format"
+import { useT } from "../../lib/i18n"
 import { sendProgress } from "../../lib/progress"
 import { colour, s } from "../../lib/theme"
 import type { VideoDetail } from "../../lib/types"
@@ -66,6 +67,7 @@ function useWatchPlayer(video: VideoDetail | undefined, startMs: number, track: 
 export default function Watch() {
   const { id, t } = useLocalSearchParams<{ id: string; t?: string }>()
   const { user } = useAuth()
+  const { t: say } = useT()
   const [liked, setLiked] = useState<boolean | null>(null)
   const [following, setFollowing] = useState<boolean | null>(null)
   const [ended, setEnded] = useState(false)
@@ -130,7 +132,7 @@ export default function Watch() {
   if (error || !video) {
     return (
       <View style={s.centred}>
-        <Text style={s.error}>{detail(error, "This video could not be found.")}</Text>
+        <Text style={s.error}>{detail(error, say("watch.notFound"))}</Text>
       </View>
     )
   }
@@ -158,21 +160,21 @@ export default function Watch() {
             onPress={() => Linking.openURL(embed.source_url)}
             style={[s.button, { marginTop: 10 }]}
             accessibilityRole="link"
-            accessibilityLabel={`Watch on ${embed.type === "youtube" ? "YouTube" : "Bilibili"}`}
+            accessibilityLabel={say("watch.on", { platform: embed.type === "youtube" ? "YouTube" : "Bilibili" })}
           >
-            <Text style={s.buttonText}>Watch on {embed.type === "youtube" ? "YouTube" : "Bilibili"}</Text>
+            <Text style={s.buttonText}>{say("watch.on", { platform: embed.type === "youtube" ? "YouTube" : "Bilibili" })}</Text>
           </Pressable>
         </View>
       )}
       <ScrollView contentContainerStyle={s.body} keyboardShouldPersistTaps="handled">
         <Text style={s.title}>{video.title}</Text>
         <Text style={s.subtitle}>
-          {compact(video.views)} views · {video.duration}
+          {say("watch.views", { n: compact(video.views) })} · {video.duration}
         </Text>
         <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
           {video.ai_generated && (
             <View style={s.chip}>
-              <Text style={s.chipText}>AI-generated</Text>
+              <Text style={s.chipText}>{say("watch.aiGenerated")}</Text>
             </View>
           )}
           <AccessBadge access={video.access} priceMinor={video.price_minor} />
@@ -189,7 +191,7 @@ export default function Watch() {
           >
             <Text style={{ fontWeight: "700", color: colour.navy }}>{video.channel.name} ›</Text>
             <Text style={{ fontSize: 12, color: colour.slate500 }}>
-              @{video.channel.handle} · {compact(video.channel.followers)} followers
+              @{video.channel.handle} · {say("watch.followers", { n: compact(video.channel.followers) })}
             </Text>
           </Pressable>
           {!video.is_owner && (
@@ -198,7 +200,7 @@ export default function Watch() {
               accessibilityRole="button"
               accessibilityLabel={following ? "Unfollow channel" : "Follow channel"}
               style={[s.chip, following ? { backgroundColor: colour.brand } : null]}>
-              <Text style={[s.chipText, following ? { color: colour.white } : null]}>{following ? "Following" : "Follow"}</Text>
+              <Text style={[s.chipText, following ? { color: colour.white } : null]}>{following ? say("watch.following") : say("watch.follow")}</Text>
             </Pressable>
           )}
         </View>
@@ -209,22 +211,22 @@ export default function Watch() {
           accessibilityLabel={liked ? "Unlike" : "Like"}
           style={[s.outline, liked ? { backgroundColor: colour.brandLight } : null]}>
           <Text style={s.outlineText}>
-            {liked ? "♥ Liked" : "♡ Like"} · {compact(video.likes + (liked === null ? 0 : Number(liked) - Number(video.liked)))}
+            {liked ? say("watch.liked") : say("watch.like")} · {compact(video.likes + (liked === null ? 0 : Number(liked) - Number(video.liked)))}
           </Text>
         </Pressable>
 
         {video.insight?.summary ? (
           <>
-            <Text style={s.heading}>Summary</Text>
+            <Text style={s.heading}>{say("watch.summary")}</Text>
             <Text style={[s.text, { marginTop: 6 }]}>{video.insight.summary}</Text>
           </>
         ) : video.ai_status && video.ai_status !== "ready" ? (
-          <Text style={s.note}>The summary and chapters are still being prepared.</Text>
+          <Text style={s.note}>{say("watch.preparing")}</Text>
         ) : null}
 
         {chapters.length > 0 && (
           <>
-            <Text style={s.heading}>Chapters</Text>
+            <Text style={s.heading}>{say("watch.chapters")}</Text>
             {chapters.map((c) => (
               <Pressable
                 key={`${c.start_ms}-${c.title}`}
@@ -242,7 +244,7 @@ export default function Watch() {
 
         {video.description ? (
           <>
-            <Text style={s.heading}>About</Text>
+            <Text style={s.heading}>{say("watch.about")}</Text>
             <Text style={[s.text, { marginTop: 6 }]}>{video.description}</Text>
           </>
         ) : null}
@@ -252,9 +254,23 @@ export default function Watch() {
         {video.products && video.products.items.length > 0 && <ProductLinks products={video.products} />}
 
         {locked ? (
-          <Text style={[s.note, { marginTop: 24 }]}>Ask, the transcript and your notes open once you have access to this video.</Text>
+          <Text style={[s.note, { marginTop: 24 }]}>{say("watch.lockedTools")}</Text>
         ) : (
           <>
+            {(url || video.insight) && (
+              <Pressable
+                onPress={() => router.push(`/study/${video.id}`)}
+                style={[s.card, s.row, { gap: 12 }]}
+                accessibilityRole="button"
+                accessibilityLabel={say("watch.study")}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontWeight: "700", color: colour.navy }}>{say("watch.study")}</Text>
+                  <Text style={{ marginTop: 2, fontSize: 12, color: colour.slate500 }}>{say("watch.studyHint")}</Text>
+                </View>
+                <Text style={s.link}>›</Text>
+              </Pressable>
+            )}
             {url && <AskBox publicId={video.id} onSeek={seek} />}
             {user && url && <Notes publicId={video.id} now={() => player.currentTime * 1000} onSeek={seek} />}
           </>

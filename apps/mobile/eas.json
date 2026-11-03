@@ -4,17 +4,38 @@
     "appVersionSource": "remote"
   },
   "build": {
+    "base": {
+      "node": "22.11.0",
+      "env": {
+        "EXPO_PUBLIC_WEB_URL": "https://play.klygenix.com"
+      }
+    },
     "development": {
+      "extends": "base",
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "channel": "development",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "http://localhost:9300",
+        "EXPO_PUBLIC_WEB_URL": "http://localhost:5300"
+      }
     },
     "preview": {
+      "extends": "base",
       "distribution": "internal",
-      "channel": "preview"
+      "channel": "preview",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://api.staging.play.klygenix.com",
+        "EXPO_PUBLIC_WEB_URL": "https://staging.play.klygenix.com"
+      }
     },
     "production": {
+      "extends": "base",
       "channel": "production",
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://api.play.klygenix.com"
+      }
     }
   },
   "submit": {

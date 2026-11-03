@@ -2,13 +2,18 @@ import axios from "axios"
 import Constants from "expo-constants"
 import { Linking } from "react-native"
 
+import { language } from "./lang"
 import { session } from "./session"
 
 export const API_URL =
-  (Constants.expoConfig?.extra as { apiUrl?: string } | undefined)?.apiUrl ?? "http://localhost:9300"
+  process.env.EXPO_PUBLIC_API_URL ??
+  (Constants.expoConfig?.extra as { apiUrl?: string } | undefined)?.apiUrl ??
+  "http://localhost:9300"
 
 export const WEB_URL =
-  (Constants.expoConfig?.extra as { webUrl?: string } | undefined)?.webUrl ?? "http://localhost:5300"
+  process.env.EXPO_PUBLIC_WEB_URL ??
+  (Constants.expoConfig?.extra as { webUrl?: string } | undefined)?.webUrl ??
+  "http://localhost:5300"
 
 export function openWeb(path: string): void {
   Linking.openURL(`${WEB_URL}${path}`).catch(() => null)
@@ -20,6 +25,7 @@ api.interceptors.request.use(async (config) => {
   const token = await session.token()
   if (token) config.headers.Authorization = `Bearer ${token}`
   config.headers["X-Klygenix-App"] = "mobile"
+  config.headers["Accept-Language"] = language.get()
   return config
 })
 
@@ -38,6 +44,8 @@ export function detail(error: unknown, fallback: string): string {
   if (Array.isArray(d) && d[0] && typeof d[0].msg === "string") return d[0].msg
   return fallback
 }
+
+export const WS_URL = API_URL.replace(/^http/, "ws")
 
 export function statusOf(error: unknown): number | undefined {
   return (error as { response?: { status?: number } })?.response?.status

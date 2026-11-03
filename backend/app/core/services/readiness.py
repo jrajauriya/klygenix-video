@@ -377,6 +377,11 @@ def evaluate(s: Settings, *, mode: str = "app", env: dict | None = None) -> list
     add(Check("youtube.oauth", "YouTube channel connection", "Integrations", WARN, yt_ok,
               "Configured." if yt_ok else "YOUTUBE_PROVIDER is sandbox: Connect YouTube imports a sample channel.",
               f"Google Cloud → OAuth client (web) with redirect {s.YOUTUBE_OAUTH_REDIRECT}; submit the consent screen for verification (sensitive scopes) and request a YouTube API quota extension."))
+    live_ok = s.LIVE_PROVIDER == "cloudflare" and bool(s.CF_ACCOUNT_ID and s.CF_STREAM_TOKEN and s.CF_STREAM_CUSTOMER_HOST)
+    add(Check("live.provider", "Live streaming ingest and delivery", "Video & AI", WARN, live_ok,
+              "Cloudflare Stream Live is configured." if live_ok else
+              "LIVE_PROVIDER is sandbox: going live is refused in production (the sandbox ingest runs ffmpeg on this server).",
+              "Set LIVE_PROVIDER=cloudflare with CF_ACCOUNT_ID, CF_STREAM_TOKEN (Stream:Edit) and CF_STREAM_CUSTOMER_HOST, and set LIVE_WORKER_INLINE=false."))
     route_ok = bool(s.RAZORPAY_KEY_ID and s.RAZORPAY_KEY_SECRET and s.ROUTE_PROFILE_CATEGORY and s.ROUTE_PROFILE_SUBCATEGORY)
     add(Check("route.payouts", "Creator payouts (Razorpay Route)", "Creator money", WARN, route_ok,
               "Route is configured: creators can activate payouts and take tips, memberships and paid videos." if route_ok else

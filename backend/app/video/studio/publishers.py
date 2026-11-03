@@ -9,7 +9,7 @@ from app.config import settings
 
 TIMEOUT = httpx.Timeout(600.0, connect=10.0)
 UPLOAD = "https://www.googleapis.com/upload/youtube/v3/videos"
-GRAPH = "https://graph.facebook.com/v21.0"
+GRAPH = "https://graph.instagram.com/v21.0"
 
 
 class PublishError(Exception):
@@ -101,7 +101,19 @@ def _youtube_token(tenant_id: int) -> str:
 
 
 def _instagram_account(tenant_id: int) -> tuple[str, str]:
-    raise PublishError("Connecting an Instagram professional account is not available yet.")
+    from sqlalchemy import select
+
+    from app.core.services import secrets as sealed
+    from app.video.models.social import ConnectedChannel
+    from app.video.sessions import platform_session
+
+    with platform_session() as db:
+        cc = db.execute(select(ConnectedChannel).where(ConnectedChannel.tenant_id == tenant_id,
+                                                       ConnectedChannel.platform == "instagram",
+                                                       ConnectedChannel.status == "active")).scalars().first()
+        if cc is None or not cc.access_token:
+            raise PublishError("Connect your Instagram professional account first.")
+        return cc.external_channel_id, sealed.resolve(cc.access_token)
 
 
 def publisher(platform: str):

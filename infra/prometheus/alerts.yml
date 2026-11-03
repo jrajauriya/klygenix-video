@@ -159,6 +159,24 @@ groups:
           summary: "{{ $value | humanize }} takedown notices are past their legal deadline"
           runbook: "infra/METRICS.md#kvtakedownsoverdue"
 
+  - name: klygenix-video-live
+    rules:
+      - alert: KvLiveIngestDown
+        expr: kv_live_ingest_stale > 0
+        for: 1m
+        labels: {severity: warning}
+        annotations:
+          summary: "{{ $value | humanize }} live streams have had no ingest for over 20 seconds"
+          runbook: "infra/METRICS.md#kvliveingestdown"
+
+      - alert: KvLiveFanoutSlow
+        expr: increase(kv_realtime_dropped_total[5m]) > 50
+        for: 0m
+        labels: {severity: warning}
+        annotations:
+          summary: "{{ $value | humanize }} realtime messages dropped in 5 minutes: sockets are falling behind"
+          runbook: "infra/METRICS.md#kvlivefanoutslow"
+
   - name: klygenix-video-host
     rules:
       - alert: KvDiskSpaceLow

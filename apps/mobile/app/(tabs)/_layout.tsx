@@ -1,6 +1,7 @@
 import { Tabs } from "expo-router"
 import { Text, type ColorValue } from "react-native"
 
+import { useT } from "../../lib/i18n"
 import { colour } from "../../lib/theme"
 
 function Glyph({ char, color }: { char: string; color: ColorValue }) {
@@ -8,6 +9,7 @@ function Glyph({ char, color }: { char: string; color: ColorValue }) {
 }
 
 export default function TabsLayout() {
+  const { t } = useT()
   return (
     <Tabs
       screenOptions={{
@@ -19,18 +21,22 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: "Feed",
+          title: t("tab.feed"),
           tabBarStyle: { backgroundColor: colour.night, borderTopColor: colour.nightCard },
           tabBarIcon: ({ color }) => <Glyph char="▶" color={color} />,
         }}
       />
       <Tabs.Screen
+        name="study"
+        options={{ title: t("tab.study"), tabBarIcon: ({ color }) => <Glyph char="✎" color={color} /> }}
+      />
+      <Tabs.Screen
         name="create"
-        options={{ title: "Create", tabBarIcon: ({ color }) => <Glyph char="＋" color={color} /> }}
+        options={{ title: t("tab.create"), tabBarIcon: ({ color }) => <Glyph char="＋" color={color} /> }}
       />
       <Tabs.Screen
         name="profile"
-        options={{ title: "Profile", tabBarIcon: ({ color }) => <Glyph char="●" color={color} /> }}
+        options={{ title: t("tab.profile"), tabBarIcon: ({ color }) => <Glyph char="●" color={color} /> }}
       />
     </Tabs>
   )

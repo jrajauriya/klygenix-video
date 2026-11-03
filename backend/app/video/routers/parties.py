@@ -150,33 +150,23 @@ def end_party(code: str, ctx: Ctx = Depends(signed_in)):
 
 @router.websocket("/ws/parties/{code}")
 async def party_room(websocket: WebSocket, code: str):
-    from redis.asyncio import Redis
-
-    from app.config import settings
+    from app.video.realtime.hub import hub, relay
 
     try:
-        party = load(code)
+        party = await asyncio.to_thread(load, code)
     except Exception:
         await websocket.close(code=4404)
         return
     await websocket.accept()
-    client = Redis.from_url(settings.REDIS_URL)
-    pubsub = client.pubsub()
-    await pubsub.subscribe(channel(party["code"]))
+    client = await hub.client()
+    q = await hub.subscribe(channel(party["code"]))
     members = f"{key(party['code'])}:members"
     me = secrets.token_hex(8)
     await client.sadd(members, me)
     await client.expire(members, TTL)
     await client.publish(channel(party["code"]), json.dumps({"type": "members", "members": int(await client.scard(members))}))
 
-    async def pump():
-        async for message in pubsub.listen():
-            if message.get("type") != "message":
-                continue
-            data = message["data"]
-            await websocket.send_text(data.decode() if isinstance(data, bytes) else data)
-
-    task = asyncio.create_task(pump())
+    task = asyncio.create_task(relay(websocket, q))
     try:
         await websocket.send_text(json.dumps({"type": "hello", **public(party)}))
         while True:
@@ -192,6 +182,4 @@ async def party_room(websocket: WebSocket, code: str):
             await client.publish(channel(party["code"]), json.dumps({"type": "members", "members": int(await client.scard(members))}))
         except Exception:
             pass
-        await pubsub.unsubscribe(channel(party["code"]))
-        await pubsub.aclose()
-        await client.aclose()
+        await hub.unsubscribe(channel(party["code"]), q)

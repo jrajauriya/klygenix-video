@@ -8,6 +8,7 @@ export interface SessionUser {
   name: string
   email: string
   role: string
+  settings?: { language?: string }
 }
 
 type Listener = (user: SessionUser | null) => void
@@ -57,6 +58,11 @@ export const session = {
     await write(TOKEN, token)
     await write(USER, JSON.stringify(user))
     emit(user)
+  },
+
+  async remember(patch: Partial<SessionUser>): Promise<void> {
+    const current = await session.user()
+    if (current) await write(USER, JSON.stringify({ ...current, ...patch }))
   },
 
   async clear(): Promise<void> {

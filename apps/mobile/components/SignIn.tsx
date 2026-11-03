@@ -2,10 +2,12 @@ import { useState } from "react"
 import { ActivityIndicator, Pressable, Text, TextInput, View } from "react-native"
 
 import { api, detail } from "../lib/api"
+import { useT } from "../lib/i18n"
 import { session } from "../lib/session"
 import { colour, s } from "../lib/theme"
 
 export function SignIn({ onSignUp }: { onSignUp: () => void }) {
+  const { t } = useT()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
@@ -19,7 +21,7 @@ export function SignIn({ onSignUp }: { onSignUp: () => void }) {
       const { data } = await api.post("/api/auth/login", { email: email.trim(), password })
       await session.start(data.access_token, data.user)
     } catch (err) {
-      setError(detail(err, "That email and password did not work."))
+      setError(detail(err, t("signin.failed")))
     } finally {
       setBusy(false)
     }
@@ -28,7 +30,7 @@ export function SignIn({ onSignUp }: { onSignUp: () => void }) {
   return (
     <View>
       <Text style={s.title}>Klygenix Play</Text>
-      <Text style={s.subtitle}>Sign in to like, comment, ask and create.</Text>
+      <Text style={s.subtitle}>{t("signin.subtitle")}</Text>
       <TextInput
         style={[s.field, { marginTop: 24 }]}
         placeholder="you@example.com"
@@ -38,14 +40,14 @@ export function SignIn({ onSignUp }: { onSignUp: () => void }) {
         value={email}
         onChangeText={setEmail}
       />
-      <TextInput style={s.field} placeholder="Password" secureTextEntry value={password} onChangeText={setPassword} onSubmitEditing={() => !blocked && submit()} />
+      <TextInput style={s.field} placeholder={t("signin.password")} secureTextEntry value={password} onChangeText={setPassword} onSubmitEditing={() => !blocked && submit()} />
       {error && <Text style={s.error}>{error}</Text>}
       <Pressable onPress={submit} disabled={blocked} style={[s.button, blocked && s.disabled]}>
-        {busy ? <ActivityIndicator color={colour.white} /> : <Text style={s.buttonText}>Sign in</Text>}
+        {busy ? <ActivityIndicator color={colour.white} /> : <Text style={s.buttonText}>{t("common.signIn")}</Text>}
       </Pressable>
       <Pressable onPress={onSignUp} style={s.quiet}>
         <Text style={s.quietText}>
-          New here? <Text style={s.link}>Create an account</Text>
+          {t("signin.new")} <Text style={s.link}>{t("signin.create")}</Text>
         </Text>
       </Pressable>
     </View>

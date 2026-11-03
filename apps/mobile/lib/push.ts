@@ -1,8 +1,11 @@
+import { useEffect } from "react"
 import Constants from "expo-constants"
 import * as Notifications from "expo-notifications"
+import { router } from "expo-router"
 import { Platform } from "react-native"
 
 import { api } from "./api"
+import { appPath } from "./notifications"
 
 let registered: string | null = null
 
@@ -44,4 +47,24 @@ export async function forgetPush(): Promise<void> {
   } catch {
     return
   }
+}
+
+export async function pushAllowed(): Promise<boolean> {
+  try {
+    return (await Notifications.getPermissionsAsync()).granted
+  } catch {
+    return true
+  }
+}
+
+export function usePushRouting(): void {
+  useEffect(() => {
+    const open = (response: Notifications.NotificationResponse | null) => {
+      const path = appPath(response?.notification.request.content.data?.url)
+      if (path) router.push(path as never)
+    }
+    Notifications.getLastNotificationResponseAsync().then(open).catch(() => null)
+    const sub = Notifications.addNotificationResponseReceivedListener(open)
+    return () => sub.remove()
+  }, [])
 }

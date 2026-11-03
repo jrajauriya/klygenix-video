@@ -141,3 +141,38 @@ class DubTrack(Base):
     error: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = created()
     updated_at: Mapped[datetime] = updated()
+
+
+class LiveStream(Base):
+    __tablename__ = "live_streams"
+    __table_args__ = (
+        CheckConstraint("status IN ('scheduled','live','ended','failed')", name="ck_live_streams_status"),
+        UniqueConstraint("public_id", name="uq_live_streams_public_id"),
+        Index("idx_live_streams_status", "status", "started_at"),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[int] = pk()
+    tenant_id: Mapped[int] = tenant_fk()
+    channel_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("kv_social.channels.id", ondelete="CASCADE"), nullable=False)
+    public_id: Mapped[str] = mapped_column(String(16), nullable=False)
+    title: Mapped[str] = mapped_column(String(160), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
+    status: Mapped[str] = mapped_column(String(10), nullable=False, default="scheduled")
+    provider: Mapped[str] = mapped_column(String(12), nullable=False, default="sandbox")
+    provider_ref: Mapped[str | None] = mapped_column(String(80))
+    ingest_port: Mapped[int | None] = mapped_column(Integer)
+    stream_key: Mapped[str] = mapped_column(Text, nullable=False)
+    stream_key_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    scheduled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    slow_mode_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    members_rank: Mapped[int | None] = mapped_column(SmallInteger)
+    replay_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
+    replay_video_id: Mapped[int | None] = mapped_column(BigInteger)
+    peak_viewers: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = created()
+    updated_at: Mapped[datetime] = updated()

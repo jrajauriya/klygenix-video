@@ -3,10 +3,12 @@ import { Pressable, StyleSheet, Text, View } from "react-native"
 
 import { openWeb } from "../lib/api"
 import { price } from "../lib/format"
+import { useT } from "../lib/i18n"
 import { colour, s } from "../lib/theme"
 import type { Lock } from "../lib/types"
 
 export function LockCard({ lock, publicId, ended, dark }: { lock: Lock; publicId: string; ended?: boolean; dark?: boolean }) {
+  const { t } = useT()
   const members = lock.access === "members"
   const tiers = lock.tiers ?? []
   const text = dark ? st.darkText : s.text
@@ -14,50 +16,50 @@ export function LockCard({ lock, publicId, ended, dark }: { lock: Lock; publicId
 
   return (
     <View style={dark ? st.dark : [s.card, st.light]}>
-      <Text style={[st.title, { color: dark ? colour.white : colour.navy }]}>{members ? "Members only" : "Paid video"}</Text>
+      <Text style={[st.title, { color: dark ? colour.white : colour.navy }]}>{members ? t("lock.members") : t("lock.paid")}</Text>
       {ended ? (
-        <Text style={[hint, { marginTop: 4 }]}>The preview has ended.</Text>
+        <Text style={[hint, { marginTop: 4 }]}>{t("lock.previewEnded")}</Text>
       ) : lock.preview_seconds > 0 ? (
-        <Text style={[hint, { marginTop: 4 }]}>You are watching a {lock.preview_seconds}-second preview.</Text>
+        <Text style={[hint, { marginTop: 4 }]}>{t("lock.preview", { n: lock.preview_seconds })}</Text>
       ) : null}
 
       {members ? (
         tiers.length > 0 ? (
           <View style={{ marginTop: 8 }}>
-            <Text style={text}>Included with these memberships:</Text>
-            {tiers.map((t) => (
-              <Text key={t.id} style={[text, { marginTop: 4, fontWeight: "600" }]}>
-                {t.name} · {price(t.price_minor)} a month
+            <Text style={text}>{t("lock.included")}</Text>
+            {tiers.map((tier) => (
+              <Text key={tier.id} style={[text, { marginTop: 4, fontWeight: "600" }]}>
+                {tier.name} · {t("lock.perMonth", { price: price(tier.price_minor) })}
               </Text>
             ))}
           </View>
         ) : (
-          <Text style={[text, { marginTop: 8 }]}>This video is for members of the channel.</Text>
+          <Text style={[text, { marginTop: 8 }]}>{t("lock.forMembers")}</Text>
         )
       ) : (
         <View style={{ marginTop: 8 }}>
-          <Text style={[text, { fontWeight: "600" }]}>{price(lock.price_minor, lock.currency ?? "INR")} to watch</Text>
+          <Text style={[text, { fontWeight: "600" }]}>{t("lock.toWatch", { price: price(lock.price_minor, lock.currency ?? "INR") })}</Text>
           {(lock.series ?? []).map((sr) => (
             <Text key={sr.id} style={[hint, { marginTop: 4 }]}>
-              Also in the series “{sr.title}”{sr.price_minor ? ` · ${price(sr.price_minor)}` : ""}
+              {t("lock.series", { title: sr.title })}{sr.price_minor ? ` · ${price(sr.price_minor)}` : ""}
             </Text>
           ))}
         </View>
       )}
 
-      <Text style={[hint, { marginTop: 10 }]}>Memberships and purchases are handled on the Klygenix Play website.</Text>
+      <Text style={[hint, { marginTop: 10 }]}>{t("lock.web")}</Text>
       <Pressable
         onPress={() => openWeb(`/watch/${publicId}`)}
         style={[s.button, { marginTop: 12 }]}
         accessibilityRole="link"
-        accessibilityLabel="Open on the web"
+        accessibilityLabel={t("common.openWeb")}
       >
-        <Text style={s.buttonText}>Open on the web</Text>
+        <Text style={s.buttonText}>{t("common.openWeb")}</Text>
       </Pressable>
       {!lock.signed_in && (
-        <Pressable onPress={() => router.push("/profile")} style={[s.quiet, { marginTop: 4 }]} accessibilityRole="button" accessibilityLabel="Sign in">
+        <Pressable onPress={() => router.push("/profile")} style={[s.quiet, { marginTop: 4 }]} accessibilityRole="button" accessibilityLabel={t("common.signIn")}>
           <Text style={[s.quietText, dark && { color: colour.slate300 }]}>
-            Already have access? <Text style={s.link}>Sign in</Text>
+            {t("lock.haveAccess")} <Text style={s.link}>{t("common.signIn")}</Text>
           </Text>
         </Pressable>
       )}

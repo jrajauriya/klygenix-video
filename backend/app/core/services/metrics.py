@@ -11,26 +11,112 @@ logger = logging.getLogger(__name__)
 
 BUCKETS = (0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0)
 JOBS_KEY = "ks:metrics:jobs"
+REQ_KEY = "kv:metrics:http:requests"
+REALTIME_KEY = "kv:metrics:realtime"
+HIST_KEY = "kv:metrics:http:durations"
 DB_TTL = 10.0
+FLUSH_SECONDS = 1.0
 
 _lock = threading.Lock()
 _requests: dict[tuple[str, str, str], int] = defaultdict(int)
 _durations: dict[tuple[str, str], list[float]] = {}
+_pending_requests: dict[tuple[str, str, str], int] = defaultdict(int)
+_pending_durations: dict[tuple[str, str], list[float]] = {}
+_flusher: threading.Thread | None = None
 _db_cache: tuple[float, list[str]] = (0.0, [])
 _engine = None
 
 
+def _add(hists: dict, key: tuple[str, str], seconds: float) -> None:
+    h = hists.get(key)
+    if h is None:
+        h = hists[key] = [0.0] * (len(BUCKETS) + 2)
+    for i, b in enumerate(BUCKETS):
+        if seconds <= b:
+            h[i] += 1
+    h[-2] += seconds
+    h[-1] += 1
+
+
 def observe_request(method: str, route: str, status: int, seconds: float) -> None:
+    global _flusher
     with _lock:
         _requests[(method, route, str(status))] += 1
-        h = _durations.get((method, route))
-        if h is None:
-            h = _durations[(method, route)] = [0.0] * (len(BUCKETS) + 2)
-        for i, b in enumerate(BUCKETS):
-            if seconds <= b:
-                h[i] += 1
-        h[-2] += seconds
-        h[-1] += 1
+        _pending_requests[(method, route, str(status))] += 1
+        _add(_durations, (method, route), seconds)
+        _add(_pending_durations, (method, route), seconds)
+        if _flusher is None or not _flusher.is_alive():
+            _flusher = threading.Thread(target=_flush_forever, daemon=True, name="metrics-flush")
+            _flusher.start()
+
+
+def _flush() -> bool:
+    with _lock:
+        reqs = dict(_pending_requests)
+        hists = {k: list(v) for k, v in _pending_durations.items()}
+        _pending_requests.clear()
+        _pending_durations.clear()
+    if not reqs and not hists:
+        return True
+    try:
+        from app.core.redis_client import get_redis
+
+        pipe = get_redis().pipeline(transaction=False)
+        for (method, route, status), n in reqs.items():
+            pipe.hincrby(REQ_KEY, f"{method}|{route}|{status}", n)
+        for (method, route), h in hists.items():
+            for i, v in enumerate(h[:-2] + [h[-1]]):
+                if v:
+                    pipe.hincrby(HIST_KEY, f"{method}|{route}|{i}", int(v))
+            pipe.hincrbyfloat(HIST_KEY, f"{method}|{route}|sum", h[-2])
+        pipe.execute()
+        return True
+    except Exception:
+        with _lock:
+            for k, n in reqs.items():
+                _pending_requests[k] += n
+            for k, h in hists.items():
+                cur = _pending_durations.setdefault(k, [0.0] * (len(BUCKETS) + 2))
+                for i, v in enumerate(h):
+                    cur[i] += v
+        return False
+
+
+def _flush_forever() -> None:
+    while True:
+        time.sleep(FLUSH_SECONDS)
+        _flush()
+
+
+def _shared() -> tuple[dict, dict] | None:
+    if not _flush():
+        return None
+    try:
+        from app.core.redis_client import get_redis
+
+        r = get_redis()
+        raw_req, raw_hist = r.hgetall(REQ_KEY), r.hgetall(HIST_KEY)
+    except Exception:
+        return None
+    reqs: dict[tuple[str, str, str], int] = {}
+    for field, n in raw_req.items():
+        field = field.decode() if isinstance(field, bytes) else field
+        method, rest = field.split("|", 1)
+        route, status = rest.rsplit("|", 1)
+        reqs[(method, route, status)] = int(n)
+    hists: dict[tuple[str, str], list[float]] = {}
+    for field, v in raw_hist.items():
+        field = field.decode() if isinstance(field, bytes) else field
+        method, rest = field.split("|", 1)
+        route, slot = rest.rsplit("|", 1)
+        h = hists.setdefault((method, route), [0.0] * (len(BUCKETS) + 2))
+        if slot == "sum":
+            h[-2] = float(v)
+        elif int(slot) == len(BUCKETS):
+            h[-1] = float(v)
+        else:
+            h[int(slot)] = float(v)
+    return reqs, hists
 
 
 def job_outcome(name: str, ok: bool) -> None:
@@ -101,6 +187,15 @@ def _db_lines() -> list[str]:
             out += ["# HELP kv_llm_cost_month_minor Language-model spend this month, paise.", "# TYPE kv_llm_cost_month_minor gauge"]
             n = cx.execute(text("select coalesce(sum(cost_minor), 0) from kv_ai.llm_calls where created_at >= date_trunc('month', now())")).scalar()
             out.append(f"kv_llm_cost_month_minor {n}")
+            out += ["# HELP kv_live_streams Live streams, by status (scheduled or live).", "# TYPE kv_live_streams gauge"]
+            for status, n in cx.execute(text("select status, count(*) from kv_media.live_streams "
+                                             "where status in ('scheduled','live') group by 1")):
+                out.append(f"kv_live_streams{_labels(status=status)} {n}")
+            out += ["# HELP kv_live_ingest_stale Live streams whose ingest has sent nothing for 20 seconds.",
+                    "# TYPE kv_live_ingest_stale gauge"]
+            n = cx.execute(text("select count(*) from kv_media.live_streams where status = 'live' "
+                                "and coalesce(last_seen_at, started_at) < now() - interval '20 seconds'")).scalar()
+            out.append(f"kv_live_ingest_stale {n}")
             out += ["# HELP kv_takedowns_overdue Takedowns past their deadline.", "# TYPE kv_takedowns_overdue gauge"]
             n = cx.execute(text("select count(*) from kv_trust.takedowns where resolved_at is null and resolve_due_at < now()")).scalar()
             out.append(f"kv_takedowns_overdue {n}")
@@ -122,6 +217,9 @@ def _job_lines() -> list[str]:
             field = field.decode() if isinstance(field, bytes) else field
             name, _, outcome = field.rpartition("|")
             out.append(f"kv_jobs_total{_labels(job=name, outcome=outcome)} {int(n)}")
+        dropped = get_redis().hget(REALTIME_KEY, "dropped")
+        out += ["# HELP kv_realtime_dropped_total Realtime messages dropped because a socket fell behind.",
+                "# TYPE kv_realtime_dropped_total counter", f"kv_realtime_dropped_total {int(dropped or 0)}"]
     except Exception:
         up = 0
     else:
@@ -132,9 +230,11 @@ def _job_lines() -> list[str]:
 
 
 def render() -> str:
-    with _lock:
-        reqs = dict(_requests)
-        hists = {k: list(v) for k, v in _durations.items()}
+    shared = _shared()
+    if shared is None:
+        with _lock:
+            shared = dict(_requests), {k: list(v) for k, v in _durations.items()}
+    reqs, hists = shared
     lines = ["# HELP kv_http_requests_total HTTP requests, by route template and status.",
              "# TYPE kv_http_requests_total counter"]
     for (method, route, status), n in sorted(reqs.items()):

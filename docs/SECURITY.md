@@ -49,7 +49,13 @@ The only fix is Expo SDK 58 (`npm audit fix --force`), which is a breaking upgra
 | V13 age gate on the server | 18 India, 16 parts of the EU, 13 elsewhere; checked at sign-up | `test_accounts.py` |
 | Webhooks verify → record → enqueue | media and payment webhooks; unsigned ones stored as evidence, refused | `test_upload_flow.py`, `test_plans_billing.py` |
 | Grants only from a verified payment | entitlement written by the payments worker; `/sandbox/pay` exists only with `SANDBOX_ENABLED` | `test_plans_billing.py` |
-| Data rights (DPDP) | `POST /me/export`, `DELETE /me` (audited; invoices kept for tax) | `test_viewer_extras.py` |
+| Data rights (DPDP) | `POST /me/export`, `DELETE /me` (audited; invoices kept for tax); export and erase cover live chat and the push log (run 3) | `test_viewer_extras.py`, `test_live.py` |
+| Live ingest only with the stream key | `live/gate.py` reads the RTMP `publish` name on the public port and compares it with `hmac.compare_digest` before forwarding to ffmpeg on loopback; keys sealed at rest, hashed for lookup, rotatable while not live | `test_live.py` (wrong key never goes live) |
+| Live playback signed | `/sandbox/live/{id}/{exp}/{sig}/…`, HMAC with expiry (10-minute buckets); members-only streams get no playback | `test_live.py`, `test_security.py` (SIGNED prefix) |
+| Browser go-live | `/ws/live/{id}/ingest` needs a short-lived signed ticket from the owning studio | `test_live.py` |
+| Live chat abuse | run-1 filter, slow mode and per-user timeouts in Redis, channel moderators; timeouts by `message_id`, so user ids are not published | `test_live.py` |
+| Audit attribution | platform admin routes record the admin (and IP); background work is `system`; nested before/after kept as JSON with secrets fingerprinted | `test_admin_ops.py` |
+| Data retention | sweep: Ask history 365 d, push log 90 d, live chat 90 d after the stream, translations 180 d, leftover deleted media 30 d; never-started live streams closed after 24 h | `test_retention.py` |
 | Studio inbox / analytics across tenants | queries in a platform session always filter `Video.tenant_id == ctx.tenant_id` | `test_viewer_extras.py` (another creator sees nothing) |
 
 ## Debug routes
@@ -93,5 +99,9 @@ the sandbox webhook secret, the `klygenix_video`/`klygenix_video_app` database p
 5. **YouTube OAuth tokens** are sealed (`enc:`) in `kv_social.connected_channels`; the key file is
    the single point — back it up with the database (docs/ROTATION in infra).
 6. **The real edge was not scanned.** Cloudflare and the Hostinger host don't exist yet.
-7. **ZAP was not run** for Play tonight (`infra/security/zap.sh` still targets the old preview
+7. **Live chat and streams cannot be reported** through `/reports` yet (only in-room moderation by the
+   creator and moderators, and the platform stop). Add `live_message` / `live` report targets before launch.
+8. **Instagram long-lived tokens** are sealed like YouTube's; they expire after 60 days and need a refresh job
+   before the live Instagram adapter is switched on.
+9. **ZAP was not run** for Play tonight (`infra/security/zap.sh` still targets the old preview
    layout); authenticated behaviour is covered by `test_security.py` and `test_tenancy.py`.

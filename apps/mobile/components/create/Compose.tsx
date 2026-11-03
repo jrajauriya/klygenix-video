@@ -3,6 +3,7 @@ import * as ImagePicker from "expo-image-picker"
 import { ActivityIndicator, Pressable, Switch, Text, TextInput, View } from "react-native"
 
 import { detail } from "../../lib/api"
+import { useT } from "../../lib/i18n"
 import { colour, s } from "../../lib/theme"
 import type { StudioVideo } from "../../lib/types"
 import { TusNotSupported, createAndUpload, fileSize } from "../../lib/upload"
@@ -15,6 +16,7 @@ interface Picked {
 }
 
 export function Compose({ recorded, onRecord, onUploaded }: { recorded: string | null; onRecord: () => void; onUploaded: (v: StudioVideo) => void }) {
+  const { t } = useT()
   const [picked, setPicked] = useState<Picked | null>(null)
   const [title, setTitle] = useState("")
   const [description, setDescription] = useState("")
@@ -49,10 +51,10 @@ export function Compose({ recorded, onRecord, onUploaded }: { recorded: string |
     } catch (err) {
       setError(
         err instanceof TusNotSupported
-          ? "This server takes uploads through Bunny (tus). Bunny uploads come later on the phone — upload from Studio on the web for now."
+          ? t("compose.tus")
           : err instanceof Error && !("response" in err)
             ? err.message
-            : detail(err, "The upload failed."),
+            : detail(err, t("compose.failed")),
       )
     } finally {
       setBusy(false)
@@ -63,47 +65,47 @@ export function Compose({ recorded, onRecord, onUploaded }: { recorded: string |
 
   return (
     <View>
-      <Text style={s.title}>Create</Text>
-      <Text style={s.subtitle}>Record a vertical video or pick one. Klygenix Play writes the captions, chapters and clip ideas.</Text>
+      <Text style={s.title}>{t("compose.title")}</Text>
+      <Text style={s.subtitle}>{t("compose.subtitle")}</Text>
 
       <View style={{ flexDirection: "row", gap: 12, marginTop: 16 }}>
         <Pressable onPress={onRecord} style={[s.button, { flex: 1, marginTop: 0 }]}>
-          <Text style={s.buttonText}>Record</Text>
+          <Text style={s.buttonText}>{t("compose.record")}</Text>
         </Pressable>
         <Pressable onPress={pick} style={[s.outline, { flex: 1, marginTop: 0, justifyContent: "center" }]}>
-          <Text style={s.outlineText}>Pick a video</Text>
+          <Text style={s.outlineText}>{t("compose.pick")}</Text>
         </Pressable>
       </View>
 
       {source && (
         <View style={s.card}>
-          <Text style={s.cardLabel}>Selected</Text>
+          <Text style={s.cardLabel}>{t("compose.selected")}</Text>
           <Text style={[s.text, { marginTop: 4 }]} numberOfLines={1}>
             {source.filename}
           </Text>
-          {source.seconds ? <Text style={s.cardHint}>{Math.round(source.seconds)} seconds</Text> : null}
+          {source.seconds ? <Text style={s.cardHint}>{t("compose.seconds", { n: Math.round(source.seconds) })}</Text> : null}
         </View>
       )}
 
-      <Text style={s.label}>Title</Text>
-      <TextInput style={s.field} placeholder="What is it about?" value={title} onChangeText={setTitle} maxLength={200} />
-      <Text style={s.label}>Description</Text>
+      <Text style={s.label}>{t("compose.titleLabel")}</Text>
+      <TextInput style={s.field} placeholder={t("compose.titlePlaceholder")} value={title} onChangeText={setTitle} maxLength={200} />
+      <Text style={s.label}>{t("compose.description")}</Text>
       <TextInput style={[s.field, { minHeight: 70 }]} value={description} onChangeText={setDescription} multiline />
 
       <View style={[s.row, { marginTop: 20 }]}>
-        <Text style={[s.text, { flex: 1, paddingRight: 12 }]}>I own this video or have the rights to publish it</Text>
+        <Text style={[s.text, { flex: 1, paddingRight: 12 }]}>{t("compose.rights")}</Text>
         <Switch value={rights} onValueChange={setRights} trackColor={{ true: colour.brand }} />
       </View>
       <View style={[s.row, { marginTop: 14 }]}>
-        <Text style={[s.text, { flex: 1, paddingRight: 12 }]}>Made with AI (shows an "AI-generated" label)</Text>
+        <Text style={[s.text, { flex: 1, paddingRight: 12 }]}>{t("compose.ai")}</Text>
         <Switch value={ai} onValueChange={setAi} trackColor={{ true: colour.brand }} />
       </View>
 
       {error && <Text style={s.error}>{error}</Text>}
       <Pressable onPress={upload} disabled={blocked} style={[s.button, blocked && s.disabled]}>
-        {busy ? <ActivityIndicator color={colour.white} /> : <Text style={s.buttonText}>Upload</Text>}
+        {busy ? <ActivityIndicator color={colour.white} /> : <Text style={s.buttonText}>{t("compose.upload")}</Text>}
       </Pressable>
-      {!rights && <Text style={s.note}>The rights declaration is required before uploading.</Text>}
+      {!rights && <Text style={s.note}>{t("compose.rightsRequired")}</Text>}
     </View>
   )
 }

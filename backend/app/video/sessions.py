@@ -14,7 +14,7 @@ from contextlib import contextmanager
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.core.audit import Actor, attribute
+from app.core.audit import SYSTEM, Actor, acting_as, attribute
 from app.core.services import error_tracking
 from app.core.middleware.tenancy import TENANT_KEY
 from app.database import SessionLocal
@@ -40,11 +40,12 @@ def tenant_session(tenant_id: int, actor: Actor | None = None):
 
 
 @contextmanager
-def platform_session():
+def platform_session(actor: Actor | None = None):
     db = SessionLocal()
     try:
         db.info["platform"] = True
         db.execute(text("SELECT set_config('app.platform', 'on', true)"))
+        acting_as(db, actor or Actor(SYSTEM, label="background"))
         yield db
     finally:
         db.close()

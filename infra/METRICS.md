@@ -309,5 +309,11 @@ Over a fifth of AI jobs in the last fifteen minutes failed. Look at `kv_ai.ai_jo
 ### KvLlmBudgetHigh
 Spend this month passed 80% of the default `LLM_MONTHLY_BUDGET_MINOR`. Past the budget the client refuses new calls and Ask declines. Raise the budget or check `kv_ai.llm_calls` for a runaway purpose.
 
+### KvLiveIngestDown
+A stream is marked live but no segment arrived for 20 seconds. Usually the creator's encoder dropped; the stream auto-ends after `LIVE_IDLE_END_SECONDS`. If several fire at once, check the `live` container (sandbox ingest) or the Cloudflare Stream status page, and `docker compose logs live`.
+
+### KvLiveFanoutSlow
+The realtime hub dropped messages because sockets could not keep up (queue of 500 per socket). A very large room or an overloaded API: check CPU of the backend workers, raise `KV_API_WORKERS`, and look for a slow Redis (`redis-cli --latency`).
+
 ### KvTakedownsOverdue
 A takedown passed its resolve deadline (IT Rules: 24 h for intimate imagery, 15 days otherwise). Open Admin → Takedowns and decide it now.

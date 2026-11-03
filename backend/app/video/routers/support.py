@@ -60,6 +60,8 @@ def channel_support(handle: str, viewer: Viewer = Depends(optional_viewer)):
                 "tip_min_minor": settings.TIP_MIN_MINOR, "tip_max_minor": settings.TIP_MAX_MINOR, "currency": "INR",
                 "boost_tiers": boost_tiers(), "tiers": [tier_out(t) for t in tiers], "my_rank": my_rank(db, uid, ch.id),
                 "commission_bps": splits.commission_bps(db, ch.tenant_id),
+                "superchat_tiers": [{"tier": k, **v} for k, v in support.SUPERCHAT_TIERS.items()],
+                "gifts": [{"gift": k, **v} for k, v in support.GIFTS.items()],
                 "is_owner": bool(viewer.user and viewer.user.tenant_id == ch.tenant_id)}
 
 
@@ -70,10 +72,13 @@ class SupportIn(BaseModel):
     video_id: str | None = None
     channel: str | None = None
     boost_tier: int | None = None
+    tier: int | None = None
     text: str | None = Field(default=None, max_length=200)
     t_ms: int | None = Field(default=None, ge=0)
     tier_id: int | None = None
     playlist_id: int | None = None
+    stream_id: str | None = None
+    gift: str | None = Field(default=None, max_length=20)
     state_code: str | None = Field(default=None, max_length=2)
     idempotency_key: str = Field(default_factory=lambda: secrets.token_hex(12), max_length=80)
 
@@ -82,7 +87,7 @@ class SupportIn(BaseModel):
 def support_checkout(data: SupportIn, ctx: Ctx = Depends(signed_in)):
     with platform_session() as db:
         try:
-            chk = support.create(db, user=ctx.user, purpose=data.purpose, data=data.model_dump(),
+            chk = support.create(db, user=ctx.user, purpose=data.purpose, data={**data.model_dump(), "boost_tier": data.boost_tier if data.boost_tier is not None else data.tier},
                                  idempotency_key=data.idempotency_key, state_code=data.state_code)
         except RailError as exc:
             raise err(503, "action_not_allowed") from exc

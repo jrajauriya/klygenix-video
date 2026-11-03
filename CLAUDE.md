@@ -25,7 +25,8 @@ comments) over the player in realtime; creator plans and viewer Premium (Razorpa
 merchant of record abroad); trust & safety with scans, reports, strikes, appeals, takedowns.
 
 ## Status
-V0 + V1 (run 1) and V2 Earn + V3 Community & learning (run 2) built and running **locally on sandbox
+V0 + V1 (run 1), V2 Earn + V3 Community & learning (run 2) and V4 Live + mobile store-ready + launch hardening (run 3)
+built and running **locally on sandbox
 providers**, not deployed (Nov 2026). Creator money runs on the sandbox rail only: live money waits for
 CA sign-off, creator KYC and Play's Razorpay Route keys. Every provider has a sandbox adapter and a real
 one behind the same interface, switched by `.env`. See `docs/BUILD-PLAN.md` for what is proven,
@@ -41,6 +42,7 @@ sandbox-only and blocked.
 | API (+ WebSocket) | 9300 | — | api.play.klygenix.com |
 | PostgreSQL 17 + pgvector | 25436 | — | 127.0.0.1:5432 |
 | Redis | 16383 | — | compose network |
+| Live RTMP gates (sandbox ingest) | 19350–19359 (ffmpeg listens on +1000, loopback) | — | Cloudflare Stream |
 
 Clear of the estate (4000s/9000/25432/16379), Pay (5000s/9100/25433/16380), Store (5100s/9150/25434/16381)
 and Insurance (25435).
@@ -60,7 +62,10 @@ backend/app/
     │                         · music (licensed library) · publishers (YouTube Shorts, Instagram Reels, sandbox)
     ├── social/               counters (Redis, flushed + view_daily incl. retention buckets and sources) · feed ranking
     │                         · reco (video vectors, viewer taste) · cards (viewer state) · filter
-    ├── realtime/rooms.py     WebSocket rooms over Redis pub/sub (stateless gateway)
+    ├── realtime/rooms.py     WebSocket rooms over Redis pub/sub (stateless gateway) · hub.py (one pubsub per process)
+    ├── live/                 service (streams, keys, signed playback) · worker (Supervisor: gates, ffmpeg listeners, go-live,
+    │                         idle end, replay) · gate (RTMP publish-key check) · cloudflare (written, not wired)
+    ├── services/push.py      sandbox | Expo push, per-user switches, dedupe keys · retention.py (sweep policy)
     ├── channels/             youtube.py (OAuth, own videos, captions; sandbox fake channel) · embeds
     ├── trust/                age gate · scan (sandbox markers + hash list) · reports, strikes, appeals, takedowns
     ├── commerce/             plans, quotas (reserve/commit/release), checkout, payments worker, invoices
@@ -179,7 +184,34 @@ RLS: `tenant_isolation` (`tenant_id = current_tenant() OR is_platform()`) on eve
 - The sandbox HLS ladder is 240p/360p/720p with 2-second segments (fast start); the speed suite measures video
   start on a 4G profile (`tests/e2e/speed.mjs`).
 - The Expo app imports only `@klygenixvideo/client/src/native` (`tests/test_native_imports.py`); one
-  react-native in node_modules; React pinned to 19.2.3 in `apps/mobile`.
+  react-native in node_modules. Expo SDK 58 / RN 0.88.1 / React 19.3.0 in `apps/mobile`; Metro pins `react` to
+  `apps/mobile/node_modules`. RN 0.88 dropped the `ViewToken` type export — use a local structural type.
+- **Live ingest needs the RTMP gate.** `ffmpeg -listen 1` accepts any app/stream name with only a warning, so a wrong
+  key would go live. `live/gate.py` parses the AMF0 `publish` command on the public port, checks the key and only then
+  forwards to ffmpeg on port+1000 (loopback). The gate holds back only a possible `publish` marker prefix — holding a
+  fixed buffer deadlocks the RTMP handshake. Gates are always on per pool port; the encoder may connect before ffmpeg.
+- **Never run a sync DB or Redis call on the event loop inside a WebSocket handler** (`asyncio.to_thread`). One did
+  (`/ws/videos`): under load the empty pool blocked the whole worker for the 10 s pool timeout.
+- **The API runs `WEB_CONCURRENCY` workers in production** (default 4). Request threads are capped at `DB_POOL_SIZE`
+  (lifespan) so a request never waits on the pool; overflow is headroom for nested sessions. HTTP metrics are
+  flushed to Redis (`kv:metrics:http:*`) so any worker answers `/metrics` with the same totals.
+- **Live WebSockets fan out through `realtime/hub.py`** — one Redis pubsub per process, not one client per socket
+  (per-socket clients ran out of fds at ~800). Raise `ulimit -n` (10240) before a local load test.
+- **The live worker runs inline in dev** (`LIVE_WORKER_INLINE=true`); production and staging run it as the `live`
+  service (compose profile `sandbox-live`, `make -C infra live`), never both — two supervisors would both finalize.
+- **nginx must keep upstream connections alive.** Without `keepalive` every proxied request opened a new TCP connection
+  and at ~900 req/s nginx ran out of local ports (`connect() failed (99: Address not available)`, 502s, every WebSocket
+  failed). `prod.conf.template` uses `upstream kv_api { server backend:9300 resolve; keepalive 64; }` (needs nginx
+  ≥ 1.27.3 for `resolve`; the image is `nginx:1.30-alpine`); `proxy-backend.conf` sets HTTP/1.1 and an empty
+  `Connection` header except for WebSocket upgrades.
+- **Dev and the local stack use different RTMP ports**: dev 19350–19359 (inline worker), staging 19450–19459
+  (`LIVE_RTMP_PORTS` in `infra/.env.staging`, read by both the app and the compose port mapping).
+- **Dates are IST**: invoices, credit notes, ledger business dates, number series and analytics windows use
+  `app/video/clock.ist_today()`, never `date.today()` (containers run in UTC; 00:00–05:30 IST fell on the wrong day).
+- **`tests/load/viewers.py` spreads viewers over `--procs` processes.** One Python event loop driving hundreds of
+  viewers measures its own lag (600 ms "p95" while the server's histogram said 10 ms).
+- `platform_session()` records audit rows as `system`/"background" unless given an `Actor`; platform admin routes
+  set the admin as actor. A live chat timeout can target a `message_id` (user ids are not published).
 
 ## Dev accounts
 `admin@klygenix.com` / `admin123` — global admin (admin console, tenant 1 = Klygenix's own channel
@@ -196,4 +228,6 @@ make -C infra test                              # every suite; CI runs them twic
 db-scripts/dump-schema.sh && (cd tests && ../backend/venv/bin/python test_migration_parity.py)
 bash infra/local-stack.sh up && bash infra/local-stack.sh smoke   # production stack on play.localhost:8443
 ```
-`JOBS_MODE=inline` (dev default) runs jobs in-process; `rq` needs `make -C infra worker-ai worker-render scheduler`.
+`JOBS_MODE=inline` (dev default) runs jobs in-process; `rq` needs `make -C infra worker-ai worker-render scheduler`
+(and `make -C infra live` with `LIVE_WORKER_INLINE=false`).
+`VPS_HOST=… bash infra/deploy.sh --rollback` restores the previous image and frontends (one step back).

@@ -4,12 +4,14 @@ import { ActivityIndicator, Pressable, Text, TextInput, View } from "react-nativ
 
 import { api, detail, statusOf } from "../lib/api"
 import { useAuth } from "../lib/auth"
+import { useT } from "../lib/i18n"
 import { clock } from "../lib/format"
 import { colour, s } from "../lib/theme"
 import type { AskAnswer } from "../lib/types"
 
 export function AskBox({ publicId, onSeek }: { publicId: string; onSeek: (ms: number) => void }) {
   const { user } = useAuth()
+  const { t } = useT()
   const [question, setQuestion] = useState("")
   const [answer, setAnswer] = useState<AskAnswer | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -28,8 +30,8 @@ export function AskBox({ publicId, onSeek }: { publicId: string; onSeek: (ms: nu
     } catch (err) {
       setError(
         statusOf(err) === 402
-          ? "You have used today's Ask questions. Premium lifts the limit — manage your plan on the web."
-          : detail(err, "That question could not be answered."),
+          ? t("ask.quota")
+          : detail(err, t("ask.failed")),
       )
     } finally {
       setBusy(false)
@@ -40,10 +42,10 @@ export function AskBox({ publicId, onSeek }: { publicId: string; onSeek: (ms: nu
 
   return (
     <View>
-      <Text style={s.heading}>Ask this video</Text>
+      <Text style={s.heading}>{t("ask.title")}</Text>
       <TextInput
         style={s.field}
-        placeholder={user ? "What does it say about…" : "Sign in to ask a question"}
+        placeholder={user ? t("ask.placeholder") : t("ask.signInPlaceholder")}
         value={question}
         onChangeText={setQuestion}
         maxLength={500}
@@ -51,7 +53,7 @@ export function AskBox({ publicId, onSeek }: { publicId: string; onSeek: (ms: nu
         returnKeyType="send"
       />
       <Pressable onPress={ask} disabled={blocked} style={[s.button, { marginTop: 10 }, blocked && s.disabled]}>
-        {busy ? <ActivityIndicator color={colour.white} /> : <Text style={s.buttonText}>Ask</Text>}
+        {busy ? <ActivityIndicator color={colour.white} /> : <Text style={s.buttonText}>{t("ask.button")}</Text>}
       </Pressable>
       {error && <Text style={s.error}>{error}</Text>}
       {answer && (
@@ -67,7 +69,7 @@ export function AskBox({ publicId, onSeek }: { publicId: string; onSeek: (ms: nu
           ))}
           {answer.quota && (
             <Text style={s.note}>
-              {answer.quota.used} of {answer.quota.limit} questions used today
+              {t("ask.used", { used: answer.quota.used, limit: answer.quota.limit })}
             </Text>
           )}
         </View>

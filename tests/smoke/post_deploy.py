@@ -3,7 +3,9 @@ from __future__ import annotations
 import argparse
 import os
 import re
+import shutil
 import socket
+import subprocess
 import sys
 import time
 import uuid
@@ -193,6 +195,74 @@ def run(args: argparse.Namespace) -> None:
         record("SKIP", "sandbox journey", "--skip-purchase")
         return
     journey(client, args, base, api)
+    section("live journey (sandbox ingest)")
+    if args.skip_live:
+        record("SKIP", "live journey", "--skip-live")
+    elif not shutil.which("ffmpeg"):
+        record("SKIP", "live journey", "ffmpeg not installed here")
+    else:
+        live(client, args, base, api)
+
+
+def _signup(client: httpx.Client, api: str, name: str, handle: str | None = None) -> dict | None:
+    body = {"name": name, "email": f"smoke-{uuid.uuid4().hex[:10]}@example.com", "password": "Smoke@123456",
+            "birth_date": "1990-01-01", "country": "IN", "language": "en"}
+    if handle:
+        body["handle"] = handle
+    r = client.post(f"{api}/api/auth/signup", json=body)
+    return {"Authorization": f"Bearer {r.json()['access_token']}"} if r.status_code == 201 else None
+
+
+def live(client: httpx.Client, args: argparse.Namespace, base: str, api: str) -> None:
+    auth = _signup(client, api, "Smoke Live Creator", f"smokelive-{uuid.uuid4().hex[:8]}")
+    if not check("live creator sign-up", auth is not None):
+        return
+    r = client.post(f"{api}/api/video/studio/live", headers=auth, json={"title": "Smoke live", "replay_enabled": True})
+    if not check("stream created", r.status_code == 201, f"HTTP {r.status_code} {r.text[:200]} (is the live feature on?)"):
+        return
+    s = r.json()
+    pid, server, key = s["id"], s["ingest"]["server"], s["stream_key"]
+    if args.rtmp_host:
+        parts = urlsplit(server)
+        server = parts._replace(netloc=f"{args.rtmp_host}:{parts.port}").geturl()
+    encoder = subprocess.Popen(["ffmpeg", "-loglevel", "error", "-re", "-stream_loop", "-1", "-i", args.fixture,
+                                "-c:v", "libx264", "-preset", "veryfast", "-g", "30", "-c:a", "aac", "-f", "flv",
+                                f"{server}/{key}"], stdin=subprocess.DEVNULL)
+    try:
+        d: dict = {}
+        deadline = time.time() + args.paid_timeout
+        while time.time() < deadline:
+            d = client.get(f"{base}/api/video/live/{pid}").json()
+            if d.get("status") == "live" and d.get("playback"):
+                break
+            time.sleep(1)
+        if not check("encoder took the stream live (live worker running)", d.get("status") == "live",
+                     f"status {d.get('status')!r} — is the live service up and {server} reachable?"):
+            return
+        m = client.get(d["playback"]["url"])
+        check("live playlist served", m.status_code == 200 and "#EXTM3U" in m.text and "#EXT-X-ENDLIST" not in m.text,
+              f"HTTP {m.status_code}")
+        fan = _signup(client, api, "Smoke Live Fan")
+        r = client.post(f"{api}/api/video/live/{pid}/chat", headers=fan or {}, json={"body": "Hello from the smoke test"})
+        check("a viewer chats", r.status_code == 201, f"HTTP {r.status_code} {r.text[:160]}")
+        hist = client.get(f"{api}/api/video/live/{pid}/chat").json()
+        check("chat history has the message", any(x.get("body") == "Hello from the smoke test" for x in hist))
+        r = client.post(f"{api}/api/video/studio/live/{pid}/end", headers=auth)
+        check("creator ends the stream", r.status_code == 200, f"HTTP {r.status_code}")
+    finally:
+        encoder.terminate()
+        try:
+            encoder.wait(10)
+        except subprocess.TimeoutExpired:
+            encoder.kill()
+    replay = None
+    deadline = time.time() + args.paid_timeout * 3
+    while time.time() < deadline:
+        replay = client.get(f"{api}/api/video/live/{pid}").json().get("replay")
+        if replay and replay.get("status") in ("published", "in_review", "blocked", "failed"):
+            break
+        time.sleep(2)
+    check("the replay went through the pipeline", bool(replay) and replay.get("status") == "published", f"replay {replay!r}")
 
 
 def journey(client: httpx.Client, args: argparse.Namespace, base: str, api: str) -> None:
@@ -357,6 +427,8 @@ def main() -> int:
     ap.add_argument("--metrics-token", default=os.environ.get("KV_METRICS_TOKEN", ""))
     ap.add_argument("--fixture", default=os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "fixtures", "media", "reel-chai.mp4"))
     ap.add_argument("--skip-purchase", action="store_true")
+    ap.add_argument("--skip-live", action="store_true", help="skip the RTMP live journey (production uses Cloudflare)")
+    ap.add_argument("--rtmp-host", help="host to publish RTMP to instead of the one the API returns, e.g. 127.0.0.1")
     ap.add_argument("--timeout", type=float, default=30.0)
     ap.add_argument("--paid-timeout", type=float, default=60.0)
     ap.add_argument("--admin-email", default=os.environ.get("KV_ADMIN_EMAIL", ""))

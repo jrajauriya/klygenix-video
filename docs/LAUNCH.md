@@ -97,7 +97,13 @@ fixture, waits for publish through the workers, plays the HLS and buys Creator P
 - [ ] Logs: `docker compose -f infra/docker-compose.prod.yml logs --since 1h backend worker-ai worker-render scheduler | grep -iE "error|traceback"` empty or understood.
 
 ## 12. Rollback
-Code: tag the running image before each deploy (`docker image tag klygenix-video-backend:current klygenix-video-backend:prev-$(date +%Y%m%d-%H%M)`); to roll back, retag and `up -d --no-build backend worker-ai worker-render scheduler`. Frontends: keep `dist.prev`. Database: forward-fix migrations; point-in-time restore for destructive mistakes (infra/BACKUPS.md). The ledger and audit log are append-only.
+Every deploy keeps the running backend image as `klygenix-video-backend:current-prev` and copies each frontend's
+`dist` to `dist.prev` before uploading. To roll back: `VPS_HOST=… bash infra/deploy.sh --rollback` (add `--staging`
+for staging) — it retags the previous image, restores the three frontends in place (the bind-mounted `dist`
+directory is kept, only its contents change), restarts backend, workers, scheduler and nginx. Only one step back is
+kept. Database: migrations are not reverted — forward-fix them; point-in-time restore for destructive mistakes
+(infra/BACKUPS.md). The ledger and audit log are append-only. Rehearsed on 3 Nov 2026 against a throwaway SSH host
+(deploy → second deploy → rollback, with a stub docker on the target).
 
 ## 13. Who to contact
 | Provider | For | Where |

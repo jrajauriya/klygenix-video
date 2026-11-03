@@ -55,5 +55,5 @@ with create_engine(f"{BASE}/parity_alembic").connect() as c:
 check("row-level security on the tenant tables", policies >= 30, True)
 with create_engine(f"{BASE}/parity_alembic").connect() as c:
     public = c.execute(text("SELECT count(*) FROM pg_policies WHERE policyname = 'public_read'")).scalar()
-check("public-read policies on published content", public, 15)
+check("public-read policies on published content", public, 17)
 finish()

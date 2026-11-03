@@ -13,6 +13,7 @@ from app.video.commerce import splits
 from app.video.models.payouts import CreatorSplit, RouteTransfer
 from app.video.models.tax import TaxInvoice
 from app.video.services.numbering import next_number
+from app.video.clock import ist_today
 
 IST = timedelta(hours=5, minutes=30)
 
@@ -97,7 +98,7 @@ def issue_month(db: Session, month: str) -> int:
         ig = sum(s.commission_igst_minor for s in group)
         inv = TaxInvoice(
             tenant_id=pid, kind="commission",
-            number=next_number(db, tenant_id=pid, series="KCM", day=date.today()), invoice_date=date.today(),
+            number=next_number(db, tenant_id=pid, series="KCM", day=ist_today()), invoice_date=ist_today(),
             seller={"name": platform.name, "gstin": platform.gst_number, "address": platform.address},
             buyer={"name": acct.legal_name if acct else f"Tenant {tenant_id}", "gstin": acct.gstin if acct else None,
                    "pan": acct.pan if acct else None, "tenant_id": tenant_id, "month": month},

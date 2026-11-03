@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 
 from app.core.messages import err
+from app.video.clock import ist_today
 from app.video.models.media import Video
 from app.video.models.social import Comment, Danmaku, Follow, ViewDaily
 from app.video.present import iso
@@ -18,7 +19,7 @@ router = APIRouter(prefix="/api/video/studio", tags=["studio"])
 
 
 def window(start: date | None, end: date | None) -> tuple[date, date]:
-    end = end or date.today()
+    end = end or ist_today()
     start = start or end - timedelta(days=27)
     if start > end or (end - start).days > 366:
         raise err(400, "action_not_allowed")

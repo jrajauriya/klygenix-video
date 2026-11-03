@@ -252,3 +252,122 @@ export interface Purchase {
   title: string
   bought_at: string | null
 }
+
+export type LiveStatus = "scheduled" | "live" | "ended" | "failed"
+
+export interface LiveCard {
+  id: string
+  title: string
+  description: string
+  status: LiveStatus
+  scheduled_at: string | null
+  started_at: string | null
+  ended_at: string | null
+  members_rank: number | null
+  slow_mode_seconds: number
+  viewers: number
+  peak_viewers: number
+  replay_enabled: boolean
+  channel: ChannelCard | null
+}
+
+export interface LiveMessage {
+  id: number
+  kind: "chat" | "superchat" | "gift"
+  body: string
+  author: string
+  paid_minor: number
+  tier: string | null
+  pinned_until: string | null
+  created_at: string | null
+  mine?: boolean
+}
+
+export interface LiveDetail extends LiveCard {
+  locked: { access: "members"; members_rank: number | null } | null
+  playback: { type: "hls"; live: true; url: string; expires_at: number } | null
+  is_owner: boolean
+  replay: { id: string; status: string } | null
+  pinned: LiveMessage[]
+}
+
+export type LiveEvent =
+  | { type: "hello"; status: LiveStatus; viewers: number }
+  | { type: "viewers"; viewers: number }
+  | { type: "chat" | "superchat" | "gift"; item: LiveMessage }
+  | { type: "chat_removed"; id: number }
+  | { type: "timeout"; user_id: number; seconds: number }
+  | { type: "slow_mode"; seconds: number }
+  | { type: "live" }
+  | { type: "ended"; reason?: string }
+  | { type: "pong" }
+
+export interface StudyNote {
+  t_ms: number
+  label: string
+  heading?: string
+  text: string
+}
+
+export interface Flashcard {
+  t_ms: number
+  label: string
+  front: string
+  back: string
+}
+
+export interface QuizItem {
+  t_ms: number
+  label: string
+  question: string
+  options: string[]
+}
+
+export interface StudySet<T> {
+  kind: "notes" | "flashcards" | "quiz"
+  language: string
+  model: string | null
+  items: T[]
+}
+
+export interface QuizResult {
+  id: number
+  score: number
+  total: number
+  results: { index: number; given: number | null; correct: number; right: boolean; t_ms: number; label: string }[]
+}
+
+export interface QuizAttempt {
+  id: number
+  score: number
+  total: number
+  created_at: string | null
+}
+
+export interface HistoryCard extends VideoCard {
+  position_ms: number
+  completed: boolean
+  watched_at: string | null
+}
+
+export type NotifyKind = "render_ready" | "published" | "live" | "membership"
+
+export type NotifyPrefs = Record<NotifyKind, boolean>
+
+export interface PushRecord {
+  id: number
+  kind: string
+  title: string
+  body: string
+  data: { url?: string } | null
+  status: "sent" | "skipped" | "failed"
+  created_at: string | null
+}
+
+export interface StudyRow {
+  video: { id: string; title: string; duration_ms: number | null }
+  notes: number
+  best_score: number | null
+  best_total: number | null
+  last_activity_at: string | null
+}

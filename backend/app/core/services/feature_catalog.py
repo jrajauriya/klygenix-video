@@ -77,6 +77,7 @@ FEATURE_CATALOG: dict[str, FeatureApp] = {
                     ("video.dashboard", "Dashboard"),
                     ("video.uploads", "Videos & uploads"),
                     ("video.clips", "Clip maker"),
+                    ("video.live", "Go live"),
                     ("video.channels", "Channel & connected accounts"),
                 ),
             },

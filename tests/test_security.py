@@ -13,12 +13,14 @@ PUBLIC = {
     ("POST", "/api/video/videos/{public_id}/progress"), ("GET", "/api/video/channels/{handle}"),
     ("GET", "/api/video/channels/{handle}/videos"), ("GET", "/api/video/search"), ("GET", "/api/video/plans"),
     ("GET", "/api/video/images/{name}"), ("POST", "/api/video/takedowns"),
-    ("GET", "/api/video/channels/youtube/callback"), ("GET", "/api/video/channels/{handle}/support"),
+    ("GET", "/api/video/channels/youtube/callback"), ("GET", "/api/video/channels/instagram/callback"), ("GET", "/api/video/channels/{handle}/support"),
     ("POST", "/api/video/products/{link_id}/click"), ("GET", "/api/video/channels/{handle}/posts"),
     ("POST", "/api/video/translate"), ("GET", "/api/video/videos/{public_id}/comments/summary"),
     ("GET", "/api/video/videos/{public_id}/study/{kind}"),
+    ("GET", "/api/video/live"), ("GET", "/api/video/live/{public_id}"), ("GET", "/api/video/channels/{handle}/live"),
+    ("GET", "/api/video/live/{public_id}/chat"),
 }
-SIGNED = {p for _, p in routes if p.startswith(("/api/video/webhooks/", "/api/video/sandbox/hls/", "/api/video/sandbox/hls-preview/", "/api/video/sandbox/thumb/", "/api/video/dubs/",
+SIGNED = {p for _, p in routes if p.startswith(("/api/video/webhooks/", "/api/video/sandbox/hls/", "/api/video/sandbox/hls-preview/", "/api/video/sandbox/thumb/", "/api/video/dubs/", "/api/video/sandbox/live/",
                                                  "/api/video/sandbox/upload/", "/api/video/studio/clip-files/"))}
 
 

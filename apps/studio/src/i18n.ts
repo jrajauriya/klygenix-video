@@ -17,6 +17,7 @@ const HI: Record<string, string> = {
   Dashboard: "डैशबोर्ड",
   Videos: "वीडियो",
   "Clip maker": "क्लिप मेकर",
+  Live: "लाइव",
   Channel: "चैनल",
   "Comments & danmaku": "टिप्पणियाँ और डानमाकू",
   Community: "कम्युनिटी",

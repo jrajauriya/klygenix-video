@@ -18,6 +18,8 @@ import Billing from "./pages/Billing"
 import Earnings from "./pages/Earnings"
 import Moderation from "./pages/Moderation"
 import Settings from "./pages/Settings"
+import Live from "./pages/Live"
+import GoLive from "./pages/GoLive"
 import NotFound from "./pages/NotFound"
 
 const guard = (key: string, element: ReactNode) => (
@@ -43,6 +45,8 @@ export const router = createBrowserRouter([
       { path: "/clips", element: guard("video.clips", <Clips />) },
       { path: "/clips/:id", element: guard("video.clips", <ClipEditor />) },
       { path: "/channel", element: guard("video.channels", <ChannelPage />) },
+      { path: "/live", element: guard("video.live", <Live />) },
+      { path: "/live/:publicId", element: guard("video.live", <GoLive />) },
       { path: "/comments", element: guard("video.comments", <Comments />) },
       { path: "/community", element: guard("video.channels", <Community />) },
       { path: "/analytics", element: guard("video.analytics", <Analytics />) },

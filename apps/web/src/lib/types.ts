@@ -263,9 +263,64 @@ export interface ChannelSupport {
   my_rank: number
   is_owner: boolean
   commission_bps?: number
+  superchat_tiers?: SuperchatTier[]
+  gifts?: LiveGift[]
 }
 
-export type SupportPurpose = "tip" | "boost" | "membership" | "video" | "series"
+export interface SuperchatTier {
+  tier: number
+  price_minor: number
+  pin_seconds: number
+  color: string
+  label: string
+}
+
+export interface LiveGift {
+  gift: string
+  price_minor: number
+  label: string
+}
+
+export type SupportPurpose = "tip" | "boost" | "membership" | "video" | "series" | "superchat" | "gift"
+
+export type LiveStatus = "scheduled" | "live" | "ended" | "failed"
+
+export interface LiveStreamCard {
+  id: string
+  title: string
+  description: string
+  status: LiveStatus
+  scheduled_at: string | null
+  started_at: string | null
+  ended_at: string | null
+  members_rank: number | null
+  slow_mode_seconds: number
+  viewers: number
+  peak_viewers: number
+  replay_enabled: boolean
+  channel: ChannelCard | null
+}
+
+export interface LiveMessage {
+  id: number
+  kind: "chat" | "superchat" | "gift"
+  body: string
+  author: string
+  paid_minor: number | null
+  tier: string | null
+  pinned_until: string | null
+  created_at: string | null
+  moderator?: boolean
+  mine?: boolean
+}
+
+export interface LiveDetail extends LiveStreamCard {
+  locked: { access: "members"; members_rank: number | null } | null
+  playback: { type: "hls"; live: boolean; url: string; expires_at?: number } | null
+  is_owner: boolean
+  replay: { id: string; status: string } | null
+  pinned: LiveMessage[]
+}
 
 export interface SupportCheckout {
   id: number

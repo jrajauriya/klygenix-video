@@ -24,7 +24,13 @@ router = APIRouter(prefix="/api/video", tags=["channels"])
 def connected_out(c: ConnectedChannel, count: int = 0) -> dict:
     return {"id": c.id, "platform": c.platform, "external_channel_id": c.external_channel_id, "title": c.title,
             "status": c.status, "last_synced_at": iso(c.last_synced_at), "videos": count,
-            "sandbox": youtube.sandbox() if c.platform == "youtube" else False}
+            "sandbox": youtube.sandbox() if c.platform == "youtube" else _ig_sandbox() if c.platform == "instagram" else False}
+
+
+def _ig_sandbox() -> bool:
+    from app.video.channels import instagram
+
+    return instagram.sandbox()
 
 
 @router.get("/studio/connected")
@@ -80,6 +86,54 @@ def youtube_callback(code: str = "", state: str = "", error: str = ""):
         row.status = "active"
         db.commit()
         sync_youtube.enqueue(row.id)
+    return RedirectResponse(f"{back}?connected=1")
+
+
+@router.get("/studio/connected/instagram/start")
+def instagram_start(ctx: StudioCtx = Depends(studio("video.channels", "full"))):
+    from app.video.channels import instagram
+
+    exp = expiry(900)
+    state = f"{ctx.tenant_id}.{ctx.user.id}.{exp}.{sign('ig', ctx.tenant_id, ctx.user.id, exp)}"
+    return {"url": instagram.auth_url(state), "sandbox": instagram.sandbox()}
+
+
+@router.get("/channels/instagram/callback")
+def instagram_callback(code: str = "", state: str = "", error: str = ""):
+    from app.video.channels import instagram
+
+    back = f"{settings.STUDIO_APP_URL.rstrip('/')}/channel"
+    if error or not code:
+        return RedirectResponse(f"{back}?connected=0")
+    try:
+        tid, uid, exp, sig = state.split(".")
+        tid, uid, exp = int(tid), int(uid), int(exp)
+    except ValueError:
+        raise err(400, "action_not_allowed")
+    if not alive(exp) or not valid(sig, "ig", tid, uid, exp):
+        raise err(400, "upload_link_expired")
+    try:
+        acct = instagram.exchange(code, tid)
+    except instagram.InstagramError:
+        return RedirectResponse(f"{back}?connected=0")
+    with platform_session() as db:
+        channel = db.execute(select(Channel).where(Channel.tenant_id == tid)).scalars().first()
+        if channel is None:
+            return RedirectResponse(f"{back}?connected=0")
+        row = db.execute(select(ConnectedChannel).where(ConnectedChannel.platform == "instagram",
+                                                        ConnectedChannel.external_channel_id == acct.user_id)).scalars().first()
+        if row is not None and row.tenant_id != tid:
+            return RedirectResponse(f"{back}?connected=taken")
+        if row is None:
+            row = ConnectedChannel(tenant_id=tid, channel_id=channel.id, platform="instagram",
+                                   external_channel_id=acct.user_id, title=acct.username or "Instagram")
+            db.add(row)
+        row.title = acct.username or row.title
+        row.access_token = sealed.seal(acct.access_token)
+        row.expires_at = acct.expires_at
+        row.scopes = instagram.SCOPES
+        row.status = "active"
+        db.commit()
     return RedirectResponse(f"{back}?connected=1")
 
 

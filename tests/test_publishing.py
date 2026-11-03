@@ -33,6 +33,16 @@ open("/tmp/kv-suite-music.mp4", "wb").write(httpx.get(x["download_url"], timeout
 p = probe("/tmp/kv-suite-music.mp4")
 ok("the render keeps an audio track with the music mixed in", p.has_audio and abs(p.duration_ms - 8000) <= 600, p)
 check("an unknown platform is refused", c.post(f"/api/video/studio/clips/{cl['id']}/targets", json={"platform": "tiktok"}).status_code, 400)
+check("publishing needs a connected account", c.post(f"/api/video/studio/clips/{cl['id']}/targets",
+                                                      json={"platform": "instagram"}).status_code, 409)
+for platform in ("youtube", "instagram"):
+    start = c.get(f"/api/video/studio/connected/{platform}/start").json()
+    back = httpx.get(start["url"], follow_redirects=False, timeout=30)
+    check(f"{platform} connects (sandbox OAuth round trip)", (back.status_code in (302, 303, 307), "connected=1" in back.headers.get("location", "")), (True, True))
+conn = {x["platform"]: x for x in c.get("/api/video/studio/connected").json()}
+ok("the Instagram professional account is listed", "instagram" in conn and conn["instagram"]["sandbox"], conn.get("instagram"))
+bad = c.get("/api/video/studio/connected/instagram/start").json()["url"].replace("state=", "state=9")
+check("a tampered Instagram state is refused", httpx.get(bad, follow_redirects=False, timeout=30).status_code, 400)
 for platform in ("youtube", "instagram"):
     r = c.post(f"/api/video/studio/clips/{cl['id']}/targets", json={"platform": platform, "caption": "Chai time #shorts"})
     check(f"{platform} publish accepted", r.status_code, 202)

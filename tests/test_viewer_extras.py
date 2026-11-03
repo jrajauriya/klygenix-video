@@ -118,12 +118,21 @@ premium(paid)
 check("erase refused while a paid plan renews", paid.request("DELETE", "/api/video/me", json={"confirm": "DELETE"}).status_code, 409)
 check("erase needs DELETE typed", viewer.request("DELETE", "/api/video/me", json={"confirm": "yes"}).status_code, 400)
 uid = viewer.user["id"]
+stream = sql("select id from kv_media.live_streams order by id limit 1")
+if stream:
+    sql("insert into kv_social.live_messages (tenant_id, stream_id, user_id, author_name, kind, body, paid_minor, status, created_at) "
+        "values (:t, :s, :u, 'Erase Me', 'chat', 'my live words', 0, 'visible', now())", t=viewer.user["tenant_id"], s=stream[0][0], u=uid)
+sql("insert into kv_social.push_messages (tenant_id, user_id, kind, title, body, data, provider, status, tokens, created_at) "
+    "values (:t, :u, 'published', 'x', 'x', '{}', 'sandbox', 'sent', 0, now())", t=viewer.user["tenant_id"], u=uid)
 check("erase", viewer.request("DELETE", "/api/video/me", json={"confirm": "DELETE"}).status_code, 204)
 row = sql("select email, is_active, password_hash from kv_admin.users where id=:u", u=uid)[0]
 ok("email scrubbed", row[0].endswith("@erased.invalid"))
 check("account inactive", row[1], False)
 check("password gone", row[2], None)
 check("their comments are gone", sql("select count(*) from kv_social.comments where user_id=:u and status <> 'deleted'", u=uid)[0][0], 0)
+check("their live chat is blanked", sql("select count(*) from kv_social.live_messages where user_id=:u and (body <> '' or status <> 'deleted')",
+                                      u=uid)[0][0], 0)
+check("their notification log is gone", sql("select count(*) from kv_social.push_messages where user_id=:u", u=uid)[0][0], 0)
 check("their likes are gone", sql("select count(*) from kv_social.likes where user_id=:u", u=uid)[0][0], 0)
 check("the old token stops working", viewer.get("/api/video/me").status_code, 401)
 ok("the audit trail has the erasure", sql("select count(*) from kv_admin.audit_log where action='data.erase' and target_id=:u", u=uid)[0][0] == 1)

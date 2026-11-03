@@ -222,3 +222,31 @@ tests:
             exp_annotations:
               summary: "The certificate for https://play.klygenix.com/ expires in 9d 23h 15m 0s"
               runbook: "infra/METRICS.md#kvcertexpiringsoon"
+
+  - interval: 1m
+    input_series:
+      - series: 'kv_live_ingest_stale'
+        values: '0 0 1 1 1 1'
+      - series: 'kv_realtime_dropped_total'
+        values: '0 0 30 90 150 150 150 150 150 150'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: KvLiveIngestDown
+        exp_alerts:
+          - exp_labels: {severity: warning}
+            exp_annotations:
+              summary: "1 live streams have had no ingest for over 20 seconds"
+              runbook: "infra/METRICS.md#kvliveingestdown"
+      - eval_time: 1m
+        alertname: KvLiveIngestDown
+        exp_alerts: []
+      - eval_time: 4m
+        alertname: KvLiveFanoutSlow
+        exp_alerts:
+          - exp_labels: {severity: warning}
+            exp_annotations:
+              summary: "150 realtime messages dropped in 5 minutes: sockets are falling behind"
+              runbook: "infra/METRICS.md#kvlivefanoutslow"
+      - eval_time: 9m
+        alertname: KvLiveFanoutSlow
+        exp_alerts: []

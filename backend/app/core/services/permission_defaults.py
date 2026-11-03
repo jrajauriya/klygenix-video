@@ -31,12 +31,12 @@ VIDEO_DEFAULT_PERMISSIONS: dict[str, dict[str, str]] = {
     "admin": {
         "video.dashboard": "full", "video.uploads": "full", "video.clips": "full",
         "video.channels": "full", "video.comments": "full", "video.analytics": "full",
-        "video.billing": "view", "video.users": "view", "video.settings": "view", "video.earnings": "view",
+        "video.billing": "view", "video.users": "view", "video.settings": "view", "video.earnings": "view", "video.live": "full",
     },
     "user": {
         "video.dashboard": "view", "video.uploads": "full", "video.clips": "full",
         "video.channels": "view", "video.comments": "full", "video.analytics": "view",
-        "video.billing": "none", "video.users": "none", "video.settings": "none", "video.earnings": "none",
+        "video.billing": "none", "video.users": "none", "video.settings": "none", "video.earnings": "none", "video.live": "none",
     },
 }
 

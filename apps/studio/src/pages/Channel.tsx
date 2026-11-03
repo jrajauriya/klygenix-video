@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode, type RefObject } from "rea
 import { useNavigate, useSearchParams } from "react-router-dom"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
-import { ExternalLink, ImageUp, Link2, RefreshCw, Save, ShieldCheck, Unplug, Youtube } from "lucide-react"
+import { ExternalLink, ImageUp, Instagram, Link2, RefreshCw, Save, ShieldCheck, Unplug, Youtube } from "lucide-react"
 import { api } from "@klygenixvideo/auth"
 import {
   Badge, Button, Card, Field, Input, PageHeader, Select, Spinner, Tabs, Textarea, useConfirm,
@@ -22,13 +22,17 @@ export default function ChannelPage() {
   const { data: channel, isLoading } = useChannel()
   const [params, setParams] = useSearchParams()
   const tab = params.get("tab") === "playlists" ? "playlists" : "profile"
+  const handled = useRef(false)
 
   useEffect(() => {
     const flag = params.get("connected")
-    if (!flag) return
-    if (flag === "1") toast.success("YouTube is connected. Your videos are being linked now.")
-    else if (flag === "taken") toast.error("That YouTube channel is already connected to another Klygenix Play account.")
-    else toast.error("YouTube was not connected.")
+    if (!flag || handled.current) return
+    handled.current = true
+    const ig = connectingPlatform() === "instagram"
+    const name = ig ? "Instagram" : "YouTube"
+    if (flag === "1") toast.success(ig ? "Instagram is connected. You can publish clips to Instagram Reels." : "YouTube is connected. Your videos are being linked now.")
+    else if (flag === "taken") toast.error(`That ${name} account is already connected to another Klygenix Play account.`)
+    else toast.error(`${name} was not connected.`)
     setParams({}, { replace: true })
   }, [params, setParams])
 
@@ -61,6 +65,26 @@ export default function ChannelPage() {
       )}
     </div>
   )
+}
+
+const CONNECTING = "kv-studio-connecting"
+
+function connectingPlatform(): string | null {
+  try {
+    const v = sessionStorage.getItem(CONNECTING)
+    sessionStorage.removeItem(CONNECTING)
+    return v
+  } catch {
+    return null
+  }
+}
+
+function rememberConnecting(platform: string) {
+  try {
+    sessionStorage.setItem(CONNECTING, platform)
+  } catch {
+    return
+  }
 }
 
 function Section({ title, hint, children, action }: { title: string; hint?: ReactNode; children: ReactNode; action?: ReactNode }) {
@@ -196,16 +220,19 @@ function ConnectedAccounts() {
   })
   const active = (rows ?? []).filter((r) => r.status !== "revoked")
 
-  async function connect() {
-    setBusy("connect")
+  async function connect(platform: "youtube" | "instagram") {
+    setBusy(`connect-${platform}`)
     try {
-      const { data } = await api.get<{ url: string }>(`${STUDIO}/connected/youtube/start`)
+      const { data } = await api.get<{ url: string }>(`${STUDIO}/connected/${platform}/start`)
+      rememberConnecting(platform)
       window.location.assign(data.url)
     } catch (err) {
-      toast.error(detail(err, "Could not reach YouTube"))
+      toast.error(detail(err, platform === "instagram" ? "Could not reach Instagram" : "Could not reach YouTube"))
       setBusy(null)
     }
   }
+
+  const igConnected = active.some((r) => r.platform === "instagram" && r.status === "active")
 
   async function sync(row: Connected) {
     setBusy(`sync-${row.id}`)
@@ -243,8 +270,17 @@ function ConnectedAccounts() {
   return (
     <Section
       title="Connected accounts"
-      hint="Connect your YouTube channel to link your videos here automatically, with their captions."
-      action={<Button size="sm" onClick={connect} disabled={busy !== null}><Youtube size={14} /> {busy === "connect" ? "Opening…" : "Connect YouTube"}</Button>}
+      hint="Connect YouTube to link your videos here with their captions. Connect Instagram to publish clips as Reels."
+      action={
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button size="sm" onClick={() => connect("youtube")} disabled={busy !== null}>
+            <Youtube size={14} /> {busy === "connect-youtube" ? "Opening…" : "Connect YouTube"}
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => connect("instagram")} disabled={busy !== null}>
+            <Instagram size={14} /> {busy === "connect-instagram" ? "Opening…" : igConnected ? "Reconnect Instagram" : "Connect Instagram"}
+          </Button>
+        </div>
+      }
     >
       {isLoading ? (
         <Spinner />
@@ -254,18 +290,23 @@ function ConnectedAccounts() {
         <ul className="divide-y divide-slate-100">
           {active.map((r) => (
             <li key={r.id} className="flex flex-wrap items-center gap-3 py-3">
-              <Youtube size={20} className="text-red-600" />
+              {r.platform === "instagram" ? <Instagram size={20} className="text-pink-600" /> : <Youtube size={20} className="text-red-600" />}
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold text-slate-800">
                   {r.title || r.external_channel_id} {r.sandbox && <Badge color="amber">Sandbox</Badge>}
+                  {r.status !== "active" && <Badge color="red" className="ml-1">{r.status.replace(/_/g, " ")}</Badge>}
                 </p>
                 <p className="text-xs text-slate-500">
-                  {r.videos} linked videos · {r.last_synced_at ? `last synced ${when(r.last_synced_at, true)}` : "not synced yet"}
+                  {r.platform === "instagram"
+                    ? "Instagram · clips can be published as Reels"
+                    : `${r.videos} linked videos · ${r.last_synced_at ? `last synced ${when(r.last_synced_at, true)}` : "not synced yet"}`}
                 </p>
               </div>
-              <Button size="sm" variant="outline" onClick={() => sync(r)} disabled={busy !== null}>
-                <RefreshCw size={13} /> {busy === `sync-${r.id}` ? "Starting…" : "Sync now"}
-              </Button>
+              {r.platform === "youtube" && (
+                <Button size="sm" variant="outline" onClick={() => sync(r)} disabled={busy !== null}>
+                  <RefreshCw size={13} /> {busy === `sync-${r.id}` ? "Starting…" : "Sync now"}
+                </Button>
+              )}
               <Button size="sm" variant="ghost" className="text-red-600" onClick={() => disconnect(r)} disabled={busy !== null}>
                 <Unplug size={13} /> Disconnect
               </Button>

@@ -1108,7 +1108,7 @@ CREATE TABLE kv_commerce.checkouts (
     status character varying(8) NOT NULL,
     created_at timestamp with time zone NOT NULL,
     paid_at timestamp with time zone,
-    CONSTRAINT ck_checkouts_purpose CHECK (((purpose)::text = ANY ((ARRAY['plan'::character varying, 'tip'::character varying, 'boost'::character varying, 'membership'::character varying, 'video'::character varying, 'series'::character varying])::text[]))),
+    CONSTRAINT ck_checkouts_purpose CHECK (((purpose)::text = ANY ((ARRAY['plan'::character varying, 'tip'::character varying, 'boost'::character varying, 'membership'::character varying, 'video'::character varying, 'series'::character varying, 'superchat'::character varying, 'gift'::character varying])::text[]))),
     CONSTRAINT ck_checkouts_status CHECK (((status)::text = ANY ((ARRAY['created'::character varying, 'paid'::character varying, 'failed'::character varying, 'expired'::character varying])::text[])))
 );
 
@@ -1822,6 +1822,58 @@ ALTER SEQUENCE kv_media.dub_tracks_id_seq OWNED BY kv_media.dub_tracks.id;
 
 
 --
+-- Name: live_streams; Type: TABLE; Schema: kv_media; Owner: -
+--
+
+CREATE TABLE kv_media.live_streams (
+    id bigint NOT NULL,
+    tenant_id integer NOT NULL,
+    channel_id bigint NOT NULL,
+    public_id character varying(16) NOT NULL,
+    title character varying(160) NOT NULL,
+    description text DEFAULT ''::text NOT NULL,
+    status character varying(10) NOT NULL,
+    provider character varying(12) NOT NULL,
+    ingest_port integer,
+    stream_key text NOT NULL,
+    stream_key_hash character varying(64) NOT NULL,
+    scheduled_at timestamp with time zone,
+    started_at timestamp with time zone,
+    ended_at timestamp with time zone,
+    last_seen_at timestamp with time zone,
+    slow_mode_seconds integer DEFAULT 0 NOT NULL,
+    members_rank smallint,
+    replay_enabled boolean DEFAULT true NOT NULL,
+    replay_video_id bigint,
+    peak_viewers integer DEFAULT 0 NOT NULL,
+    error text,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    provider_ref character varying(80),
+    CONSTRAINT ck_live_streams_status CHECK (((status)::text = ANY ((ARRAY['scheduled'::character varying, 'live'::character varying, 'ended'::character varying, 'failed'::character varying])::text[])))
+);
+
+
+--
+-- Name: live_streams_id_seq; Type: SEQUENCE; Schema: kv_media; Owner: -
+--
+
+CREATE SEQUENCE kv_media.live_streams_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: live_streams_id_seq; Type: SEQUENCE OWNED BY; Schema: kv_media; Owner: -
+--
+
+ALTER SEQUENCE kv_media.live_streams_id_seq OWNED BY kv_media.live_streams.id;
+
+
+--
 -- Name: product_links; Type: TABLE; Schema: kv_media; Owner: -
 --
 
@@ -2072,7 +2124,7 @@ CREATE TABLE kv_social.connected_channels (
     status character varying(12) NOT NULL,
     last_synced_at timestamp with time zone,
     created_at timestamp with time zone NOT NULL,
-    CONSTRAINT ck_connected_channels_platform CHECK (((platform)::text = ANY ((ARRAY['youtube'::character varying, 'bilibili'::character varying])::text[])))
+    CONSTRAINT ck_connected_channels_platform CHECK (((platform)::text = ANY ((ARRAY['youtube'::character varying, 'bilibili'::character varying, 'instagram'::character varying])::text[])))
 );
 
 
@@ -2237,6 +2289,48 @@ CREATE SEQUENCE kv_social.likes_id_seq
 --
 
 ALTER SEQUENCE kv_social.likes_id_seq OWNED BY kv_social.likes.id;
+
+
+--
+-- Name: live_messages; Type: TABLE; Schema: kv_social; Owner: -
+--
+
+CREATE TABLE kv_social.live_messages (
+    id bigint NOT NULL,
+    tenant_id integer NOT NULL,
+    stream_id bigint NOT NULL,
+    user_id integer NOT NULL,
+    author_name character varying(80) NOT NULL,
+    kind character varying(10) NOT NULL,
+    body character varying(300) DEFAULT ''::character varying NOT NULL,
+    paid_minor integer DEFAULT 0 NOT NULL,
+    tier character varying(20),
+    pinned_until timestamp with time zone,
+    checkout_id bigint,
+    status character varying(8) NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    CONSTRAINT ck_live_messages_kind CHECK (((kind)::text = ANY ((ARRAY['chat'::character varying, 'superchat'::character varying, 'gift'::character varying])::text[]))),
+    CONSTRAINT ck_live_messages_status CHECK (((status)::text = ANY ((ARRAY['visible'::character varying, 'hidden'::character varying, 'deleted'::character varying])::text[])))
+);
+
+
+--
+-- Name: live_messages_id_seq; Type: SEQUENCE; Schema: kv_social; Owner: -
+--
+
+CREATE SEQUENCE kv_social.live_messages_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: live_messages_id_seq; Type: SEQUENCE OWNED BY; Schema: kv_social; Owner: -
+--
+
+ALTER SEQUENCE kv_social.live_messages_id_seq OWNED BY kv_social.live_messages.id;
 
 
 --
@@ -2461,6 +2555,47 @@ CREATE TABLE kv_social.profiles (
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL
 );
+
+
+--
+-- Name: push_messages; Type: TABLE; Schema: kv_social; Owner: -
+--
+
+CREATE TABLE kv_social.push_messages (
+    id bigint NOT NULL,
+    tenant_id integer NOT NULL,
+    user_id integer NOT NULL,
+    kind character varying(20) NOT NULL,
+    title character varying(120) NOT NULL,
+    body character varying(300) NOT NULL,
+    data jsonb DEFAULT '{}'::jsonb NOT NULL,
+    dedupe_key character varying(120),
+    provider character varying(10) NOT NULL,
+    status character varying(8) NOT NULL,
+    tokens integer NOT NULL,
+    error text,
+    created_at timestamp with time zone NOT NULL,
+    CONSTRAINT ck_push_messages_status CHECK (((status)::text = ANY ((ARRAY['sent'::character varying, 'failed'::character varying, 'skipped'::character varying])::text[])))
+);
+
+
+--
+-- Name: push_messages_id_seq; Type: SEQUENCE; Schema: kv_social; Owner: -
+--
+
+CREATE SEQUENCE kv_social.push_messages_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: push_messages_id_seq; Type: SEQUENCE OWNED BY; Schema: kv_social; Owner: -
+--
+
+ALTER SEQUENCE kv_social.push_messages_id_seq OWNED BY kv_social.push_messages.id;
 
 
 --
@@ -3407,6 +3542,13 @@ ALTER TABLE ONLY kv_media.dub_tracks ALTER COLUMN id SET DEFAULT nextval('kv_med
 
 
 --
+-- Name: live_streams id; Type: DEFAULT; Schema: kv_media; Owner: -
+--
+
+ALTER TABLE ONLY kv_media.live_streams ALTER COLUMN id SET DEFAULT nextval('kv_media.live_streams_id_seq'::regclass);
+
+
+--
 -- Name: product_links id; Type: DEFAULT; Schema: kv_media; Owner: -
 --
 
@@ -3477,6 +3619,13 @@ ALTER TABLE ONLY kv_social.likes ALTER COLUMN id SET DEFAULT nextval('kv_social.
 
 
 --
+-- Name: live_messages id; Type: DEFAULT; Schema: kv_social; Owner: -
+--
+
+ALTER TABLE ONLY kv_social.live_messages ALTER COLUMN id SET DEFAULT nextval('kv_social.live_messages_id_seq'::regclass);
+
+
+--
 -- Name: notes id; Type: DEFAULT; Schema: kv_social; Owner: -
 --
 
@@ -3516,6 +3665,13 @@ ALTER TABLE ONLY kv_social.poll_votes ALTER COLUMN id SET DEFAULT nextval('kv_so
 --
 
 ALTER TABLE ONLY kv_social.posts ALTER COLUMN id SET DEFAULT nextval('kv_social.posts_id_seq'::regclass);
+
+
+--
+-- Name: push_messages id; Type: DEFAULT; Schema: kv_social; Owner: -
+--
+
+ALTER TABLE ONLY kv_social.push_messages ALTER COLUMN id SET DEFAULT nextval('kv_social.push_messages_id_seq'::regclass);
 
 
 --
@@ -4142,6 +4298,14 @@ ALTER TABLE ONLY kv_media.dub_tracks
 
 
 --
+-- Name: live_streams live_streams_pkey; Type: CONSTRAINT; Schema: kv_media; Owner: -
+--
+
+ALTER TABLE ONLY kv_media.live_streams
+    ADD CONSTRAINT live_streams_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: product_links product_links_pkey; Type: CONSTRAINT; Schema: kv_media; Owner: -
 --
 
@@ -4163,6 +4327,14 @@ ALTER TABLE ONLY kv_media.caption_tracks
 
 ALTER TABLE ONLY kv_media.dub_tracks
     ADD CONSTRAINT uq_dub_tracks UNIQUE (video_id, language);
+
+
+--
+-- Name: live_streams uq_live_streams_public_id; Type: CONSTRAINT; Schema: kv_media; Owner: -
+--
+
+ALTER TABLE ONLY kv_media.live_streams
+    ADD CONSTRAINT uq_live_streams_public_id UNIQUE (public_id);
 
 
 --
@@ -4270,6 +4442,14 @@ ALTER TABLE ONLY kv_social.likes
 
 
 --
+-- Name: live_messages live_messages_pkey; Type: CONSTRAINT; Schema: kv_social; Owner: -
+--
+
+ALTER TABLE ONLY kv_social.live_messages
+    ADD CONSTRAINT live_messages_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: notes notes_pkey; Type: CONSTRAINT; Schema: kv_social; Owner: -
 --
 
@@ -4323,6 +4503,14 @@ ALTER TABLE ONLY kv_social.posts
 
 ALTER TABLE ONLY kv_social.profiles
     ADD CONSTRAINT profiles_pkey PRIMARY KEY (user_id);
+
+
+--
+-- Name: push_messages push_messages_pkey; Type: CONSTRAINT; Schema: kv_social; Owner: -
+--
+
+ALTER TABLE ONLY kv_social.push_messages
+    ADD CONSTRAINT push_messages_pkey PRIMARY KEY (id);
 
 
 --
@@ -4387,6 +4575,14 @@ ALTER TABLE ONLY kv_social.playlist_items
 
 ALTER TABLE ONLY kv_social.poll_votes
     ADD CONSTRAINT uq_poll_votes UNIQUE (post_id, user_id);
+
+
+--
+-- Name: push_messages uq_push_messages_dedupe; Type: CONSTRAINT; Schema: kv_social; Owner: -
+--
+
+ALTER TABLE ONLY kv_social.push_messages
+    ADD CONSTRAINT uq_push_messages_dedupe UNIQUE (dedupe_key);
 
 
 --
@@ -4989,6 +5185,13 @@ CREATE UNIQUE INDEX uq_accounts_role ON kv_ledger.accounts USING btree (tenant_i
 
 
 --
+-- Name: idx_live_streams_status; Type: INDEX; Schema: kv_media; Owner: -
+--
+
+CREATE INDEX idx_live_streams_status ON kv_media.live_streams USING btree (status, started_at);
+
+
+--
 -- Name: idx_product_links_video; Type: INDEX; Schema: kv_media; Owner: -
 --
 
@@ -5038,6 +5241,13 @@ CREATE INDEX ix_kv_media_dub_tracks_tenant_id ON kv_media.dub_tracks USING btree
 
 
 --
+-- Name: ix_kv_media_live_streams_tenant_id; Type: INDEX; Schema: kv_media; Owner: -
+--
+
+CREATE INDEX ix_kv_media_live_streams_tenant_id ON kv_media.live_streams USING btree (tenant_id);
+
+
+--
 -- Name: ix_kv_media_product_links_tenant_id; Type: INDEX; Schema: kv_media; Owner: -
 --
 
@@ -5066,6 +5276,13 @@ CREATE INDEX idx_danmaku_video_t ON kv_social.danmaku USING btree (video_id, t_m
 
 
 --
+-- Name: idx_live_messages_stream; Type: INDEX; Schema: kv_social; Owner: -
+--
+
+CREATE INDEX idx_live_messages_stream ON kv_social.live_messages USING btree (stream_id, created_at);
+
+
+--
 -- Name: idx_notes_user_video; Type: INDEX; Schema: kv_social; Owner: -
 --
 
@@ -5077,6 +5294,13 @@ CREATE INDEX idx_notes_user_video ON kv_social.notes USING btree (user_id, video
 --
 
 CREATE INDEX idx_posts_channel ON kv_social.posts USING btree (channel_id, created_at);
+
+
+--
+-- Name: idx_push_messages_user; Type: INDEX; Schema: kv_social; Owner: -
+--
+
+CREATE INDEX idx_push_messages_user ON kv_social.push_messages USING btree (user_id, created_at);
 
 
 --
@@ -5178,6 +5402,13 @@ CREATE INDEX ix_kv_social_likes_video_id ON kv_social.likes USING btree (video_i
 
 
 --
+-- Name: ix_kv_social_live_messages_tenant_id; Type: INDEX; Schema: kv_social; Owner: -
+--
+
+CREATE INDEX ix_kv_social_live_messages_tenant_id ON kv_social.live_messages USING btree (tenant_id);
+
+
+--
 -- Name: ix_kv_social_notes_tenant_id; Type: INDEX; Schema: kv_social; Owner: -
 --
 
@@ -5231,6 +5462,13 @@ CREATE INDEX ix_kv_social_posts_tenant_id ON kv_social.posts USING btree (tenant
 --
 
 CREATE INDEX ix_kv_social_profiles_tenant_id ON kv_social.profiles USING btree (tenant_id);
+
+
+--
+-- Name: ix_kv_social_push_messages_tenant_id; Type: INDEX; Schema: kv_social; Owner: -
+--
+
+CREATE INDEX ix_kv_social_push_messages_tenant_id ON kv_social.push_messages USING btree (tenant_id);
 
 
 --
@@ -5845,6 +6083,22 @@ ALTER TABLE ONLY kv_media.dub_tracks
 
 
 --
+-- Name: live_streams live_streams_channel_id_fkey; Type: FK CONSTRAINT; Schema: kv_media; Owner: -
+--
+
+ALTER TABLE ONLY kv_media.live_streams
+    ADD CONSTRAINT live_streams_channel_id_fkey FOREIGN KEY (channel_id) REFERENCES kv_social.channels(id) ON DELETE CASCADE;
+
+
+--
+-- Name: live_streams live_streams_tenant_id_fkey; Type: FK CONSTRAINT; Schema: kv_media; Owner: -
+--
+
+ALTER TABLE ONLY kv_media.live_streams
+    ADD CONSTRAINT live_streams_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES kv_admin.tenants(id) ON DELETE CASCADE;
+
+
+--
 -- Name: product_links product_links_tenant_id_fkey; Type: FK CONSTRAINT; Schema: kv_media; Owner: -
 --
 
@@ -6005,6 +6259,22 @@ ALTER TABLE ONLY kv_social.likes
 
 
 --
+-- Name: live_messages live_messages_stream_id_fkey; Type: FK CONSTRAINT; Schema: kv_social; Owner: -
+--
+
+ALTER TABLE ONLY kv_social.live_messages
+    ADD CONSTRAINT live_messages_stream_id_fkey FOREIGN KEY (stream_id) REFERENCES kv_media.live_streams(id) ON DELETE CASCADE;
+
+
+--
+-- Name: live_messages live_messages_tenant_id_fkey; Type: FK CONSTRAINT; Schema: kv_social; Owner: -
+--
+
+ALTER TABLE ONLY kv_social.live_messages
+    ADD CONSTRAINT live_messages_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES kv_admin.tenants(id) ON DELETE CASCADE;
+
+
+--
 -- Name: notes notes_tenant_id_fkey; Type: FK CONSTRAINT; Schema: kv_social; Owner: -
 --
 
@@ -6130,6 +6400,14 @@ ALTER TABLE ONLY kv_social.profiles
 
 ALTER TABLE ONLY kv_social.profiles
     ADD CONSTRAINT profiles_user_id_fkey FOREIGN KEY (user_id) REFERENCES kv_admin.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: push_messages push_messages_tenant_id_fkey; Type: FK CONSTRAINT; Schema: kv_social; Owner: -
+--
+
+ALTER TABLE ONLY kv_social.push_messages
+    ADD CONSTRAINT push_messages_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES kv_admin.tenants(id) ON DELETE CASCADE;
 
 
 --
@@ -6624,6 +6902,12 @@ ALTER TABLE kv_media.caption_tracks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE kv_media.dub_tracks ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: live_streams; Type: ROW SECURITY; Schema: kv_media; Owner: -
+--
+
+ALTER TABLE kv_media.live_streams ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: product_links; Type: ROW SECURITY; Schema: kv_media; Owner: -
 --
 
@@ -6641,6 +6925,13 @@ CREATE POLICY public_read ON kv_media.caption_tracks FOR SELECT USING (kv_media.
 --
 
 CREATE POLICY public_read ON kv_media.dub_tracks FOR SELECT USING (kv_media.video_readable(video_id));
+
+
+--
+-- Name: live_streams public_read; Type: POLICY; Schema: kv_media; Owner: -
+--
+
+CREATE POLICY public_read ON kv_media.live_streams FOR SELECT USING (((status)::text = ANY ((ARRAY['scheduled'::character varying, 'live'::character varying, 'ended'::character varying])::text[])));
 
 
 --
@@ -6669,6 +6960,13 @@ CREATE POLICY tenant_isolation ON kv_media.caption_tracks USING (((tenant_id = k
 --
 
 CREATE POLICY tenant_isolation ON kv_media.dub_tracks USING (((tenant_id = kv_admin.current_tenant()) OR kv_admin.is_platform())) WITH CHECK (((tenant_id = kv_admin.current_tenant()) OR kv_admin.is_platform()));
+
+
+--
+-- Name: live_streams tenant_isolation; Type: POLICY; Schema: kv_media; Owner: -
+--
+
+CREATE POLICY tenant_isolation ON kv_media.live_streams USING (((tenant_id = kv_admin.current_tenant()) OR kv_admin.is_platform())) WITH CHECK (((tenant_id = kv_admin.current_tenant()) OR kv_admin.is_platform()));
 
 
 --
@@ -6740,6 +7038,12 @@ ALTER TABLE kv_social.follows ENABLE ROW LEVEL SECURITY;
 ALTER TABLE kv_social.likes ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: live_messages; Type: ROW SECURITY; Schema: kv_social; Owner: -
+--
+
+ALTER TABLE kv_social.live_messages ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: notes; Type: ROW SECURITY; Schema: kv_social; Owner: -
 --
 
@@ -6803,6 +7107,13 @@ CREATE POLICY public_read ON kv_social.danmaku FOR SELECT USING ((((status)::tex
 
 
 --
+-- Name: live_messages public_read; Type: POLICY; Schema: kv_social; Owner: -
+--
+
+CREATE POLICY public_read ON kv_social.live_messages FOR SELECT USING (((status)::text = 'visible'::text));
+
+
+--
 -- Name: playlist_items public_read; Type: POLICY; Schema: kv_social; Owner: -
 --
 
@@ -6829,6 +7140,12 @@ CREATE POLICY public_read ON kv_social.poll_options FOR SELECT USING (true);
 
 CREATE POLICY public_read ON kv_social.posts FOR SELECT USING (((status)::text = 'visible'::text));
 
+
+--
+-- Name: push_messages; Type: ROW SECURITY; Schema: kv_social; Owner: -
+--
+
+ALTER TABLE kv_social.push_messages ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: quiz_attempts; Type: ROW SECURITY; Schema: kv_social; Owner: -
@@ -6893,6 +7210,13 @@ CREATE POLICY tenant_isolation ON kv_social.likes USING (((tenant_id = kv_admin.
 
 
 --
+-- Name: live_messages tenant_isolation; Type: POLICY; Schema: kv_social; Owner: -
+--
+
+CREATE POLICY tenant_isolation ON kv_social.live_messages USING (((tenant_id = kv_admin.current_tenant()) OR kv_admin.is_platform())) WITH CHECK (((tenant_id = kv_admin.current_tenant()) OR kv_admin.is_platform()));
+
+
+--
 -- Name: notes tenant_isolation; Type: POLICY; Schema: kv_social; Owner: -
 --
 
@@ -6939,6 +7263,13 @@ CREATE POLICY tenant_isolation ON kv_social.posts USING (((tenant_id = kv_admin.
 --
 
 CREATE POLICY tenant_isolation ON kv_social.profiles USING (((tenant_id = kv_admin.current_tenant()) OR kv_admin.is_platform())) WITH CHECK (((tenant_id = kv_admin.current_tenant()) OR kv_admin.is_platform()));
+
+
+--
+-- Name: push_messages tenant_isolation; Type: POLICY; Schema: kv_social; Owner: -
+--
+
+CREATE POLICY tenant_isolation ON kv_social.push_messages USING (((tenant_id = kv_admin.current_tenant()) OR kv_admin.is_platform())) WITH CHECK (((tenant_id = kv_admin.current_tenant()) OR kv_admin.is_platform()));
 
 
 --
@@ -7770,6 +8101,20 @@ GRANT SELECT,USAGE ON SEQUENCE kv_media.dub_tracks_id_seq TO klygenix_video_app;
 
 
 --
+-- Name: TABLE live_streams; Type: ACL; Schema: kv_media; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE kv_media.live_streams TO klygenix_video_app;
+
+
+--
+-- Name: SEQUENCE live_streams_id_seq; Type: ACL; Schema: kv_media; Owner: -
+--
+
+GRANT SELECT,USAGE ON SEQUENCE kv_media.live_streams_id_seq TO klygenix_video_app;
+
+
+--
 -- Name: TABLE product_links; Type: ACL; Schema: kv_media; Owner: -
 --
 
@@ -7910,6 +8255,20 @@ GRANT SELECT,USAGE ON SEQUENCE kv_social.likes_id_seq TO klygenix_video_app;
 
 
 --
+-- Name: TABLE live_messages; Type: ACL; Schema: kv_social; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE kv_social.live_messages TO klygenix_video_app;
+
+
+--
+-- Name: SEQUENCE live_messages_id_seq; Type: ACL; Schema: kv_social; Owner: -
+--
+
+GRANT SELECT,USAGE ON SEQUENCE kv_social.live_messages_id_seq TO klygenix_video_app;
+
+
+--
 -- Name: TABLE notes; Type: ACL; Schema: kv_social; Owner: -
 --
 
@@ -7998,6 +8357,20 @@ GRANT SELECT,USAGE ON SEQUENCE kv_social.posts_id_seq TO klygenix_video_app;
 --
 
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE kv_social.profiles TO klygenix_video_app;
+
+
+--
+-- Name: TABLE push_messages; Type: ACL; Schema: kv_social; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE kv_social.push_messages TO klygenix_video_app;
+
+
+--
+-- Name: SEQUENCE push_messages_id_seq; Type: ACL; Schema: kv_social; Owner: -
+--
+
+GRANT SELECT,USAGE ON SEQUENCE kv_social.push_messages_id_seq TO klygenix_video_app;
 
 
 --

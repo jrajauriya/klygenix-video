@@ -25,6 +25,7 @@ export interface HlsPlayerProps {
   chapters?: Chapter[]
   dubs?: DubTrack[]
   hotkeys?: boolean
+  live?: boolean
   fit?: "contain" | "cover"
   onTime?: (ms: number) => void
   onEnded?: () => void
@@ -63,7 +64,7 @@ function useLatest<T>(value: T) {
 
 export function HlsPlayer({
   src, poster, startMs, autoPlay = false, muted: mutedProp = false, loop = false, controls = true, captions,
-  captionLang: captionProp, chapters, dubs, hotkeys = true, fit = "contain", onTime, onEnded, onPlay, onPause,
+  captionLang: captionProp, chapters, dubs, hotkeys = true, live = false, fit = "contain", onTime, onEnded, onPlay, onPause,
   onDanmakuToggle, onCaptionChange, onMutedChange, className, videoRef, children,
 }: HlsPlayerProps) {
   const video = useRef<HTMLVideoElement>(null)
@@ -91,6 +92,7 @@ export function HlsPlayer({
   const [menu, setMenu] = useState<Menu>(null)
   const [failed, setFailed] = useState(false)
   const [dubLang, setDubLang] = useState<string | null>(null)
+  const [behind, setBehind] = useState(false)
   const audio = useRef<HTMLAudioElement>(null)
   const dub = dubs?.find((d) => d.language === dubLang) ?? null
   const dubRef = useLatest(dub)
@@ -148,7 +150,9 @@ export function HlsPlayer({
           kick()
           return
         }
-        const h = new Hls({ capLevelToPlayerSize: true, enableWorker: true, startLevel: 0, startFragPrefetch: true })
+        const h = new Hls(live
+          ? { capLevelToPlayerSize: true, enableWorker: true, lowLatencyMode: true, liveSyncDurationCount: 3, liveMaxLatencyDurationCount: 8, maxLiveSyncPlaybackRate: 1.2, backBufferLength: 30 }
+          : { capLevelToPlayerSize: true, enableWorker: true, startLevel: 0, startFragPrefetch: true })
         hls.current = h
         h.on(Hls.Events.MANIFEST_PARSED, (_e, data) => {
           setLevels(data.levels.map((l, index) => ({ index, height: l.height, bitrate: l.bitrate })))
@@ -176,7 +180,7 @@ export function HlsPlayer({
       v.removeAttribute("src")
       v.load()
     }
-  }, [src, autoPlay])
+  }, [src, autoPlay, live])
 
   useEffect(() => {
     const v = video.current
@@ -205,6 +209,34 @@ export function HlsPlayer({
     setCurrent(ms)
     cb.current.onTime?.(ms)
   }, [cb])
+
+  const liveEdge = useCallback((): number | null => {
+    const v = video.current
+    if (!v) return null
+    const sync = hls.current?.liveSyncPosition
+    if (typeof sync === "number" && Number.isFinite(sync)) return sync
+    const r = v.seekable
+    return r.length ? Math.max(0, r.end(r.length - 1) - 3) : null
+  }, [])
+
+  useEffect(() => {
+    if (!live) return
+    const timer = window.setInterval(() => {
+      const v = video.current
+      const edge = liveEdge()
+      setBehind(Boolean(v && edge !== null && edge - v.currentTime > 8))
+    }, 1000)
+    return () => window.clearInterval(timer)
+  }, [live, liveEdge])
+
+  const goLive = useCallback(() => {
+    const v = video.current
+    const edge = liveEdge()
+    if (!v) return
+    if (edge !== null) v.currentTime = edge
+    if (v.paused) v.play().catch(() => undefined)
+    setBehind(false)
+  }, [liveEdge])
 
   useEffect(() => {
     if (!playing) return
@@ -374,10 +406,10 @@ export function HlsPlayer({
       const onButton = (e.target as HTMLElement | null)?.tagName === "BUTTON"
       const key = e.key.toLowerCase()
       if ((key === " " && !onButton) || key === "k") toggle()
-      else if (key === "j") nudge(-10_000)
-      else if (key === "l") nudge(10_000)
-      else if (key === "arrowleft" && !onButton) nudge(-5_000)
-      else if (key === "arrowright" && !onButton) nudge(5_000)
+      else if (key === "j" && !live) nudge(-10_000)
+      else if (key === "l" && !live) nudge(10_000)
+      else if (key === "arrowleft" && !onButton && !live) nudge(-5_000)
+      else if (key === "arrowright" && !onButton && !live) nudge(5_000)
       else if (key === "f") toggleFullscreen()
       else if (key === "m") toggleMute()
       else if (key === "c") toggleCaptions()
@@ -388,7 +420,7 @@ export function HlsPlayer({
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [hotkeys, controls, toggle, nudge, toggleFullscreen, toggleMute, toggleCaptions, toggleDanmaku, wake])
+  }, [hotkeys, controls, live, toggle, nudge, toggleFullscreen, toggleMute, toggleCaptions, toggleDanmaku, wake])
 
   function chooseLevel(index: number) {
     setLevel(index)
@@ -547,11 +579,11 @@ export function HlsPlayer({
             showChrome ? "opacity-100" : "pointer-events-none opacity-0",
           )}
         >
-          <ChapterBar durationMs={duration} currentMs={current} bufferedMs={buffered} chapters={chapters} onSeek={seek} />
+          {!live && <ChapterBar durationMs={duration} currentMs={current} bufferedMs={buffered} chapters={chapters} onSeek={seek} />}
           <div className="flex items-center gap-0.5 sm:gap-1">
             <CtlButton label={playing ? "Pause (k)" : "Play (k)"} onClick={toggle}>{playing ? <PauseIcon /> : <PlayIcon />}</CtlButton>
-            <CtlButton label="Back 10 seconds (j)" onClick={() => nudge(-10_000)}><BackIcon /></CtlButton>
-            <CtlButton label="Forward 10 seconds (l)" onClick={() => nudge(10_000)}><ForwardIcon /></CtlButton>
+            {!live && <CtlButton label="Back 10 seconds (j)" onClick={() => nudge(-10_000)}><BackIcon /></CtlButton>}
+            {!live && <CtlButton label="Forward 10 seconds (l)" onClick={() => nudge(10_000)}><ForwardIcon /></CtlButton>}
             <div className="group/vol flex items-center">
               <CtlButton label={muted ? "Unmute (m)" : "Mute (m)"} onClick={toggleMute}>{muted || volume === 0 ? <MuteIcon /> : <VolumeIcon />}</CtlButton>
               <input
@@ -570,14 +602,27 @@ export function HlsPlayer({
                 className="hidden h-1 w-0 cursor-pointer accent-[#E879F9] opacity-0 transition-[width,opacity] duration-200 group-hover/vol:w-20 group-hover/vol:opacity-100 focus:w-20 focus:opacity-100 sm:block"
               />
             </div>
-            <span className="ml-1 whitespace-nowrap text-xs tabular-nums text-white/90 sm:text-[13px]">
-              {formatClock(current)} <span className="text-white/50">/ {formatClock(duration)}</span>
-            </span>
+            {live ? (
+              <button
+                type="button"
+                onClick={goLive}
+                onPointerUp={(e) => e.stopPropagation()}
+                title={behind ? "Jump to live" : "You are watching live"}
+                className="ml-1 inline-flex h-7 items-center gap-1.5 rounded-full px-2 text-xs font-bold uppercase tracking-wide text-white hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E879F9]"
+              >
+                <span className={cx("h-2 w-2 rounded-full", behind ? "bg-white/50" : "bg-[#ef4444]")} />
+                {behind ? "Go live" : "Live"}
+              </button>
+            ) : (
+              <span className="ml-1 whitespace-nowrap text-xs tabular-nums text-white/90 sm:text-[13px]">
+                {formatClock(current)} <span className="text-white/50">/ {formatClock(duration)}</span>
+              </span>
+            )}
             {chapter && (
               <span className="ml-2 hidden min-w-0 truncate text-xs text-white/70 md:inline">· {chapter.title}</span>
             )}
             <div className="flex-1" />
-            {rate !== 1 && <span className="mr-1 rounded bg-white/15 px-1.5 text-[11px] font-semibold">{rate}x</span>}
+            {rate !== 1 && !live && <span className="mr-1 rounded bg-white/15 px-1.5 text-[11px] font-semibold">{rate}x</span>}
             {!!captions?.length && (
               <CtlButton label="Subtitles (c)" onClick={toggleCaptions} pressed={!!captionLang}>
                 <span className={cx("relative", captionLang && "text-[#F0ABFC]")}>
@@ -597,7 +642,7 @@ export function HlsPlayer({
                   {menu === "root" && (
                     <>
                       {levels.length > 0 && <MenuRow label="Quality" value={qualityLabel} onClick={() => setMenu("quality")} />}
-                      <MenuRow label="Speed" value={rate === 1 ? "Normal" : `${rate}x`} onClick={() => setMenu("speed")} />
+                      {!live && <MenuRow label="Speed" value={rate === 1 ? "Normal" : `${rate}x`} onClick={() => setMenu("speed")} />}
                       {!!captions?.length && <MenuRow label="Subtitles" value={captionLabel} onClick={() => setMenu("captions")} />}
                       {!!dubs?.length && <MenuRow label="Audio" value={dub ? `${dub.name} (${dub.label})` : "Original"} onClick={() => setMenu("audio")} />}
                     </>

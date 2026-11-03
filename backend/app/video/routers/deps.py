@@ -91,9 +91,12 @@ def platform_mode(db: Session) -> Session:
 def platform(key: str, level: str = "view"):
     checker = require_admin_tenant(key, level)
 
-    def dep(user: User = Depends(checker), db: Session = Depends(get_db)) -> Ctx:
+    def dep(request: Request, user: User = Depends(checker), db: Session = Depends(get_db)) -> Ctx:
+        from app.core.audit import USER, Actor, acting_as
+
         bind_tenant(db, user.tenant_id)
         platform_mode(db)
+        acting_as(db, Actor(USER, user_id=user.id, label=user.email, ip=request.client.host if request.client else None))
         return Ctx(db=db, user=user, tenant_id=user.tenant_id)
 
     return dep

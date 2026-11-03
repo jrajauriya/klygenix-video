@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -18,8 +18,16 @@ from app.video.models.tax import TaxInvoice
 from app.video.rails import rail_for
 from app.video.services.numbering import next_number
 from app.video.tax.gst import split_amount, treatment
+from app.video.clock import ist_today
 
-PURPOSES = ("tip", "boost", "membership", "video", "series")
+PURPOSES = ("tip", "boost", "membership", "video", "series", "superchat", "gift")
+SUPERCHAT_TIERS = {
+    1: {"price_minor": 4900, "pin_seconds": 30, "color": "#FACC15", "label": "Highlight"},
+    2: {"price_minor": 19900, "pin_seconds": 120, "color": "#F472B6", "label": "Spotlight"},
+    3: {"price_minor": 49900, "pin_seconds": 300, "color": "#38BDF8", "label": "Headline"},
+}
+GIFTS = {"chai": {"price_minor": 1900, "label": "Chai"}, "rose": {"price_minor": 4900, "label": "Rose"},
+         "trophy": {"price_minor": 19900, "label": "Trophy"}}
 BOOST_TIERS = {
     1: {"price_minor": 2900, "pin_ms": 5000, "color": "#FACC15", "label": "Glow"},
     2: {"price_minor": 9900, "pin_ms": 10000, "color": "#F472B6", "label": "Spotlight"},
@@ -39,7 +47,7 @@ def hosted(v: Video | None) -> bool:
 def _quote(db: Session, channel: Channel, amount: int, taxed: bool, state_code: str | None) -> dict:
     acct = splits.payout_account(db, channel.tenant_id)
     gstin = acct.gstin if acct and taxed else None
-    t = treatment(db, code="OIDAR" if taxed else "NONE", on=date.today(), seller_gstin=gstin,
+    t = treatment(db, code="OIDAR" if taxed else "NONE", on=ist_today(), seller_gstin=gstin,
                   seller_state=(gstin or "")[:2] or None, buyer_country="IN", buyer_state=state_code)
     parts = split_amount(amount, t, inclusive=True)
     return {"amount_minor": amount, "currency": "INR", "taxable_minor": parts["taxable_minor"],
@@ -88,6 +96,30 @@ def price(db: Session, *, user: User, purpose: str, data: dict) -> tuple[Channel
         target.update(video_id=video.id, video_public_id=video.public_id, text=text, t_ms=t_ms,
                       boost_tier=int(data["boost_tier"]))
         return _need(db.get(Channel, video.channel_id)), tier["price_minor"], target
+    if purpose in ("superchat", "gift"):
+        from app.video.live import service as live
+        from app.video.models.media import LiveStream
+
+        s = db.execute(select(LiveStream).where(LiveStream.public_id == (data.get("stream_id") or ""))).scalars().first()
+        if s is None or s.status != "live":
+            raise err(409, "live_not_live")
+        if not live.allowed(db, user, s):
+            raise err(402, "video_locked")
+        target.update(stream_id=s.id, stream_public_id=s.public_id)
+        if purpose == "superchat":
+            tier = SUPERCHAT_TIERS.get(int(data.get("boost_tier") or 0))
+            if tier is None:
+                raise err(400, "action_not_allowed")
+            ok, text = clean((data.get("message") or "").strip()[:200])
+            if not ok or has_link(text):
+                raise err(400, "danmaku_blocked_words")
+            target.update(tier=int(data["boost_tier"]), message=text)
+            return _need(db.get(Channel, s.channel_id)), tier["price_minor"], target
+        gift = GIFTS.get(str(data.get("gift") or ""))
+        if gift is None:
+            raise err(400, "action_not_allowed")
+        target.update(gift=data["gift"])
+        return _need(db.get(Channel, s.channel_id)), gift["price_minor"], target
     if purpose == "membership":
         tier = db.get(MembershipTier, int(data.get("tier_id") or 0))
         if tier is None or not tier.is_active:
@@ -156,12 +188,13 @@ def _invoice(db: Session, chk: Checkout, buyer: User, channel: Channel) -> TaxIn
         return None
     q = (chk.target or {}).get("quote") or {}
     acct = splits.payout_account(db, channel.tenant_id)
-    title = {"boost": "Boosted danmaku", "membership": f"Membership — {chk.target.get('tier_name', '')} (30 days)",
+    title = {"superchat": "Super chat", "gift": f"Live gift — {(chk.target or {}).get('gift', '')}",
+             "boost": "Boosted danmaku", "membership": f"Membership — {chk.target.get('tier_name', '')} (30 days)",
              "video": f"Video — {chk.target.get('title', '')}", "series": f"Series — {chk.target.get('title', '')}"}[chk.purpose]
     inv = TaxInvoice(
         tenant_id=channel.tenant_id, kind="invoice",
-        number=next_number(db, tenant_id=channel.tenant_id, series="KVC", day=date.today()),
-        invoice_date=date.today(), order_id=chk.id,
+        number=next_number(db, tenant_id=channel.tenant_id, series="KVC", day=ist_today()),
+        invoice_date=ist_today(), order_id=chk.id,
         seller={"name": acct.legal_name if acct else channel.name, "gstin": q.get("seller_gstin"),
                 "channel": channel.handle, "order_number": f"CHK-{chk.id}",
                 "note": None if q.get("seller_gstin") else "Bill of supply — supplier not registered for GST"},
@@ -226,6 +259,21 @@ def fulfil(db: Session, chk: Checkout, payment: Payment) -> None:
         db.add(d)
         db.flush()
         later(db, announce_boost, d.id)
+    elif chk.purpose in ("superchat", "gift"):
+        from app.video.models.community import LiveMessage
+
+        if chk.purpose == "superchat":
+            tier = SUPERCHAT_TIERS[int(t["tier"])]
+            body, label, pin = t.get("message") or "", tier["label"], tier["pin_seconds"]
+        else:
+            g = GIFTS[t["gift"]]
+            body, label, pin = f"sent a {g['label']}", g["label"], 15
+        m = LiveMessage(tenant_id=chk.tenant_id, stream_id=t["stream_id"], user_id=chk.user_id, author_name=name[:80],
+                        kind=chk.purpose, body=body[:300], paid_minor=chk.amount_minor, tier=label,
+                        pinned_until=now() + timedelta(seconds=pin), checkout_id=chk.id)
+        db.add(m)
+        db.flush()
+        later(db, announce_live, m.id)
     elif chk.purpose == "membership":
         tier = db.get(MembershipTier, t["tier_id"])
         grant_membership(db, user_id=chk.user_id, tenant_id=chk.tenant_id, tier=tier, rail=chk.rail,
@@ -256,3 +304,16 @@ def announce_boost(danmaku_id: int) -> None:
         d = db.get(Danmaku, danmaku_id)
         if d is not None and d.status == "visible":
             publish(d.video_id, {"type": "danmaku", "item": danmaku_out(d)})
+
+
+@job
+def announce_live(message_id: int) -> None:
+    from app.video.models.community import LiveMessage
+    from app.video.models.media import LiveStream
+    from app.video.routers.live import emit, message_out
+    from app.video.sessions import platform_session
+
+    with platform_session() as db:
+        m = db.get(LiveMessage, message_id)
+        if m is not None and m.status == "visible":
+            emit(db.get(LiveStream, m.stream_id), {"type": m.kind, "item": message_out(m)})

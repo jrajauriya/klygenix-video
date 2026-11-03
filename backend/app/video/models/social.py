@@ -56,7 +56,7 @@ class ConnectedChannel(Base):
     __tablename__ = "connected_channels"
     __table_args__ = (
         UniqueConstraint("platform", "external_channel_id", name="uq_connected_channels"),
-        CheckConstraint("platform IN ('youtube','bilibili')", name="ck_connected_channels_platform"),
+        CheckConstraint("platform IN ('youtube','bilibili','instagram')", name="ck_connected_channels_platform"),
         {"schema": SCHEMA},
     )
 
@@ -218,3 +218,27 @@ class DeviceToken(Base):
     platform: Mapped[str] = mapped_column(String(8), nullable=False)
     created_at: Mapped[datetime] = created()
     last_seen_at: Mapped[datetime] = updated()
+
+
+class PushMessage(Base):
+    __tablename__ = "push_messages"
+    __table_args__ = (
+        CheckConstraint("status IN ('sent','failed','skipped')", name="ck_push_messages_status"),
+        UniqueConstraint("dedupe_key", name="uq_push_messages_dedupe"),
+        Index("idx_push_messages_user", "user_id", "created_at"),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[int] = pk()
+    tenant_id: Mapped[int] = tenant_fk()
+    user_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    kind: Mapped[str] = mapped_column(String(20), nullable=False)
+    title: Mapped[str] = mapped_column(String(120), nullable=False)
+    body: Mapped[str] = mapped_column(String(300), nullable=False)
+    data: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict, server_default="{}")
+    dedupe_key: Mapped[str | None] = mapped_column(String(120))
+    provider: Mapped[str] = mapped_column(String(10), nullable=False)
+    status: Mapped[str] = mapped_column(String(8), nullable=False)
+    tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = created()

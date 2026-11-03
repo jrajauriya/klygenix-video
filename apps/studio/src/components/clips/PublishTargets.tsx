@@ -1,16 +1,17 @@
 import { useState } from "react"
+import { Link } from "react-router-dom"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
-import { ExternalLink, Send } from "lucide-react"
+import { ExternalLink, Link2, Send } from "lucide-react"
 import { api } from "@klygenixvideo/auth"
 import { Button, Card, Field, StatusPill, Textarea } from "@klygenixvideo/ui"
 import { STUDIO } from "../../lib/hooks"
-import { detail } from "../../lib/format"
-import type { Clip, PublishTarget } from "../../lib/types"
+import { detail, status } from "../../lib/format"
+import type { Clip, Connected, PublishTarget } from "../../lib/types"
 
-const PLATFORMS: { key: "youtube" | "instagram"; label: string; button: string }[] = [
-  { key: "youtube", label: "YouTube Shorts", button: "Publish to YouTube Shorts" },
-  { key: "instagram", label: "Instagram Reels", button: "Publish to Instagram Reels" },
+const PLATFORMS: { key: "youtube" | "instagram"; label: string; button: string; account: string }[] = [
+  { key: "youtube", label: "YouTube Shorts", button: "Publish to YouTube Shorts", account: "YouTube" },
+  { key: "instagram", label: "Instagram Reels", button: "Publish to Instagram Reels", account: "Instagram" },
 ]
 
 const STATUS: Record<string, { label: string; hex: string }> = {
@@ -31,15 +32,35 @@ export function PublishTargets({ clip }: { clip: Clip }) {
     refetchInterval: (q) => ((q.state.data ?? []).some((t) => t.status === "queued" || t.status === "publishing") ? 2500 : false),
   })
   const by = new Map((data ?? []).map((t) => [t.platform, t]))
+  const [refused, setRefused] = useState<Record<string, string>>({})
+  const { data: accounts } = useQuery({
+    queryKey: ["studio-connected"],
+    queryFn: async () => (await api.get<Connected[]>(`${STUDIO}/connected`)).data,
+    retry: false,
+  })
+  const linked = (platform: string) =>
+    accounts === undefined ? true : accounts.some((a) => a.platform === platform && a.status === "active")
 
   async function send(platform: "youtube" | "instagram", label: string) {
     setBusy(platform)
     try {
       await api.post(`${STUDIO}/clips/${clip.id}/targets`, { platform, caption: caption.trim() })
       toast.success(`Sending to ${label}`)
+      setRefused((r) => Object.fromEntries(Object.entries(r).filter(([k]) => k !== platform)))
       qc.invalidateQueries({ queryKey: key })
     } catch (err) {
-      toast.error(detail(err, `Could not publish to ${label}`))
+      const text = detail(err, `Could not publish to ${label}`)
+      if (status(err) === 409) {
+        const fresh = await qc.fetchQuery({
+          queryKey: ["studio-connected"],
+          queryFn: async () => (await api.get<Connected[]>(`${STUDIO}/connected`)).data,
+        }).catch(() => undefined)
+        if (!fresh || !fresh.some((a) => a.platform === platform && a.status === "active")) {
+          setRefused((r) => ({ ...r, [platform]: text }))
+          return
+        }
+      }
+      toast.error(text)
     } finally {
       setBusy(null)
     }
@@ -76,6 +97,14 @@ export function PublishTargets({ clip }: { clip: Clip }) {
                 )}
               </span>
               {t?.error && <p className="w-full text-xs text-red-700">{t.error}</p>}
+              {!active && (refused[p.key] || !linked(p.key)) && (
+                <p className="w-full text-xs text-amber-800">
+                  {refused[p.key] ?? `Connect your ${p.account} account first.`}{" "}
+                  <Link to="/channel" className="inline-flex items-center gap-1 font-semibold text-brand hover:underline">
+                    <Link2 size={11} aria-hidden="true" /> Connect {p.account}
+                  </Link>
+                </p>
+              )}
             </li>
           )
         })}

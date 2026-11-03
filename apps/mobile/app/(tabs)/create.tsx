@@ -10,16 +10,18 @@ import { OpenChannel } from "../../components/create/OpenChannel"
 import { Recorder } from "../../components/create/Recorder"
 import { api, detail } from "../../lib/api"
 import { useAuth } from "../../lib/auth"
+import { useT } from "../../lib/i18n"
 import { colour, s } from "../../lib/theme"
 import type { Channel, StudioVideo } from "../../lib/types"
 
 function SignedOut() {
+  const { t } = useT()
   return (
     <View style={s.centred}>
-      <Text style={s.title}>Create on Klygenix Play</Text>
-      <Text style={[s.subtitle, { textAlign: "center" }]}>Sign in to open a channel, record reels and turn long videos into clips.</Text>
+      <Text style={s.title}>{t("create.signedOutTitle")}</Text>
+      <Text style={[s.subtitle, { textAlign: "center" }]}>{t("create.signedOutBody")}</Text>
       <Pressable onPress={() => router.push("/profile")} style={s.button}>
-        <Text style={s.buttonText}>Sign in</Text>
+        <Text style={s.buttonText}>{t("common.signIn")}</Text>
       </Pressable>
     </View>
   )
@@ -27,6 +29,7 @@ function SignedOut() {
 
 export default function Create() {
   const { user } = useAuth()
+  const { t } = useT()
   const qc = useQueryClient()
   const [recording, setRecording] = useState(false)
   const [recorded, setRecorded] = useState<string | null>(null)
@@ -60,14 +63,14 @@ export default function Create() {
   if (channel.isLoading) {
     body = <ActivityIndicator style={{ marginTop: 48 }} color={colour.brand} />
   } else if (channel.isError) {
-    body = <Text style={s.error}>{detail(channel.error, "Your channel could not be loaded.")}</Text>
+    body = <Text style={s.error}>{detail(channel.error, t("create.channelFailed"))}</Text>
   } else if (!channel.data) {
     body = <OpenChannel onOpened={(c) => qc.setQueryData(["studio-channel", user.id], c)} />
   } else if (channel.data.is_suspended) {
     body = (
       <View>
-        <Text style={s.title}>Channel suspended</Text>
-        <Text style={s.subtitle}>@{channel.data.handle} cannot publish right now. See the notice in Studio on the web to appeal.</Text>
+        <Text style={s.title}>{t("create.suspended")}</Text>
+        <Text style={s.subtitle}>{t("create.suspendedBody", { handle: channel.data.handle })}</Text>
       </View>
     )
   } else if (uploaded) {

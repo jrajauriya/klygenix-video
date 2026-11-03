@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import multiprocessing
 import random
 import sys
 import time
@@ -38,6 +39,9 @@ def ssl_context(insecure: bool):
     ctx.check_hostname = False
     ctx.verify_mode = ssl.CERT_NONE
     return ctx
+
+
+RAMP_SECONDS = 2.0
 
 
 def pct(values: list[float], p: float) -> float:
@@ -76,6 +80,7 @@ async def timed(stats: Stats, step: str, call, expect=(200,)):
 
 
 async def viewer(client: httpx.AsyncClient, videos: list[str], stats: Stats, stop_at: float) -> None:
+    await asyncio.sleep(random.uniform(0, RAMP_SECONDS))
     while time.monotonic() < stop_at:
         await timed(stats, "feed_home", client.get("/api/video/feed/home", params={"limit": 24}))
         await timed(stats, "feed_reels", client.get("/api/video/feed/reels", params={"limit": 10}))
@@ -91,6 +96,7 @@ async def viewer(client: httpx.AsyncClient, videos: list[str], stats: Stats, sto
 
 
 async def room(ws_base: str, pid: str, stats: Stats, stop_at: float, ssl_ctx=None) -> None:
+    await asyncio.sleep(random.uniform(0, RAMP_SECONDS))
     try:
         async with websockets.connect(f"{ws_base}/api/video/ws/videos/{pid}", open_timeout=10, ssl=ssl_ctx if ws_base.startswith("wss") else None) as ws:
             stats.ws_open += 1
@@ -114,6 +120,29 @@ async def poster(api: str, token: str, pid: str, stats: Stats, stop_at: float, v
             await asyncio.sleep(2.5)
 
 
+async def drive(a: dict, videos: list[str], token: str | None, users: int, rooms: int) -> dict:
+    api = a["api"].rstrip("/")
+    verify = not a["insecure"]
+    ssl_ctx = ssl_context(a["insecure"])
+    stats = Stats()
+    stop_at = time.monotonic() + a["seconds"]
+    limits = httpx.Limits(max_connections=max(1, users), max_keepalive_connections=max(1, users))
+    ws_base = api.replace("https://", "wss://").replace("http://", "ws://")
+    async with httpx.AsyncClient(base_url=api, timeout=30, limits=limits, verify=verify) as client:
+        tasks = [viewer(client, videos, stats, stop_at) for _ in range(users)]
+        tasks += [room(ws_base, videos[i % len(videos)], stats, stop_at, ssl_ctx) for i in range(rooms)]
+        if token:
+            tasks.append(poster(api, token, videos[0], stats, stop_at, verify))
+        await asyncio.gather(*tasks)
+    return {"times": dict(stats.times), "errors": dict(stats.errors), "samples": stats.samples,
+            "ws_open": stats.ws_open, "ws_failed": stats.ws_failed, "ws_messages": stats.ws_messages}
+
+
+def run_part(a: dict, videos: list[str], token: str | None, users: int, rooms: int) -> dict:
+    resolve_localhost()
+    return asyncio.run(drive(a, videos, token, users, rooms))
+
+
 async def main(args) -> int:
     api = args.api.rstrip("/")
     verify = not args.insecure
@@ -127,18 +156,27 @@ async def main(args) -> int:
             return 2
         login = await c.post("/api/auth/login", json={"email": args.email, "password": args.password})
         token = login.json().get("access_token") if login.status_code == 200 else None
-    stats = Stats()
-    stop_at = time.monotonic() + args.seconds
-    limits = httpx.Limits(max_connections=args.users, max_keepalive_connections=args.users)
-    ws_base = api.replace("https://", "wss://").replace("http://", "ws://")
-    print(f"{args.users} viewers + {args.rooms} WebSocket watchers for {args.seconds}s against {api} ({len(videos)} videos)")
+    print(f"{args.users} viewers + {args.rooms} WebSocket watchers for {args.seconds}s against {api} "
+          f"({len(videos)} videos, {args.procs} load process{'es' if args.procs > 1 else ''})")
     started = time.perf_counter()
-    async with httpx.AsyncClient(base_url=api, timeout=30, limits=limits, verify=verify) as client:
-        tasks = [viewer(client, videos, stats, stop_at) for _ in range(args.users)]
-        tasks += [room(ws_base, videos[i % len(videos)], stats, stop_at, ssl_ctx) for i in range(args.rooms)]
-        if token:
-            tasks.append(poster(api, token, videos[0], stats, stop_at, verify))
-        await asyncio.gather(*tasks)
+    jobs = [(vars(args), videos, token if i == 0 else None, args.users // args.procs + (i < args.users % args.procs),
+             args.rooms // args.procs + (i < args.rooms % args.procs)) for i in range(args.procs)]
+    if args.procs == 1:
+        parts = [run_part(*jobs[0])]
+    else:
+        with multiprocessing.get_context("spawn").Pool(args.procs) as pool:
+            parts = pool.starmap(run_part, jobs)
+    stats = Stats()
+    for part in parts:
+        for step, values in part["times"].items():
+            stats.times[step].extend(values)
+        for step, n in part["errors"].items():
+            stats.errors[step] += n
+        for step, why in part["samples"].items():
+            stats.samples.setdefault(step, why)
+        stats.ws_open += part["ws_open"]
+        stats.ws_failed += part["ws_failed"]
+        stats.ws_messages += part["ws_messages"]
     elapsed = time.perf_counter() - started
     total = sum(len(v) for v in stats.times.values())
     errors = sum(stats.errors.values())
@@ -176,5 +214,7 @@ if __name__ == "__main__":
     ap.add_argument("--email", default="rohan@demo.klygenix.com")
     ap.add_argument("--password", default="Welcome@12345")
     ap.add_argument("--insecure", action="store_true")
+    ap.add_argument("--procs", type=int, default=max(1, min(8, (multiprocessing.cpu_count() or 2) // 2)),
+                    help="load-generator processes; one Python event loop cannot drive hundreds of viewers without adding its own lag")
     resolve_localhost()
     sys.exit(asyncio.run(main(ap.parse_args())))

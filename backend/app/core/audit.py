@@ -142,6 +142,10 @@ def _safe(name: str, value: Any) -> Any:
         return fingerprint(value)
     if isinstance(value, (str, int, float, bool)) or value is None:
         return value
+    if isinstance(value, dict):
+        return {str(k): _safe(str(k), v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_safe(name, v) for v in value]
     return str(value)
 
 

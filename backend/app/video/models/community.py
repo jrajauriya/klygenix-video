@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import BigInteger, CheckConstraint, ForeignKey, Index, Integer, SmallInteger, String, Text, UniqueConstraint
+from sqlalchemy import BigInteger, CheckConstraint, DateTime, ForeignKey, Index, Integer, SmallInteger, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -93,4 +93,28 @@ class QuizAttempt(Base):
     score: Mapped[int] = mapped_column(Integer, nullable=False)
     total: Mapped[int] = mapped_column(Integer, nullable=False)
     answers: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    created_at: Mapped[datetime] = created()
+
+
+class LiveMessage(Base):
+    __tablename__ = "live_messages"
+    __table_args__ = (
+        CheckConstraint("kind IN ('chat','superchat','gift')", name="ck_live_messages_kind"),
+        CheckConstraint("status IN ('visible','hidden','deleted')", name="ck_live_messages_status"),
+        Index("idx_live_messages_stream", "stream_id", "created_at"),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[int] = pk()
+    tenant_id: Mapped[int] = tenant_fk()
+    stream_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("kv_media.live_streams.id", ondelete="CASCADE"), nullable=False)
+    user_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    author_name: Mapped[str] = mapped_column(String(80), nullable=False)
+    kind: Mapped[str] = mapped_column(String(10), nullable=False, default="chat")
+    body: Mapped[str] = mapped_column(String(300), nullable=False, default="", server_default="")
+    paid_minor: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    tier: Mapped[str | None] = mapped_column(String(20))
+    pinned_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    checkout_id: Mapped[int | None] = mapped_column(BigInteger)
+    status: Mapped[str] = mapped_column(String(8), nullable=False, default="visible")
     created_at: Mapped[datetime] = created()

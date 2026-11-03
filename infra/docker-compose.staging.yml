@@ -67,6 +67,19 @@ services:
     volumes: !override
       - ${KV_STAGING_DIR:-./build/staging}/secret.key:/app/.secret.key:ro
 
+  live:
+    image: klygenix-video-backend:staging
+    container_name: klygenix-video-staging-live
+    env_file: !override [.env.staging]
+    environment:
+      SANDBOX_ENABLED: "true"
+      JOBS_MODE: rq
+      LIVE_WORKER_INLINE: "false"
+      LIVE_GATE_BIND: "0.0.0.0"
+    volumes: !override
+      - ${KV_STAGING_DIR:-./build/staging}/secret.key:/app/.secret.key:ro
+      - media:/app/private_uploads
+
   nginx:
     container_name: klygenix-video-staging-nginx
     ports: !override

@@ -1,4 +1,7 @@
-import { Bot, Building2, IndianRupee, Film, Gavel, Layers, LayoutDashboard, Mail, Rocket, ScrollText, Settings, ShieldAlert, ShieldCheck } from "lucide-react"
+import {
+  Bot, Building2, FileClock, IndianRupee, Film, Gavel, Layers, LayoutDashboard, Mail, Radio, Rocket, ScrollText, Settings, ShieldAlert,
+  ShieldCheck, TriangleAlert,
+} from "lucide-react"
 import type { NavItem, NavSection } from "@klygenixvideo/ui"
 
 export const topLinks: NavItem[] = [
@@ -14,6 +17,7 @@ export const sections: NavSection[] = [
       { to: "/moderation", label: "Moderation", icon: ShieldAlert, permissionKey: "admin.moderation" },
       { to: "/takedowns", label: "Takedowns", icon: Gavel, permissionKey: "admin.takedowns" },
       { to: "/videos", label: "Videos", icon: Film, permissionKey: "admin.moderation" },
+      { to: "/live", label: "Live streams", icon: Radio, permissionKey: "admin.moderation" },
     ],
   },
   {
@@ -26,6 +30,8 @@ export const sections: NavSection[] = [
       { to: "/money", label: "Money", icon: IndianRupee, permissionKey: "admin.money" },
       { to: "/ai-usage", label: "AI usage", icon: Bot, permissionKey: "admin.ai_usage" },
       { to: "/logs", label: "Activity Log", icon: ScrollText, permissionKey: "admin.logs" },
+      { to: "/audit", label: "Audit log", icon: FileClock, permissionKey: "admin.logs" },
+      { to: "/ops/failed", label: "Failed jobs", icon: TriangleAlert, permissionKey: "admin.dashboard" },
     ],
   },
   {

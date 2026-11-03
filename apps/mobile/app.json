@@ -9,10 +9,65 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.klygenix.play"
+      "bundleIdentifier": "com.klygenix.play",
+      "buildNumber": "1",
+      "config": {
+        "usesNonExemptEncryption": false
+      },
+      "infoPlist": {
+        "NSCameraUsageDescription": "Record a vertical video for your channel.",
+        "NSMicrophoneUsageDescription": "Record sound with your video.",
+        "NSPhotoLibraryUsageDescription": "Pick a video from your library to upload.",
+        "UIBackgroundModes": [
+          "audio"
+        ]
+      },
+      "privacyManifests": {
+        "NSPrivacyAccessedAPITypes": [
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryUserDefaults",
+            "NSPrivacyAccessedAPITypeReasons": [
+              "CA92.1"
+            ]
+          },
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryFileTimestamp",
+            "NSPrivacyAccessedAPITypeReasons": [
+              "C617.1"
+            ]
+          },
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategorySystemBootTime",
+            "NSPrivacyAccessedAPITypeReasons": [
+              "35F9.1"
+            ]
+          },
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryDiskSpace",
+            "NSPrivacyAccessedAPITypeReasons": [
+              "E174.1"
+            ]
+          }
+        ]
+      }
     },
     "android": {
-      "package": "com.klygenix.play"
+      "package": "com.klygenix.play",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#A21CAF"
+      },
+      "permissions": [
+        "CAMERA",
+        "RECORD_AUDIO",
+        "READ_MEDIA_VIDEO",
+        "POST_NOTIFICATIONS"
+      ],
+      "blockedPermissions": [
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.ACCESS_FINE_LOCATION"
+      ]
     },
     "plugins": [
       "expo-router",
@@ -28,7 +83,8 @@
       [
         "expo-notifications",
         {
-          "color": "#A21CAF"
+          "color": "#A21CAF",
+          "icon": "./assets/notification-icon.png"
         }
       ],
       [
@@ -40,11 +96,25 @@
         }
       ],
       "expo-status-bar",
-      "expo-video"
+      "expo-video",
+      "expo-splash-screen",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 160,
+          "resizeMode": "contain",
+          "backgroundColor": "#0B0B12"
+        }
+      ]
     ],
     "extra": {
       "apiUrl": "http://localhost:9300",
       "webUrl": "http://localhost:5300"
+    },
+    "icon": "./assets/icon.png",
+    "runtimeVersion": {
+      "policy": "appVersion"
     }
   }
 }

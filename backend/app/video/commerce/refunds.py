@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -15,6 +15,7 @@ from app.video.models.social import Comment, Danmaku
 from app.video.models.tax import TaxInvoice
 from app.video.rails import RailError, rail_named
 from app.video.services.numbering import next_number
+from app.video.clock import ist_today
 
 
 def refunded(db: Session, payment_id: int) -> int:
@@ -31,8 +32,8 @@ def _credit_note(db: Session, inv: TaxInvoice, amount: int, refund: Refund) -> T
     cg, sg, ig = part(inv.cgst_minor), part(inv.sgst_minor), part(inv.igst_minor)
     note = TaxInvoice(
         tenant_id=inv.tenant_id, kind="credit_note",
-        number=next_number(db, tenant_id=inv.tenant_id, series="KCN", day=date.today()),
-        invoice_date=date.today(), order_id=inv.order_id, seller=inv.seller, buyer=inv.buyer,
+        number=next_number(db, tenant_id=inv.tenant_id, series="KCN", day=ist_today()),
+        invoice_date=ist_today(), order_id=inv.order_id, seller=inv.seller, buyer=inv.buyer,
         place_of_supply=inv.place_of_supply,
         lines=[{"title": f"Refund against {inv.number}", "taxable_minor": amount - cg - sg - ig,
                 "tax_minor": cg + sg + ig, "total_minor": amount}],
@@ -54,7 +55,7 @@ def _plan_reversal(db: Session, chk: Checkout, payment: Payment, inv: TaxInvoice
 
     cg, sg, ig = part(inv.cgst_minor), part(inv.sgst_minor), part(inv.igst_minor)
     seller = splits.platform_tenant_id(db)
-    post(db, tenant_id=seller, business_date=date.today(), source_type="plan_refund", source_id=refund.id,
+    post(db, tenant_id=seller, business_date=ist_today(), source_type="plan_refund", source_id=refund.id,
          idempotency_key=f"refund:{refund.id}", currency="INR", memo=f"Refund of plan payment {payment.id}",
          lines=Entry(db, seller).dr("sales", amount - cg - sg - ig).dr("tax_output_cgst", cg)
          .dr("tax_output_sgst", sg).dr("tax_output_igst", ig).cr("gateway_clearing", amount))
@@ -83,6 +84,11 @@ def _undo_effects(db: Session, chk: Checkout, payment: Payment, full: bool) -> N
     elif chk.purpose == "tip":
         for c in db.execute(select(Comment).where(Comment.checkout_id == chk.id)).scalars():
             c.paid_minor = 0
+    elif chk.purpose in ("superchat", "gift"):
+        from app.video.models.community import LiveMessage
+
+        for m in db.execute(select(LiveMessage).where(LiveMessage.checkout_id == chk.id)).scalars():
+            m.paid_minor, m.pinned_until = 0, None
     elif chk.purpose == "boost":
         for d in db.execute(select(Danmaku).where(Danmaku.checkout_id == chk.id)).scalars():
             if d.status == "visible":

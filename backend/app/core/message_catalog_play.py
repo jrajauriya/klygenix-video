@@ -80,4 +80,12 @@ PLAY_MESSAGES: dict[str, dict[str, str]] = {
     "price_out_of_range": {"en": "The price must be between ₹{low} and ₹{high}.", "hi": "कीमत ₹{low} से ₹{high} के बीच होनी चाहिए।"},
     "setup_payouts_first": {"en": "Finish your payout setup under Earnings before you charge for anything.", "hi": "किसी भी चीज़ के लिए शुल्क लेने से पहले Earnings में पेआउट सेटअप पूरा करें।"},
     "dubbing_needs_consent": {"en": "Turn on AI dubbing for this video first.", "hi": "पहले इस वीडियो के लिए AI डबिंग चालू करें।"},
+    "live_ports_busy": {"en": "All live slots are in use. Try again in a few minutes.", "hi": "सभी लाइव स्लॉट उपयोग में हैं। कुछ मिनट बाद फिर कोशिश करें।"},
+    "live_already_open": {"en": "This channel already has a live stream open. End it first.", "hi": "इस चैनल की एक लाइव स्ट्रीम पहले से खुली है। पहले उसे समाप्त करें।"},
+    "live_not_found": {"en": "That live stream does not exist.", "hi": "यह लाइव स्ट्रीम मौजूद नहीं है।"},
+    "live_not_live": {"en": "This stream is not live right now.", "hi": "यह स्ट्रीम अभी लाइव नहीं है।"},
+    "live_slow_mode": {"en": "Slow mode is on. Wait {seconds} seconds between messages.", "hi": "स्लो मोड चालू है। संदेशों के बीच {seconds} सेकंड रुकें।"},
+    "live_timed_out": {"en": "A moderator has paused your chat for a while.", "hi": "एक मॉडरेटर ने कुछ समय के लिए आपकी चैट रोक दी है।"},
+    "live_unavailable": {"en": "Live streaming is not switched on yet.", "hi": "लाइव स्ट्रीमिंग अभी चालू नहीं है।"},
+    "connect_account_first": {"en": "Connect that account on the Channel page first.", "hi": "पहले चैनल पेज पर वह अकाउंट जोड़ें।"},
 }

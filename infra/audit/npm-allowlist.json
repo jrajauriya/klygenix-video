@@ -2,35 +2,23 @@
   "_why": "High or critical advisories accepted until review_by, pinned to the install paths npm flagged; anything else, or an expired date, fails the scan.",
   "review_by": "2026-12-31",
   "packages": {
-    "@expo/cli": {
-      "nodes": [
-        "node_modules/@expo/cli"
-      ],
-      "why": "Expo SDK 57 mobile toolchain; fix is the breaking SDK 58 upgrade, due before the first store build (docs/SECURITY.md)"
-    },
     "decode-uri-component": {
       "nodes": [
         "node_modules/decode-uri-component"
       ],
-      "why": "Expo SDK 57 mobile toolchain; fix is the breaking SDK 58 upgrade, due before the first store build (docs/SECURITY.md)"
+      "why": "Dev tooling only: Expo SDK 58's @expo/cli pulls expo-router@57 (for @expo/router-server) and through it query-string@7 / decode-uri-component; the app bundle uses expo-router 58. Fix lands when @expo/cli moves off expo-router 57 \u2014 recheck at each Expo patch (docs/SECURITY.md)"
     },
     "expo-router": {
       "nodes": [
         "node_modules/expo-router"
       ],
-      "why": "Expo SDK 57 mobile toolchain; fix is the breaking SDK 58 upgrade, due before the first store build (docs/SECURITY.md)"
+      "why": "Dev tooling only: Expo SDK 58's @expo/cli pulls expo-router@57 (for @expo/router-server) and through it query-string@7 / decode-uri-component; the app bundle uses expo-router 58. Fix lands when @expo/cli moves off expo-router 57 \u2014 recheck at each Expo patch (docs/SECURITY.md)"
     },
     "query-string": {
       "nodes": [
         "node_modules/query-string"
       ],
-      "why": "Expo SDK 57 mobile toolchain; fix is the breaking SDK 58 upgrade, due before the first store build (docs/SECURITY.md)"
-    },
-    "zod": {
-      "nodes": [
-        "node_modules/zod"
-      ],
-      "why": "Expo SDK 57 mobile toolchain; fix is the breaking SDK 58 upgrade, due before the first store build (docs/SECURITY.md)"
+      "why": "Dev tooling only: Expo SDK 58's @expo/cli pulls expo-router@57 (for @expo/router-server) and through it query-string@7 / decode-uri-component; the app bundle uses expo-router 58. Fix lands when @expo/cli moves off expo-router 57 \u2014 recheck at each Expo patch (docs/SECURITY.md)"
     }
   }
 }

@@ -116,6 +116,12 @@ def publish_if_ready(db: Session, video: Video) -> None:
     video.published_at = video.published_at or now()
     if video.visibility == "scheduled":
         video.visibility = "public"
+    if video.uploader_user_id:
+        from app.video.after_commit import later
+        from app.video.services.push import notify_job
+
+        later(db, notify_job, video.uploader_user_id, "published", "Your video is live", video.title,
+              {"url": f"/watch/{video.public_id}"}, f"published:{video.id}")
 
 
 def thumb(video: Video) -> str | None:

@@ -1,11 +1,14 @@
 import { useCallback, useRef, useState } from "react"
 import { useInfiniteQuery } from "@tanstack/react-query"
 import { useIsFocused } from "expo-router"
-import { ActivityIndicator, FlatList, Pressable, Text, View, type ViewToken } from "react-native"
+import { ActivityIndicator, FlatList, Pressable, Text, View } from "react-native"
+import { useSafeAreaInsets } from "react-native-safe-area-context"
 
+import { LiveNowRow } from "../../components/LiveNowRow"
 import { ReelItem } from "../../components/ReelItem"
 import { api, detail } from "../../lib/api"
 import { useAuth } from "../../lib/auth"
+import { useT } from "../../lib/i18n"
 import { colour, s } from "../../lib/theme"
 import type { VideoCard } from "../../lib/types"
 
@@ -17,6 +20,8 @@ export default function Feed() {
   const [active, setActive] = useState(0)
   const [muted, setMuted] = useState(true)
   const { user } = useAuth()
+  const { t } = useT()
+  const insets = useSafeAreaInsets()
 
   const feed = useInfiniteQuery({
     queryKey: ["feed-reels", user?.id ?? null],
@@ -36,7 +41,7 @@ export default function Feed() {
 
   const rows = feed.data?.pages.flatMap((p) => p.rows) ?? []
 
-  const onViewable = useRef(({ viewableItems }: { viewableItems: ViewToken[] }) => {
+  const onViewable = useRef(({ viewableItems }: { viewableItems: { index?: number | null; isViewable: boolean }[] }) => {
     const first = viewableItems.find((v) => v.isViewable)
     if (first?.index != null) setActive(first.index)
   }).current
@@ -62,14 +67,14 @@ export default function Feed() {
         </View>
       ) : feed.isError ? (
         <View style={s.centred}>
-          <Text style={{ color: colour.white, textAlign: "center" }}>{detail(feed.error, "The feed could not load.")}</Text>
+          <Text style={{ color: colour.white, textAlign: "center" }}>{detail(feed.error, t("feed.error"))}</Text>
           <Pressable onPress={() => feed.refetch()} style={s.button}>
-            <Text style={s.buttonText}>Try again</Text>
+            <Text style={s.buttonText}>{t("common.tryAgain")}</Text>
           </Pressable>
         </View>
       ) : rows.length === 0 ? (
         <View style={s.centred}>
-          <Text style={{ color: colour.white }}>No reels yet.</Text>
+          <Text style={{ color: colour.white }}>{t("feed.empty")}</Text>
         </View>
       ) : (
         <FlatList
@@ -94,6 +99,7 @@ export default function Feed() {
           onRefresh={() => feed.refetch()}
         />
       )}
+      {focused && <LiveNowRow top={insets.top + 8} />}
     </View>
   )
 }

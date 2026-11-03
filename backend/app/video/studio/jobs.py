@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import time
 
 from app.video.commerce import quotas
 from app.video.jobs import job
@@ -58,6 +59,11 @@ def render_clip(clip_id: int, per: str | None = None) -> None:
                 clip.output_key = key
                 clip.status = "rendered"
                 clip.error = None
+                if owner:
+                    from app.video.services.push import notify
+
+                    notify(db, owner, "render_ready", "Your clip is ready", clip.title, {"url": f"/clips/{clip.id}"},
+                           f"render:{clip.id}:{key}:{int(time.time())}")
                 if per and owner:
                     quotas.commit(db, clip.tenant_id, owner, "renders", 1, per)
             except Exception as exc:
