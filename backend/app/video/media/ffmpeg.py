@@ -57,10 +57,11 @@ def extract_audio(src: str, dst: str) -> None:
 
 def thumbnail(src: str, dst: str, at_ms: int) -> None:
     run([FFMPEG, "-y", "-v", "error", "-ss", f"{at_ms / 1000:.2f}", "-i", src, "-frames:v", "1",
-         "-vf", "scale='min(1280,iw)':-2", "-q:v", "4", dst])
+         "-vf", "scale=w='min(854,iw)':h='min(854,ih)':force_original_aspect_ratio=decrease:force_divisible_by=2",
+         "-q:v", "6", dst])
 
 
-RUNGS = ((360, 800_000), (720, 2_500_000))
+RUNGS = ((240, 400_000), (360, 800_000), (720, 2_500_000))
 
 
 def hls(src: str, out_dir: str, p: Probe) -> list[dict]:
@@ -76,8 +77,8 @@ def hls(src: str, out_dir: str, p: Probe) -> list[dict]:
             args += ["-map", "0:a:0", "-c:a", "aac", "-b:a", "96k", "-ac", "2"]
         args += [
             "-vf", scale, "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
-            "-maxrate", str(bitrate), "-bufsize", str(bitrate * 2), "-g", "48", "-sc_threshold", "0",
-            "-f", "hls", "-hls_time", "4", "-hls_playlist_type", "vod",
+            "-maxrate", str(bitrate), "-bufsize", str(bitrate * 2), "-force_key_frames", "expr:gte(t,n_forced*2)",
+            "-sc_threshold", "0", "-f", "hls", "-hls_time", "2", "-hls_playlist_type", "vod",
             "-hls_segment_filename", os.path.join(rdir, "seg_%04d.ts"), os.path.join(rdir, "index.m3u8"),
         ]
         run(args)

@@ -1,0 +1,26 @@
+{
+ "title": "Walking across the stage",
+ "duration_s": 7.56,
+ "lines": [
+  "I start on the left side of the stage.",
+  "Now I walk slowly towards the middle.",
+  "And I finish on the right side of the stage."
+ ],
+ "cues": [
+  [
+   0.0,
+   2.121,
+   "I start on the left side of the stage."
+  ],
+  [
+   2.471,
+   4.487,
+   "Now I walk slowly towards the middle."
+  ],
+  [
+   4.837,
+   7.214,
+   "And I finish on the right side of the stage."
+  ]
+ ]
+}

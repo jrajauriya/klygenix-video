@@ -7,6 +7,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 from app.ai.captions import Cue
 from app.video.media.ffmpeg import FFMPEG, Probe, run
+from app.video.studio.reframe import x_expr
 
 FONT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "documents", "fonts",
                     "NotoSansDevanagari-Regular.ttf")
@@ -20,6 +21,10 @@ class Spec:
     end_ms: int
     aspect: str = "9:16"
     center_x: float = 0.5
+    track: tuple = ()
+    music_path: str | None = None
+    music_volume: float = 0.25
+    duck: bool = True
     caption_style: str = "bold"
     watermark: bool = False
     brand: str = "Klygenix Play"
@@ -32,8 +37,11 @@ def crop_filter(p: Probe, spec: Spec) -> str:
     if src_ratio > ratio:
         ch = p.height
         cw = int(round(ch * ratio / 2) * 2)
-        x = int(max(0, min(p.width - cw, spec.center_x * p.width - cw / 2)))
-        crop = f"crop={cw}:{ch}:{x}:0"
+        if spec.track:
+            crop = f"crop=w={cw}:h={ch}:x='{x_expr(list(spec.track), spec.start_ms, p.width, cw)}':y=0"
+        else:
+            x = int(max(0, min(p.width - cw, spec.center_x * p.width - cw / 2)))
+            crop = f"crop={cw}:{ch}:{x}:0"
     else:
         cw = p.width
         ch = int(round(cw / ratio / 2) * 2)
@@ -155,9 +163,23 @@ def render(src: str, out: str, work: str, probe: Probe, cues: list[Cue], spec: S
         graph = f"[0:v]{vf}[base];[1:v]format=rgba[cap];[base][cap]overlay=0:0:shortest=1:format=auto[v]"
     else:
         graph = f"[0:v]{vf}[v]"
+    audio = "0:a:0" if probe.has_audio else None
+    if spec.music_path:
+        m = 2 if listing else 1
+        args += ["-stream_loop", "-1", "-i", spec.music_path]
+        vol = max(0.0, min(1.0, spec.music_volume))
+        if probe.has_audio and spec.duck:
+            graph += (f";[{m}:a]volume={vol:.2f},aresample=44100[mus];[0:a]aresample=44100,asplit=2[voice][key];"
+                      f"[mus][key]sidechaincompress=threshold=0.03:ratio=8:attack=20:release=300[ducked];"
+                      f"[voice][ducked]amix=inputs=2:duration=first:normalize=0[a]")
+        elif probe.has_audio:
+            graph += f";[{m}:a]volume={vol:.2f}[mus];[0:a][mus]amix=inputs=2:duration=first:normalize=0[a]"
+        else:
+            graph += f";[{m}:a]volume={vol:.2f}[a]"
+        audio = "[a]"
     args += ["-filter_complex", graph, "-map", "[v]"]
-    if probe.has_audio:
-        args += ["-map", "0:a:0", "-c:a", "aac", "-b:a", "128k"]
+    if audio:
+        args += ["-map", audio, "-c:a", "aac", "-b:a", "128k"]
     args += ["-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-pix_fmt", "yuv420p", "-r", "30",
              "-movflags", "+faststart", "-t", f"{dur:.3f}", out]
     run(args, timeout=1800)

@@ -1,4 +1,4 @@
-import { Bot, Building2, Film, Gavel, Layers, LayoutDashboard, Mail, Rocket, ScrollText, Settings, ShieldAlert, ShieldCheck } from "lucide-react"
+import { Bot, Building2, IndianRupee, Film, Gavel, Layers, LayoutDashboard, Mail, Rocket, ScrollText, Settings, ShieldAlert, ShieldCheck } from "lucide-react"
 import type { NavItem, NavSection } from "@klygenixvideo/ui"
 
 export const topLinks: NavItem[] = [
@@ -23,6 +23,7 @@ export const sections: NavSection[] = [
     items: [
       { to: "/tenants", label: "Accounts", icon: Building2, permissionKey: "admin.tenants" },
       { to: "/plans", label: "Plans", icon: Layers, permissionKey: "admin.plans" },
+      { to: "/money", label: "Money", icon: IndianRupee, permissionKey: "admin.money" },
       { to: "/ai-usage", label: "AI usage", icon: Bot, permissionKey: "admin.ai_usage" },
       { to: "/logs", label: "Activity Log", icon: ScrollText, permissionKey: "admin.logs" },
     ],

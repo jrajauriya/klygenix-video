@@ -21,3 +21,22 @@ export async function createClip(body: {
   })
   return data
 }
+
+export const MAX_KEYFRAMES = 60
+
+export function cxAt(track: { t_ms: number; cx: number }[], t: number, fallback = 0.5): number {
+  if (!track.length) return fallback
+  if (t <= track[0].t_ms) return track[0].cx
+  const last = track[track.length - 1]
+  if (t >= last.t_ms) return last.cx
+  for (let i = 1; i < track.length; i++) {
+    const a = track[i - 1]
+    const b = track[i]
+    if (t <= b.t_ms) return a.cx + ((b.cx - a.cx) * (t - a.t_ms)) / Math.max(1, b.t_ms - a.t_ms)
+  }
+  return last.cx
+}
+
+export function sameTrack(a: { t_ms: number; cx: number }[], b: { t_ms: number; cx: number }[]): boolean {
+  return a.length === b.length && a.every((k, i) => k.t_ms === b[i].t_ms && Math.abs(k.cx - b[i].cx) < 0.0005)
+}

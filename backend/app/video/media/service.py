@@ -145,6 +145,12 @@ def playback(video: Video) -> dict | None:
     return provider(video.provider).playback(video, settings.PLAYBACK_TTL_SECONDS)
 
 
+def preview_playback(video: Video) -> dict | None:
+    if video.source == "embed" or video.status != "published" or not video.provider_video_id:
+        return None
+    return provider(video.provider).preview(video, 3600, max(0, video.preview_seconds))
+
+
 def write_meta(video_id: int, data: dict) -> None:
     from app.video.media.paths import video_dir
 

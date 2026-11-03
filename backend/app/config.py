@@ -36,6 +36,13 @@ class Settings(BaseSettings):
     LEMONSQUEEZY_VARIANT_ID: str = ""
     IMPERSONATION_MINUTES: int = 60
     PAYMENT_RAIL: str = "auto"
+    ROUTE_PROFILE_CATEGORY: str = ""
+    ROUTE_PROFILE_SUBCATEGORY: str = ""
+    MARKETPLACE_RESERVE_BPS: int = 500
+    MARKETPLACE_RESERVE_DAYS: int = 30
+    REFUND_WINDOW_DAYS: int = 7
+    TIP_MIN_MINOR: int = 1000
+    TIP_MAX_MINOR: int = 1000000
 
     GOOGLE_CLIENT_ID: str = ""
     GOOGLE_CLIENT_SECRET: str = ""
@@ -143,6 +150,11 @@ class Settings(BaseSettings):
     SCAN_API_KEY: str = ""
 
     YOUTUBE_PROVIDER: str = "sandbox"
+    FACE_PROVIDER: str = "sandbox"
+    PUBLISH_PROVIDER: str = "sandbox"
+    TTS_PROVIDER: str = "sandbox"
+    AZURE_TTS_KEY: str = ""
+    AZURE_TTS_REGION: str = "centralindia"
     YOUTUBE_API_BASE: str = "https://www.googleapis.com/youtube/v3"
     YOUTUBE_OAUTH_REDIRECT: str = "http://localhost:9300/api/video/channels/youtube/callback"
 

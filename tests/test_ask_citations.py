@@ -48,6 +48,38 @@ check("no answer cites a moment the video does not have", bad, 0)
 hist = asker.get(f"/api/video/videos/{pid}/ask").json()
 check("history kept", len(hist["messages"]), 30)
 
+print("\n== Ask in Hindi")
+hv = settled(c, upload(c, "chai-hindi", "मसाला चाय", language="hi")["id"])
+hpid, hdur = hv["public_id"], hv["duration_ms"]
+hstarts = {x["start_ms"] for x in c.get(f"/api/video/studio/videos/{hv['id']}/transcript").json()["segments"]}
+check("Hindi transcript read", len(hstarts), 6)
+HI_ON = [
+    "आज हम क्या बनाना सीखेंगे?", "पानी में क्या डालकर उबालें?", "अदरक और इलायची कब डालें?",
+    "चाय की पत्ती कितनी देर पकाएं?", "पत्ती डालने के बाद कितने मिनट पकाएं?", "दूध और चीनी कब मिलाएं?",
+    "उबाल आने तक क्या करें?", "चाय को कैसे परोसें?", "चाय छानकर कैसे परोसें?", "सर्दियों में क्या डाल सकते हैं?",
+    "काली मिर्च कब डालें?", "मसाला चाय कैसे बनाएं?", "इलायची और अदरक पानी में डालें?", "गरम चाय कैसे परोसें?",
+]
+HI_OFF = [
+    "क्रिकेट विश्व कप किसने जीता?", "दिल्ली का मौसम कैसा है?", "पिज़्ज़ा घर पर कैसे बनता है?",
+    "सोने की कीमत क्या है?", "गिटार कैसे बजाएं?", "पहाड़ों में घूमने की अच्छी जगह कौन सी है?",
+]
+h_answered = h_declined = h_bad = 0
+for q in HI_ON:
+    r = asker.post(f"/api/video/videos/{hpid}/ask", json={"question": q}).json()
+    if r["status"] == "answered":
+        h_answered += 1
+        h_bad += sum(1 for cite in r["citations"] if not (0 <= cite["start_ms"] <= hdur and cite["start_ms"] in hstarts))
+        h_bad += 0 if r["citations"] else 1
+for q in HI_OFF:
+    r = asker.post(f"/api/video/videos/{hpid}/ask", json={"question": q}).json()
+    if r["status"] == "declined":
+        h_declined += 1
+        h_bad += 1 if r["citations"] else 0
+ok("Hindi on-topic questions answered (≥ 11 of 14)", h_answered >= 11, h_answered)
+ok("Hindi off-topic questions declined (≥ 5 of 6)", h_declined >= 5, h_declined)
+check("no Hindi answer cites a moment the video does not have", h_bad, 0)
+check("50 questions asked in all", len(ON) + len(OFF) + len(HI_ON) + len(HI_OFF), 50)
+
 print("\n== Quota (rule V05)")
 free = signup("Free Asker")
 statuses = [free.post(f"/api/video/videos/{pid}/ask", json={"question": "Where do I validate the token?"}).status_code for _ in range(6)]

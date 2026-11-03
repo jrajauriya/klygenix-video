@@ -11,6 +11,7 @@ from app.video.models.social import Channel, Follow
 from app.video.social import counters
 
 CANDIDATES = 400
+RECO_WEIGHT = 3.0
 
 
 def now() -> datetime:
@@ -48,7 +49,19 @@ def ranked(db: Session, *, user_id: int | None, lang: str | None, kind: str | No
     if exclude:
         rows = [r for r in rows if r.id not in exclude]
     pend = counters.pending("video", [r.id for r in rows])
-    scored = sorted(rows, key=lambda v: -_score(v, pend.get(v.id, {}), followed, lang, kind == "reel"))
+    affinity: dict[int, float] = {}
+    seen: set[int] = set()
+    if user_id is not None and not following_only:
+        from app.video.social import reco
+
+        affinity, seen = reco.affinity(db, user_id, [r.id for r in rows])
+
+    def score(v: Video) -> float:
+        s = _score(v, pend.get(v.id, {}), followed, lang, kind == "reel")
+        s *= 1 + RECO_WEIGHT * max(0.0, affinity.get(v.id, 0.0))
+        return s * (0.35 if v.id in seen else 1.0)
+
+    scored = sorted(rows, key=lambda v: -score(v))
     out, per_channel, held = [], {}, []
     for v in scored:
         n = per_channel.get(v.channel_id, 0)

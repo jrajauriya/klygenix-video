@@ -2,13 +2,15 @@ import { useState } from "react"
 import { Link, useSearchParams } from "react-router-dom"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
-import { Eye, EyeOff, Flag, Trash2 } from "lucide-react"
+import { Eye, EyeOff, Flag, IndianRupee, ShieldCheck, Trash2, Zap } from "lucide-react"
+import { formatMoney } from "@klygenixvideo/client"
 import { api } from "@klygenixvideo/auth"
 import { Badge, Button, Card, EmptyState, PageHeader, Pager, Select, Spinner, Tabs } from "@klygenixvideo/ui"
 import { STUDIO } from "../lib/hooks"
 import { clock, detail, when } from "../lib/format"
 import type { InboxItem, StudioVideo } from "../lib/types"
 import { useRemover } from "../components/video/CommentsPanel"
+import { ModeratorsDrawer } from "../components/Moderators"
 
 const PAGE = 25
 
@@ -32,6 +34,7 @@ export default function Comments() {
   const remove = useRemover()
   const qc = useQueryClient()
   const [switching, setSwitching] = useState<string | null>(null)
+  const [mods, setMods] = useState(false)
 
   async function toggle(r: InboxItem) {
     const next = r.status === "hidden" ? "visible" : "hidden"
@@ -77,7 +80,12 @@ export default function Comments() {
 
   return (
     <div className="pb-8">
-      <PageHeader title="Comments & danmaku" subtitle="Everything viewers post on your videos, newest first." />
+      <PageHeader
+        title="Comments & danmaku"
+        subtitle="Everything viewers post on your videos, newest first."
+        actions={<Button size="sm" variant="outline" onClick={() => setMods(true)}><ShieldCheck size={14} /> Moderators</Button>}
+      />
+      {mods && <ModeratorsDrawer onClose={() => setMods(false)} />}
       <Tabs tabs={KINDS} active={kind} onChange={(k) => set({ kind: k })} />
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <Select value={videoId} onChange={(v) => set({ video: v })} options={videoOptions} className="w-72" aria-label="Video" />
@@ -108,6 +116,14 @@ export default function Comments() {
                     <Link to={`/videos/${r.video_id}?tab=comments`} className="max-w-[18rem] truncate font-medium text-brand hover:underline">{r.video_title}</Link>
                     {r.kind === "danmaku" && r.t_ms !== undefined && <span className="font-num text-brand">at {clock(r.t_ms)}</span>}
                     {r.kind === "comment" && r.parent_id && <Badge color="slate">Reply</Badge>}
+                    {r.kind === "comment" && r.paid_minor ? (
+                      <Badge color="green"><IndianRupee size={11} aria-hidden="true" />Tip {formatMoney(r.paid_minor, "INR")}</Badge>
+                    ) : null}
+                    {r.kind === "danmaku" && (r.boost_tier || r.paid_minor) ? (
+                      <Badge color="purple">
+                        <Zap size={11} aria-hidden="true" />Boost{r.boost_tier ? ` tier ${r.boost_tier}` : ""}{r.paid_minor ? ` · ${formatMoney(r.paid_minor, "INR")}` : ""}
+                      </Badge>
+                    ) : null}
                     {r.status === "hidden" && <Badge color="amber">Hidden</Badge>}
                     {r.report_count > 0 && (
                       <Badge color="red"><Flag size={11} className="mr-0.5 inline" aria-hidden="true" />{r.report_count} {r.report_count === 1 ? "report" : "reports"}</Badge>

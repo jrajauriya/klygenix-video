@@ -1,6 +1,10 @@
+import os
+import time
+
 import httpx
 
 from harness import check, creator, finish, ok, premium, settled, sql, upload
+from app.video.studio import faces, reframe
 
 print("\n== Clip maker")
 c = creator()
@@ -63,5 +67,46 @@ premium(c, "creator_pro")
 cl = c.post("/api/video/studio/clips", json={"source_video_id": v["id"], "title": "Pro clip", "start_ms": 1000, "end_ms": 17_000}).json()
 check("no watermark on Creator Pro", cl["watermark"], False)
 check("editing a rendered clip resets it", c.patch(f"/api/video/studio/clips/{clip['id']}", json={"title": "x"}).status_code, 409)
+
+print("\n== Reframe: keyframes and tracking")
+
+ok("no detections fill to centre", reframe.fill([(0, None), (250, None)]) == [(0, 0.5), (250, 0.5)])
+jitter = reframe.smooth([(i * 250, 0.5 + (0.02 if i % 2 else -0.02)) for i in range(12)])
+ok("jitter inside the dead zone does not move the frame", max(abs(c - 0.5) for _, c in jitter) < 0.03, jitter[-1])
+expr = reframe.x_expr([{"t_ms": 1000, "cx": 0.2}, {"t_ms": 5000, "cx": 0.8}], 1000, 1280, 404)
+ok("track becomes a clamped piecewise crop expression", expr.startswith("clip(if(lt(t,0.000)") and expr.endswith(",0,876)"), expr)
+fixture = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "media", "reframe-marker.mp4")
+ok("opencv face detector finds no face in a test card", sum(faces.OpenCvDetector().centre(i) is not None
+                                                          for _, i in faces.frames(fixture, 0, 4000)) == 0)
+m = settled(c, upload(c, "reframe-marker", "Reframe walk")["id"])
+cl = c.post("/api/video/studio/clips", json={"source_video_id": m["id"], "title": "Tracked", "start_ms": 0,
+                                             "end_ms": m["duration_ms"], "caption_style": "none"}).json()
+r = c.post(f"/api/video/studio/clips/{cl['id']}/track")
+check("tracking accepted", r.status_code, 202)
+for _ in range(60):
+    cl = c.get(f"/api/video/studio/clips/{cl['id']}").json()
+    if cl["reframe"].get("status") != "tracking":
+        break
+    time.sleep(1)
+rf = cl["reframe"]
+check("track ready", (rf.get("mode"), rf.get("status")), ("track", "ready"))
+ok("subject found in most samples", rf["found"] >= rf["samples"] * 0.8, rf)
+ok("track follows the subject left to right", rf["track"][0]["cx"] < 0.3 and rf["track"][-1]["cx"] > 0.7, rf["track"])
+ok("track is simplified", 2 <= len(rf["track"]) <= 60, len(rf["track"]))
+check("render with a track", c.post(f"/api/video/studio/clips/{cl['id']}/render").status_code, 200)
+cl = rendered(cl["id"])
+check("tracked render finished", cl["status"], "rendered")
+open("/tmp/kv-suite-track.mp4", "wb").write(httpx.get(cl["download_url"], timeout=60).content)
+check("tracked render is vertical", (probe("/tmp/kv-suite-track.mp4").width, probe("/tmp/kv-suite-track.mp4").height), (720, 1280))
+marker = faces.MarkerDetector()
+seen = [marker.centre(img) for _, img in faces.frames("/tmp/kv-suite-track.mp4", 500, 7000, width=180, fps=1)]
+ok("the subject stays inside the vertical frame", seen and all(x is not None and 0.15 < x < 0.85 for x in seen), seen)
+r = c.patch(f"/api/video/studio/clips/{cl['id']}", json={"keyframes": [{"t_ms": 0, "cx": 0.1}, {"t_ms": 7000, "cx": 0.9}]})
+check("manual keyframes saved", (r.status_code, r.json()["reframe"]["mode"], len(r.json()["reframe"]["track"])), (200, "manual", 2))
+check("editing resets the render", r.json()["status"], "draft")
+r = c.patch(f"/api/video/studio/clips/{cl['id']}", json={"keyframes": [{"t_ms": 60_000, "cx": 0.5}]})
+check("keyframe outside the clip refused", r.status_code, 400)
+r = c.patch(f"/api/video/studio/clips/{cl['id']}", json={"keyframes": []})
+check("empty keyframes go back to centre", r.json()["reframe"]["mode"], "center")
 
 finish()

@@ -1,11 +1,14 @@
 import { Link, useParams } from "react-router-dom"
-import { CheckCircle2, ListVideo, Play } from "lucide-react"
+import { useQueryClient } from "@tanstack/react-query"
+import { CheckCircle2, ListVideo, Loader2, Lock, Play } from "lucide-react"
 import { PageShell } from "../components/Layout"
-import { ChannelAvatar, ChannelName, Empty, Skel } from "../components/bits"
+import { Btn, ChannelAvatar, ChannelName, Empty, Skel } from "../components/bits"
 import { SeriesBadge, playlistWatchUrl, usePlaylist, useSeriesProgress } from "../components/Playlists"
+import { usePay } from "../components/Support"
+import { ScopedAsk } from "../components/ScopedAsk"
 import { Thumb } from "../components/VideoCards"
-import { useSignedIn } from "../lib/api"
-import { views } from "../lib/format"
+import { loginPath, useMe, useSignedIn } from "../lib/api"
+import { rupees, views } from "../lib/format"
 import { useTitle } from "../lib/title"
 import NotFound from "./NotFound"
 
@@ -16,6 +19,10 @@ export default function PlaylistPage() {
   const q = usePlaylist(pid)
   const p = q.data
   const progress = useSeriesProgress(p)
+  const qc = useQueryClient()
+  const pay = usePay()
+  const { data: me } = useMe()
+  const paid = Boolean(p?.kind === "series" && p.price_minor)
   useTitle(p?.title)
 
   if (pid === null || q.isError) return <NotFound what="playlist" />
@@ -32,6 +39,23 @@ export default function PlaylistPage() {
   const done = new Set((prog?.videos ?? []).filter((v) => v.completed).map((v) => v.id))
   const first = p.videos[0]?.id
   const target = series && prog?.next ? prog.next : first
+  const owned = Boolean(p.owned)
+  const isCreator = Boolean(me?.channel && p.channel && me.channel.handle === p.channel.handle)
+
+  function buy() {
+    if (!p) return
+    pay.start({
+      body: { purpose: "series", playlist_id: p.id },
+      label: `Series: ${p.title}`,
+      done: `The whole series "${p.title}" is yours.`,
+      onPaid: async () => {
+        await qc.invalidateQueries({ queryKey: ["playlist", p.id] })
+        qc.invalidateQueries({ queryKey: ["purchases"] })
+        qc.invalidateQueries({ queryKey: ["video"] })
+      },
+    }, "series")
+  }
+
   const resumeLabel = series && prog && prog.completed > 0 ? (prog.next ? "Continue" : "Watch again") : "Play all"
 
   return (
@@ -68,12 +92,38 @@ export default function PlaylistPage() {
           <p className="mt-4 text-sm text-muted"><Link to={`/login?returnUrl=${encodeURIComponent(`/playlist/${p.id}`)}`} className="font-semibold text-brand-soft hover:underline">Sign in</Link> to keep track of what you have watched.</p>
         )}
 
+        {paid && p.price_minor && !isCreator && (
+          <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl bg-panel-2 px-3 py-2.5">
+            <Lock size={16} className="shrink-0 text-brand-soft" aria-hidden="true" />
+            <p className="min-w-0 flex-1 text-sm">
+              {owned ? <span className="font-semibold">You own this series.</span> : <><span className="font-semibold">Paid series · {rupees(p.price_minor)}</span> <span className="text-muted">— every video in it, yours to keep.</span></>}
+            </p>
+            {!owned && (signedIn ? (
+              <Btn tone="brand" size="sm" onClick={buy} disabled={pay.busy !== null}>
+                {pay.busy ? <Loader2 size={14} className="animate-spin" aria-hidden="true" /> : null} Buy series {rupees(p.price_minor)}
+              </Btn>
+            ) : (
+              <Link to={loginPath()} className="inline-flex h-8 items-center rounded-full bg-snow px-3 text-xs font-semibold text-black hover:bg-snow/85">Sign in to buy</Link>
+            ))}
+          </div>
+        )}
+
         {target && (
           <Link to={playlistWatchUrl(target, p.id)} className="mt-5 inline-flex h-10 items-center gap-2 rounded-full bg-brand px-5 text-sm font-semibold text-white hover:bg-brand-hover">
             <Play size={16} fill="currentColor" aria-hidden="true" /> {resumeLabel}
           </Link>
         )}
       </header>
+
+      {p.videos.length > 0 && p.visibility === "public" && (
+        <div className="mt-6">
+          <ScopedAsk
+            endpoint={`/api/video/playlists/${p.id}/ask`}
+            title={series ? "Ask this series" : "Ask this playlist"}
+            blurb={`Get answers from every video in this ${series ? "series" : "playlist"}, with links to the exact moments.`}
+          />
+        </div>
+      )}
 
       <div className="mt-6">
         {p.videos.length === 0 ? (
@@ -103,6 +153,7 @@ export default function PlaylistPage() {
           </ol>
         )}
       </div>
+      {pay.sheet}
     </PageShell>
   )
 }

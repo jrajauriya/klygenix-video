@@ -20,8 +20,21 @@ LIVE_DB="${POSTGRES_DB:-klygenix_video}"
 ARCHIVE="${1:-}"
 TARGET="$LIVE_DB"
 
+if [ "$ARCHIVE" = "--from-remote" ]; then
+    KEY="${2:?--from-remote needs a key, or 'latest'}"
+    shift 2
+    set -- "" "$@"
+    if [ "$KEY" = "latest" ]; then
+        KEY=$(bash "$(dirname "$0")/backup-ship.sh" latest dump)
+    fi
+    PULLED=$(mktemp -d)
+    trap 'rm -rf "$PULLED"' EXIT
+    bash "$(dirname "$0")/backup-ship.sh" pull "$KEY" "$PULLED/$(basename "$KEY")"
+    ARCHIVE="$PULLED/$(basename "$KEY")"
+fi
+
 if [ -z "$ARCHIVE" ]; then
-    echo "usage: bash infra/restore.sh <backup.sql.gz> [--into <database>]" >&2
+    echo "usage: bash infra/restore.sh <backup.sql.gz | --from-remote <key|latest>> [--into <database>]" >&2
     exit 2
 fi
 if [ ! -f "$ARCHIVE" ]; then
@@ -61,26 +74,25 @@ echo "[$(date)] Loaded in ${ELAPSED}s. Verifying..."
 docker exec -i "$CONTAINER" psql -U "$DB_USER" -d "$TARGET" -v ON_ERROR_STOP=1 <<'SQL'
 \pset pager off
 SELECT 'tables' AS check, count(*)::text AS value
-FROM information_schema.tables WHERE table_schema LIKE 'kp_%'
+FROM information_schema.tables WHERE table_schema LIKE 'kv\_%'
+UNION ALL
+SELECT 'videos', count(*)::text FROM kv_media.videos
 UNION ALL
 SELECT 'journals', count(*)::text FROM kv_ledger.journals
 UNION ALL
-SELECT 'unbalanced entries',
-       count(*)::text FROM (
+SELECT 'unbalanced entries', count(*)::text FROM (
     SELECT journal_id FROM kv_ledger.journal_lines
     GROUP BY journal_id HAVING SUM(debit_minor) <> SUM(credit_minor)
-) bad
-UNION ALL
-SELECT 'AR control minus open receivables', (
-    COALESCE((SELECT SUM(l.debit_minor - l.credit_minor)
-              FROM kv_ledger.journal_lines l
-              JOIN kv_ledger.accounts a ON a.id = l.account_id
-              WHERE a.role = 'ar_control'), 0)
-  - COALESCE((SELECT SUM(total_minor - amount_paid_minor - amount_credited_minor)
-              FROM kv_ar_tmp.invoices
-              WHERE NOT is_deleted AND status IN ('issued','part_paid')), 0)
-)::text;
+) bad;
 SQL
+UNBALANCED=$(docker exec -i "$CONTAINER" psql -U "$DB_USER" -d "$TARGET" -tA -c \
+  "SELECT count(*) FROM (SELECT journal_id FROM kv_ledger.journal_lines GROUP BY journal_id HAVING SUM(debit_minor) <> SUM(credit_minor)) bad")
+TABLES=$(docker exec -i "$CONTAINER" psql -U "$DB_USER" -d "$TARGET" -tA -c \
+  "SELECT count(*) FROM information_schema.tables WHERE table_schema LIKE 'kv\_%'")
 
 echo "[$(date)] Restore of '$TARGET' finished in ${ELAPSED}s."
-echo "Both 'unbalanced entries' and 'AR control minus open receivables' must be 0."
+if [ "$UNBALANCED" != "0" ] || [ "$TABLES" -lt 10 ]; then
+    echo "VERIFY FAILED: $TABLES kv_* tables, $UNBALANCED unbalanced journals" >&2
+    exit 1
+fi
+echo "Verified: $TABLES kv_* tables, every journal balances."

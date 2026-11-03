@@ -48,7 +48,14 @@ export interface StudioVideo {
   embed_url: string | null
   created_at: string
   suggestion_count: number
+  access?: VideoAccess
+  price_minor?: number | null
+  members_rank?: number | null
+  preview_seconds?: number | null
+  dubbing_allowed?: boolean
 }
+
+export type VideoAccess = "free" | "members" | "paid"
 
 export interface Insight {
   summary: string
@@ -88,7 +95,28 @@ export interface DayRow {
   likes: number
 }
 
+export interface SourceRow {
+  source: string
+  views: number
+}
+
+export interface ExternalRow {
+  host: string
+  views: number
+}
+
+export interface Revenue {
+  currency: string
+  gross_minor: number
+  net_minor: number
+  by_purpose: { purpose: string; sales: number; gross_minor: number; net_minor: number }[]
+  by_day: { day: string; gross_minor: number }[]
+}
+
 export interface ChannelAnalytics {
+  sources?: SourceRow[]
+  external?: ExternalRow[]
+  revenue?: Revenue
   from: string
   to: string
   totals: { videos: number; published: number; views: number; watch_ms: number; likes: number; comments: number; danmaku: number; completions: number; followers: number }
@@ -98,6 +126,9 @@ export interface ChannelAnalytics {
 }
 
 export interface VideoAnalytics {
+  retention?: { at_pct: number; audience: number }[]
+  sources?: SourceRow[]
+  external?: ExternalRow[]
   id: number
   public_id: string
   from: string
@@ -121,6 +152,8 @@ export interface InboxItem {
   t_ms?: number
   mode?: string
   color?: string
+  paid_minor?: number | null
+  boost_tier?: number | null
 }
 
 export interface UploadTicket {
@@ -156,7 +189,7 @@ export interface Clip {
   end_ms: number
   duration_ms: number
   aspect: Aspect
-  reframe: { mode?: string; center_x?: number } | null
+  reframe: Reframe | null
   caption_style: CaptionStyle
   watermark: boolean
   status: ClipStatus
@@ -165,6 +198,50 @@ export interface Clip {
   created_at: string
   updated_at: string
   download_url: string | null
+  music?: ClipMusic | Record<string, never>
+}
+
+export interface Keyframe {
+  t_ms: number
+  cx: number
+}
+
+export interface Reframe {
+  mode?: "center" | "manual" | "track" | string
+  center_x?: number
+  track?: Keyframe[]
+  status?: "tracking" | "ready" | "failed" | string
+  found?: number
+  samples?: number
+  detector?: string
+  error?: string
+}
+
+export interface ClipMusic {
+  track_id: number
+  title?: string
+  volume: number
+  duck: boolean
+}
+
+export interface MusicTrack {
+  id: number
+  title: string
+  artist: string
+  mood: string
+  duration_ms: number
+  licence: string
+  licence_url?: string
+}
+
+export interface PublishTarget {
+  id?: number
+  platform: "youtube" | "instagram"
+  status: "queued" | "publishing" | "published" | "failed" | string
+  caption?: string
+  external_id: string | null
+  external_url: string | null
+  error: string | null
 }
 
 export interface TranscriptSegment {
@@ -188,6 +265,7 @@ export interface Comment {
   created_at: string
   replies: number
   mine: boolean
+  paid_minor?: number | null
 }
 
 export interface Danmaku {
@@ -197,6 +275,8 @@ export interface Danmaku {
   mode: string
   color: string
   mine: boolean
+  boost_tier?: number | null
+  paid_minor?: number | null
 }
 
 export interface Plan {
@@ -297,6 +377,7 @@ export interface Playlist {
   video_count: number
   cover: string | null
   created_at: string
+  price_minor?: number | null
 }
 
 export interface PlaylistCard {
@@ -310,4 +391,162 @@ export interface PlaylistCard {
 
 export interface PlaylistDetail extends Playlist {
   videos: PlaylistCard[]
+}
+
+export interface PayoutAddress {
+  street1?: string
+  street2?: string
+  city?: string
+  state?: string
+  postal_code?: string
+}
+
+export interface PayoutAccount {
+  status: string
+  business_type: string | null
+  legal_name: string
+  contact_name: string
+  email: string
+  phone: string
+  pan: string | null
+  gstin: string | null
+  address: PayoutAddress
+  beneficiary_name: string | null
+  ifsc: string | null
+  account_last4: string | null
+  requirements: { field: string; reason: string }[]
+  gateway_account_id: string | null
+  submitted_at: string | null
+  activated_at: string | null
+  editable: boolean
+}
+
+export interface Balances {
+  held_minor: number
+  reserve_minor: number
+  pending_minor: number
+  owed_back_minor: number
+  released_minor: number
+  next_release_at: string | null
+  currency: string
+}
+
+export interface MoneyTotals {
+  gross_minor: number
+  commission_minor: number
+  commission_tax_minor: number
+  tcs_minor: number
+  tds_minor: number
+  net_minor: number
+  refunded_minor: number
+}
+
+export interface Earnings {
+  account: PayoutAccount | null
+  problems: string[]
+  can_take_money: boolean
+  problem: string | null
+  balances: Balances
+  commission_bps: number
+  refund_window_days: number
+  reserve_bps: number
+  month: string
+  month_totals: MoneyTotals
+  month_by_purpose: Record<string, number>
+}
+
+export interface Transfer {
+  id: number
+  kind: "sale" | "reserve" | "recovery"
+  amount_minor: number
+  reversed_minor: number
+  open_minor: number
+  status: string
+  hold_until: string | null
+  released_at: string | null
+  note: string | null
+  error: string | null
+  split_id: number | null
+}
+
+export interface Sale extends MoneyTotals {
+  id: number
+  purpose: string
+  reference: string
+  paid_at: string
+  taxable_minor: number
+  seller_tax_minor: number
+  commission_bps: number
+  reserve_minor: number
+  commission_invoice_id: number | null
+}
+
+export interface Statement {
+  month: string
+  currency: string
+  sales: Sale[]
+  totals: MoneyTotals
+  by_purpose: Record<string, number>
+  released_minor: number
+  released: number
+}
+
+export interface CommissionInvoice {
+  id: number
+  number: string
+  date: string
+  taxable_minor: number
+  tax_minor: number
+  total_minor: number
+  month: string | null
+}
+
+export interface MembershipTier {
+  id: number
+  name: string
+  rank: number
+  price_minor: number
+  currency?: string
+  perks: string
+  badge: string
+  is_active: boolean
+}
+
+export interface ProductLink {
+  id: number
+  title: string
+  url: string
+  price_text: string
+  position: number
+  clicks: number
+  host: string
+}
+
+export interface PostItem {
+  id: number
+  kind: "text" | "poll" | "image"
+  body: string
+  image: string | null
+  members_rank: number | null
+  status: string
+  created_at: string
+  poll: { total: number; options: { id: number; label: string; votes: number }[] } | null
+}
+
+export interface Moderator {
+  id: number
+  user_id: number
+  name: string
+  email: string
+  added_at: string
+}
+
+export interface Dub {
+  language: string
+  name: string
+  status: "queued" | "ready" | "failed" | string
+  voice: string | null
+  model: string | null
+  error: string | null
+  label: string
 }

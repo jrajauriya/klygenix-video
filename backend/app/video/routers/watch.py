@@ -49,7 +49,7 @@ def video_detail(public_id: str, lang: str | None = None, viewer: Viewer = Depen
         "description": v.description, "tags": v.tags, "status": v.status, "visibility": v.visibility,
         "comments": v.comment_count + pend.get("comment_count", 0),
         "danmaku_count": v.danmaku_count + pend.get("danmaku_count", 0),
-        "playback": media.playback(v), "ai_status": v.ai_status,
+        "playback": None, "ai_status": v.ai_status, "access": v.access, "locked": None,
         "captions": {"available": langs, "translatable": [l for l in LANGS if l not in langs] if langs else []},
         "insight": None if insight is None else {
             "language": insight.language, "summary": insight.summary, "key_points": insight.key_points,
@@ -59,6 +59,19 @@ def video_detail(public_id: str, lang: str | None = None, viewer: Viewer = Depen
                                                    "owner_verified": v.embed_owner_verified},
         "liked": False, "following": False, "resume_ms": 0, "is_owner": False,
     })
+    if v.access != "free":
+        from app.video.commerce import access
+        from app.video.sessions import platform_session
+
+        with platform_session() as pdb:
+            out["locked"] = access.lock(pdb, viewer.user, v)
+    out["playback"] = media.preview_playback(v) if out["locked"] else media.playback(v)
+    from app.video.routers.products import public_links
+
+    out["products"] = public_links(db, v.id)
+    from app.video.routers.dubbing import public_dubs
+
+    out["dubs"] = [] if out["locked"] else public_dubs(db, v)
     if viewer.user is not None:
         uid = viewer.user.id
         out["liked"] = bool(db.execute(select(Like.id).where(Like.user_id == uid, Like.video_id == v.id)).first())

@@ -37,7 +37,8 @@ export function DanmakuRail({ items, currentMs, blocked, onSeek, limit = 200, cl
               type="button"
               disabled={!onSeek}
               onClick={() => onSeek?.(d.t_ms)}
-              className={cx("flex w-full items-baseline gap-2 rounded-md px-2 py-1 text-left text-sm hover:bg-white/5 disabled:cursor-default", d.mine && "bg-[#A21CAF]/15")}
+              className={cx("flex w-full items-baseline gap-2 rounded-md px-2 py-1 text-left text-sm hover:bg-white/5 disabled:cursor-default", d.mine && "bg-[#A21CAF]/15", Boolean(d.boost_tier) && "bg-white/[0.06] font-semibold")}
+              style={d.boost_tier && d.color ? { boxShadow: `inset 3px 0 0 ${d.color}` } : undefined}
             >
               <span className="w-10 shrink-0 text-[11px] tabular-nums text-white/40">{formatClock(d.t_ms)}</span>
               <span className="min-w-0 flex-1 break-words" style={{ color: d.color && d.color.toUpperCase() !== "#FFFFFF" ? d.color : undefined }}>

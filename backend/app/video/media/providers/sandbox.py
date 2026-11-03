@@ -59,6 +59,14 @@ class SandboxProvider:
         sig = sign("hls", video.id, exp)
         return {"type": "hls", "url": f"{self._base()}/hls/{video.id}/{exp}/{sig}/master.m3u8", "expires_at": exp}
 
+    def preview(self, video, ttl: int, seconds: int) -> dict | None:
+        if seconds <= 0:
+            return None
+        exp = expiry(ttl)
+        sig = sign("hlsp", video.id, seconds, exp)
+        return {"type": "hls", "url": f"{self._base()}/hls-preview/{video.id}/{seconds}/{exp}/{sig}/master.m3u8",
+                "expires_at": exp, "preview_seconds": seconds}
+
     def thumbnail_url(self, video, ttl: int) -> str | None:
         if not os.path.exists(os.path.join(video_dir(video.id), "thumb.jpg")):
             return None

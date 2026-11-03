@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react"
+import { Suspense, lazy, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react"
 import { Link } from "react-router-dom"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
-import { ArrowUp, Crown, ListOrdered, Loader2, MessageCircleQuestion, ScrollText, Sparkles } from "lucide-react"
+import { ArrowUp, Crown, GraduationCap, ListOrdered, Loader2, MessageCircleQuestion, ScrollText, Sparkles } from "lucide-react"
 import { api } from "@klygenixvideo/auth"
 import { cn } from "@klygenixvideo/ui"
 import { TranscriptPanel, activeChapter } from "@klygenixvideo/player"
@@ -11,7 +11,9 @@ import { clock } from "../../lib/format"
 import type { AskMessage, Citation, Quota, Segment, VideoDetail } from "../../lib/types"
 import { Skel } from "../../components/bits"
 
-type Tab = "summary" | "chapters" | "transcript" | "ask"
+const StudyPanel = lazy(() => import("./StudyPanel").then((m) => ({ default: m.StudyPanel })))
+
+type Tab = "summary" | "chapters" | "transcript" | "ask" | "study"
 
 export function AiPanel({ video, currentMs, onSeek, className }: { video: VideoDetail; currentMs: number; onSeek: (ms: number) => void; className?: string }) {
   const [tab, setTab] = useState<Tab>("summary")
@@ -22,6 +24,7 @@ export function AiPanel({ video, currentMs, onSeek, className }: { video: VideoD
     { key: "chapters", label: "Chapters", icon: <ListOrdered size={15} /> },
     { key: "transcript", label: "Transcript", icon: <ScrollText size={15} /> },
     { key: "ask", label: "Ask", icon: <MessageCircleQuestion size={15} /> },
+    { key: "study", label: "Study", icon: <GraduationCap size={15} /> },
   ]
 
   return (
@@ -75,6 +78,8 @@ export function AiPanel({ video, currentMs, onSeek, className }: { video: VideoD
           <Chapters video={video} currentMs={currentMs} onSeek={onSeek} />
         ) : tab === "transcript" ? (
           <Transcript videoId={video.id} currentMs={currentMs} onSeek={onSeek} />
+        ) : tab === "study" ? (
+          <Suspense fallback={<Skel className="h-24 w-full" />}><StudyPanel videoId={video.id} currentMs={currentMs} onSeek={onSeek} /></Suspense>
         ) : (
           <Ask videoId={video.id} onSeek={onSeek} />
         )}

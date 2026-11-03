@@ -6,6 +6,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 
 from app.core.messages import err
+from app.video.models.commerce import Entitlement
 from app.video.models.media import Video
 from app.video.models.social import Channel, Playlist, PlaylistItem
 from app.video.present import channel_card, iso
@@ -21,7 +22,7 @@ MAX_ITEMS = 500
 
 def playlist_out(p: Playlist, count: int, cover: str | None = None) -> dict:
     return {"id": p.id, "title": p.title, "description": p.description, "kind": p.kind, "visibility": p.visibility,
-            "video_count": count, "cover": cover, "created_at": iso(p.created_at)}
+            "video_count": count, "cover": cover, "created_at": iso(p.created_at), "price_minor": p.price_inr_minor}
 
 
 def counts_and_covers(db, playlists: list[Playlist], public_only: bool) -> tuple[dict, dict]:
@@ -74,6 +75,9 @@ def playlist_detail(playlist_id: int, viewer: Viewer = Depends(optional_viewer))
         out = playlist_out(p, len(videos))
         out["channel"] = channel_card(c)
         out["videos"] = cards(db, videos, viewer.user.id if viewer.user else None)
+        out["owned"] = owner or bool(viewer.user and p.price_inr_minor and db.execute(select(Entitlement.id).where(
+            Entitlement.user_id == viewer.user.id, Entitlement.kind == "video", Entitlement.ref == f"series:{p.id}",
+            Entitlement.revoked_at.is_(None))).first())
         return out
 
 

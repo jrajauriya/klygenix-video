@@ -13,15 +13,22 @@ CHART = [
     ("1100", "Bank", "asset", "bank"),
     ("1200", "Gateway clearing", "asset", "gateway_clearing"),
     ("1300", "GST input credit", "asset", "tax_input"),
+    ("1400", "Payouts on the way", "asset", "payout_clearing"),
+    ("1500", "TCS credit", "asset", "tcs_receivable"),
+    ("1510", "TDS credit", "asset", "tds_receivable"),
     ("2100", "CGST output", "liability", "tax_output_cgst"),
     ("2110", "SGST output", "liability", "tax_output_sgst"),
     ("2120", "IGST output", "liability", "tax_output_igst"),
     ("2400", "Refunds payable", "liability", "refunds_payable"),
     ("2500", "Owed to creators", "liability", "seller_payable"),
+    ("2510", "Creator reserve", "liability", "seller_reserve"),
+    ("2600", "TCS payable", "liability", "tcs_payable"),
+    ("2610", "TDS payable", "liability", "tds_payable"),
     ("3100", "Retained earnings", "equity", "retained_earnings"),
     ("4100", "Subscription revenue", "income", "sales"),
     ("4200", "Platform commission", "income", "commission_income"),
     ("5100", "Gateway fees", "expense", "gateway_fees"),
+    ("5200", "Platform commission", "expense", "commission_expense"),
 ]
 
 

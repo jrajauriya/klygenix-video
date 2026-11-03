@@ -214,6 +214,12 @@ The last verified `backup.sh` dump is older than 26 hours (`KvBackupMetricMissin
 all after 26 h — cron missing or the textfile dir not writable). First response: `crontab -l`,
 `tail /var/log/klygenix-video-backup.log`, run `bash infra/backup.sh` by hand.
 
+### KvBackupNotShipped
+The dumps, base backups and WAL have not reached `BACKUP_TARGET` and verified for 26 hours: a lost
+host now loses data. First response: `tail /var/log/klygenix-video-backup.log`; run
+`bash infra/backup-ship.sh verify`; check the bucket credentials and that the host can reach the
+endpoint; then `bash infra/backup-ship.sh push /opt/klygenix-video/backups`.
+
 ### KvExporterDown
 node-exporter or blackbox-exporter is not scraped: host and uptime alerts are blind.
 `docker compose -f infra/docker-compose.monitoring.yml ps`; restart it.

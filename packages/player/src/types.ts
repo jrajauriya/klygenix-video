@@ -7,12 +7,22 @@ export interface DanmakuItem {
   mode: DanmakuMode | string
   color: string
   mine?: boolean
+  boost_tier?: number | null
+  pin_ms?: number | null
+  paid_minor?: number | null
 }
 
 export interface CaptionTrack {
   lang: string
   label: string
   src: string
+}
+
+export interface DubTrack {
+  language: string
+  name: string
+  label: string
+  url: string
 }
 
 export interface Chapter {

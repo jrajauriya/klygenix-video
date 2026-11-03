@@ -16,12 +16,12 @@ LEVELS: dict[str, int] = {"none": 0, "view": 1, "full": 2}
 ADMIN_DEFAULT_PERMISSIONS: dict[str, dict[str, str]] = {
     "admin": {
         "admin.dashboard": "full", "admin.tenants": "full", "admin.moderation": "full",
-        "admin.takedowns": "full", "admin.ai_usage": "view", "admin.plans": "view",
+        "admin.takedowns": "full", "admin.ai_usage": "view", "admin.plans": "view", "admin.money": "view",
         "admin.logs": "view", "admin.email": "none", "admin.settings": "none", "admin.team": "none",
     },
     "user": {
         "admin.dashboard": "view", "admin.tenants": "view", "admin.moderation": "full",
-        "admin.takedowns": "view", "admin.ai_usage": "none", "admin.plans": "none",
+        "admin.takedowns": "view", "admin.ai_usage": "none", "admin.plans": "none", "admin.money": "none",
         "admin.logs": "none", "admin.email": "none", "admin.settings": "none", "admin.team": "none",
     },
 }
@@ -31,12 +31,12 @@ VIDEO_DEFAULT_PERMISSIONS: dict[str, dict[str, str]] = {
     "admin": {
         "video.dashboard": "full", "video.uploads": "full", "video.clips": "full",
         "video.channels": "full", "video.comments": "full", "video.analytics": "full",
-        "video.billing": "view", "video.users": "view", "video.settings": "view",
+        "video.billing": "view", "video.users": "view", "video.settings": "view", "video.earnings": "view",
     },
     "user": {
         "video.dashboard": "view", "video.uploads": "full", "video.clips": "full",
         "video.channels": "view", "video.comments": "full", "video.analytics": "view",
-        "video.billing": "none", "video.users": "none", "video.settings": "none",
+        "video.billing": "none", "video.users": "none", "video.settings": "none", "video.earnings": "none",
     },
 }
 

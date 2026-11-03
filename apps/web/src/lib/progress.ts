@@ -1,13 +1,16 @@
 import { useCallback, useEffect, useRef } from "react"
 import { api } from "@klygenixvideo/auth"
+import type { TrafficSource } from "./traffic"
 
-export function useProgressReporter(videoId: string | undefined, intervalMs = 15_000) {
+export function useProgressReporter(videoId: string | undefined, source?: () => TrafficSource, intervalMs = 15_000) {
   const started = useRef(false)
   const completed = useRef(false)
   const watched = useRef(0)
   const lastTick = useRef<number | null>(null)
   const position = useRef(0)
   const playing = useRef(false)
+  const sourceRef = useRef(source)
+  sourceRef.current = source
 
   const send = useCallback((extra: { started?: boolean; completed?: boolean } = {}) => {
     if (!videoId) return
@@ -19,6 +22,7 @@ export function useProgressReporter(videoId: string | undefined, intervalMs = 15
       watched_ms,
       started: Boolean(extra.started),
       completed: Boolean(extra.completed),
+      ...(extra.started ? sourceRef.current?.() ?? {} : {}),
     }).catch(() => undefined)
   }, [videoId])
 

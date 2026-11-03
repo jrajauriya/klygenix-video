@@ -25,9 +25,11 @@ comments) over the player in realtime; creator plans and viewer Premium (Razorpa
 merchant of record abroad); trust & safety with scans, reports, strikes, appeals, takedowns.
 
 ## Status
-V0 + V1 built and running **locally on sandbox providers**, not deployed (Nov 2026). Every
-provider has a sandbox adapter and a real one behind the same interface, switched by `.env`.
-See `docs/BUILD-PLAN.md` for what is proven, sandbox-only and blocked.
+V0 + V1 (run 1) and V2 Earn + V3 Community & learning (run 2) built and running **locally on sandbox
+providers**, not deployed (Nov 2026). Creator money runs on the sandbox rail only: live money waits for
+CA sign-off, creator KYC and Play's Razorpay Route keys. Every provider has a sandbox adapter and a real
+one behind the same interface, switched by `.env`. See `docs/BUILD-PLAN.md` for what is proven,
+sandbox-only and blocked.
 
 ## Ports
 | Service | Dev | Preview | Prod |
@@ -53,17 +55,26 @@ backend/app/
     ├── models/               media · social · ai · studio · commerce · trust · ledger · tax  (schemas kv_media … kv_trust)
     ├── media/                providers/{base,bunny,sandbox} · ffmpeg · signing · service (upload ticket, webhooks, playback)
     ├── pipeline/jobs.py      process_media_event → process_video: quota → STT → scan → publish → insights → embeddings → clip ideas
-    ├── studio/               render.py (Pillow caption frames + ffmpeg 9:16, watermark) · jobs
-    ├── social/               counters (Redis, flushed + view_daily) · feed ranking v1 · cards (viewer state) · filter
+    ├── studio/               render.py (Pillow caption frames + ffmpeg 9:16, watermark, music + ducking) · jobs
+    │                         · reframe (keyframes, smoothing, piecewise crop) · faces (sandbox marker / OpenCV Haar)
+    │                         · music (licensed library) · publishers (YouTube Shorts, Instagram Reels, sandbox)
+    ├── social/               counters (Redis, flushed + view_daily incl. retention buckets and sources) · feed ranking
+    │                         · reco (video vectors, viewer taste) · cards (viewer state) · filter
     ├── realtime/rooms.py     WebSocket rooms over Redis pub/sub (stateless gateway)
     ├── channels/             youtube.py (OAuth, own videos, captions; sandbox fake channel) · embeds
     ├── trust/                age gate · scan (sandbox markers + hash list) · reports, strikes, appeals, takedowns
     ├── commerce/             plans, quotas (reserve/commit/release), checkout, payments worker, invoices
+    │                         · support (tips, boosts, memberships, paid videos/series) · splits (Route split, hold, reserve,
+    │                           release, refund unwind) · payouts (linked account + KYC) · refunds · entitlements.revoke()
+    │                           · access (members/paid gate) · statements (commission invoices, GSTR-8, 194-O)
     ├── rails/ ledger/ tax/ storage/ documents/ reports/   from Store
     ├── routers/              watch · social (+ws, feeds, history, related) · ai (search, ask, captions) · billing · trust · channels
     │                         · me (export, erase, push tokens) · playlists (+series progress) · parties (watch parties, +ws)
     │                         · studio_videos (+thumbnail ideas) · studio_clips · studio_insights (analytics, comment inbox)
     │                         · admin_video · sandbox · webhooks · limits · debug
+    │                         · support · studio_earnings (payouts, tiers, prices) · admin_money (refunds, transfers, tax files)
+    │                         · products · learning (study sets, notes, quiz, Ask across a channel/series)
+    │                         · community (posts, polls, moderators, translation, comment summary) · dubbing
     ├── jobs/                 RQ queues ai / render / default · scheduler · sweeps
     └── sessions.py           tenant_session() / platform_session()
 packages/  ui auth client types config fonts observe (from Store) · player (hls.js, DanmakuLayer, ChapterBar, YouTube/Bilibili embeds, DanmakuRail)
@@ -109,6 +120,22 @@ RLS: `tenant_isolation` (`tenant_id = current_tenant() OR is_platform()`) on eve
 `session.info["platform"]` → `app.platform='on'`. **A platform session must filter by tenant by hand**
 (studio inbox and analytics do).
 
+## Creator money (run 2)
+- A creator sale is a `Checkout` in the **buyer's** tenant with `purpose` tip|boost|membership|video|series and
+  `target.channel_tenant_id`; `support.fulfil()` grants, invoices (creator tenant, series `KVC`) and calls
+  `splits.record_split()`, which posts the creator's books and holds Route transfers for `REFUND_WINDOW_DAYS`
+  (reserve `MARKETPLACE_RESERVE_BPS` for `MARKETPLACE_RESERVE_DAYS`). `settle` posts the platform side.
+- Selling needs an activated payout account (`splits.selling_problem`). Money only on hosted videos, never embeds
+  (V04), India/INR only for now. Commission is `limits.commission_bps` on the creator's plan (placeholders 20/10/8%).
+- Every revoke goes through `commerce/entitlements.revoke()` (S03). Refunds: `commerce/refunds.refund()` → revoke →
+  credit note → reversal / `splits.on_refund()` (held transfers reversed; released money becomes a `recovery`
+  netted from the next sale). A creator deleting a paid boost refunds it.
+- Members-only and paid videos: `commerce/access` decides; locked viewers get a preview stream
+  (`provider.preview`, sandbox truncates the playlists), transcript/captions/Ask/study answer 402, and search never
+  returns transcript text from non-free videos.
+- Tips carry no GST and no TCS; boosts, memberships and paid videos carry the creator's GST only if they gave a GSTIN.
+  All rates are dated rows (`withholding_rates`, `PLATFORM` tax code) — "confirm with CA".
+
 ## Traps already found
 - **Homebrew ffmpeg has no libass or drawtext.** Captions are drawn by Pillow into PNG frames and
   overlaid with a concat demuxer (`studio/render.py`). The Docker image's ffmpeg has both; keep the
@@ -138,6 +165,19 @@ RLS: `tenant_isolation` (`tenant_id = current_tenant() OR is_platform()`) on eve
   thumbnail links are `aria-hidden` + `tabIndex={-1}`.
 - **Status pill colours**: axe cannot read `color-mix()` text, so the studio passes dark hexes (`StatusChips.tsx`).
 - Typecheck with `npx tsc --noEmit -p tsconfig.app.json` inside each app; the bare command checks zero files.
+- **OpenCV 5 dropped `CascadeClassifier`** — `opencv-python-headless` is pinned to 4.14 for Haar face detection.
+  The sandbox face detector tracks the magenta marker in `tests/fixtures/media/reframe-marker.mp4`.
+- **A sandbox payment is processed just after `/sandbox/pay` returns** — tests wait for the checkout to read `paid`
+  (`harness.support_pay`).
+- **Bunny playback without `BUNNY_TOKEN_KEY` is a public URL** — paid and members-only videos need token auth on.
+  Bunny has no preview stream (`preview()` returns None), so locked viewers see the paywall without a preview.
+- `kv_ai.video_vectors`, `kv_ai.text_translations` and `kv_studio.music_tracks` have no `tenant_id` (shared,
+  no RLS); everything else new is tenant-scoped, and product links, study sets, dub tracks and posts have
+  `public_read` policies.
+- Route needs `ROUTE_PROFILE_CATEGORY`/`SUBCATEGORY` (Razorpay's business category for Play) — empty means the live
+  Route client refuses; confirm the category with Razorpay.
+- The sandbox HLS ladder is 240p/360p/720p with 2-second segments (fast start); the speed suite measures video
+  start on a 4G profile (`tests/e2e/speed.mjs`).
 - The Expo app imports only `@klygenixvideo/client/src/native` (`tests/test_native_imports.py`); one
   react-native in node_modules; React pinned to 19.2.3 in `apps/mobile`.
 

@@ -1,0 +1,17 @@
+import { chromium } from "playwright"
+const b = await chromium.launch({ channel: "chrome", args: ["--autoplay-policy=no-user-gesture-required"] })
+const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, deviceScaleFactor: 2 })
+const page = await ctx.newPage()
+const cdp = await ctx.newCDPSession(page)
+await cdp.send("Network.enable")
+await cdp.send("Network.emulateNetworkConditions", { offline: false, latency: 170, downloadThroughput: 9e6 / 8, uploadThroughput: 9e6 / 8 })
+await cdp.send("Emulation.setCPUThrottlingRate", { rate: 4 })
+const t0 = Date.now(); const log = []
+page.on("request", (r) => log.push([Date.now() - t0, "start", r.resourceType(), r.url().replace(/^https?:\/\/localhost:\d+/, "").slice(0, 70)]))
+page.on("requestfinished", async (r) => { const s = await r.sizes().catch(() => ({})); log.push([Date.now() - t0, "done", r.resourceType(), (s.responseBodySize ?? 0), r.url().replace(/^https?:\/\/localhost:\d+/, "").slice(0, 70)]) })
+await page.addInitScript(() => { document.addEventListener("playing", () => console.log("PLAYING " + Math.round(performance.now())), true) })
+page.on("console", (m) => { if (m.text().startsWith("PLAYING")) log.push([Date.now() - t0, m.text()]) })
+await page.goto(`http://localhost:5310/reels`, { waitUntil: "load" })
+await page.waitForTimeout(4000)
+for (const l of log.sort((a, b) => a[0] - b[0])) console.log(l.join("  "))
+await b.close()

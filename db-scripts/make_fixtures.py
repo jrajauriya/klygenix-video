@@ -77,6 +77,26 @@ SCRIPTS = {
             "Strain and serve. That is it.",
         ],
     },
+    "reframe-marker": {
+        "size": (1280, 720), "pattern": "smptebars", "title": "Walking across the stage", "marker": True,
+        "lines": [
+            "I start on the left side of the stage.",
+            "Now I walk slowly towards the middle.",
+            "And I finish on the right side of the stage.",
+        ],
+    },
+    "chai-hindi": {
+        "size": (1280, 720), "pattern": "testsrc2", "title": "मसाला चाय बनाने का आसान तरीका", "voice": "Lekha",
+        "lang": "hin",
+        "lines": [
+            "नमस्ते दोस्तों, आज हम मसाला चाय बनाना सीखेंगे।",
+            "सबसे पहले पानी में अदरक और इलायची डालकर उबालें।",
+            "फिर चाय की पत्ती डालें और एक मिनट तक पकाएं।",
+            "अब दूध और चीनी मिलाएं और उबाल आने दें।",
+            "चाय को छानकर गरम गरम परोसें।",
+            "सर्दियों में थोड़ी सी काली मिर्च भी डाल सकते हैं।",
+        ],
+    },
 }
 
 
@@ -108,7 +128,7 @@ def build(name, spec, force=False):
     cues, t, parts = [], 0.0, []
     for i, line in enumerate(spec["lines"]):
         aiff = os.path.join(work, f"l{i:03d}.aiff")
-        run(["say", "-r", "185", "-o", aiff, line])
+        run(["say", *(["-v", spec["voice"]] if spec.get("voice") else []), "-r", "185", "-o", aiff, line])
         wav = os.path.join(work, f"l{i:03d}.wav")
         run(["ffmpeg", "-y", "-v", "error", "-i", aiff, "-ar", "44100", "-ac", "1", wav])
         d = duration(wav)
@@ -131,13 +151,18 @@ def build(name, spec, force=False):
             fh.write(f"{ts(a)} --> {ts(b)}\n{text}\n\n")
     w, h = spec["size"]
     total = t
+    video = ["-map", "0:v"]
+    extra = []
+    if spec.get("marker"):
+        extra = ["-f", "lavfi", "-i", f"color=c=0xFF00FF:size=140x140:rate=24:duration={total:.2f}"]
+        video = ["-filter_complex", f"[0:v][3:v]overlay=x='100+(W-340)*t/{total:.2f}':y=(H-140)/2[v]", "-map", "[v]"]
     run([
         "ffmpeg", "-y", "-v", "error",
         "-f", "lavfi", "-i", f"{spec['pattern']}=size={w}x{h}:rate=24:duration={total:.2f}",
-        "-i", audio, "-i", vtt,
-        "-map", "0:v", "-map", "1:a", "-map", "2:s",
+        "-i", audio, "-i", vtt, *extra,
+        *video, "-map", "1:a", "-map", "2:s",
         "-c:v", "libx264", "-preset", "veryfast", "-crf", "30", "-pix_fmt", "yuv420p",
-        "-c:a", "aac", "-b:a", "96k", "-c:s", "mov_text", "-metadata:s:s:0", "language=eng",
+        "-c:a", "aac", "-b:a", "96k", "-c:s", "mov_text", "-metadata:s:s:0", f"language={spec.get('lang', 'eng')}",
         "-t", f"{total:.2f}", target,
     ])
     with open(os.path.join(OUT, f"{name}.json"), "w") as fh:

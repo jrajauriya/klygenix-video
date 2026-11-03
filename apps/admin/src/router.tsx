@@ -18,6 +18,7 @@ import Takedowns from "./pages/Takedowns"
 import Videos from "./pages/Videos"
 import AiUsage from "./pages/AiUsage"
 import Plans from "./pages/Plans"
+import Money from "./pages/Money"
 
 const gate = (key: string, el: ReactNode) => <ProtectedRoute permissionKey={key}>{el}</ProtectedRoute>
 
@@ -34,6 +35,7 @@ export const router = createBrowserRouter([
       { path: "/videos", element: gate("admin.moderation", <Videos />) },
       { path: "/ai-usage", element: gate("admin.ai_usage", <AiUsage />) },
       { path: "/plans", element: gate("admin.plans", <Plans />) },
+      { path: "/money", element: gate("admin.money", <Money />) },
       { path: "/tenants", element: gate("admin.tenants", <Tenants />) },
       { path: "/tenants/:tenantId", element: gate("admin.tenants", <TenantDetail />) },
       { path: "/logs", element: gate("admin.logs", <ActivityLog />) },

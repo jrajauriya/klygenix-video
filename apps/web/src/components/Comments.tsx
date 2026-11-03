@@ -1,13 +1,14 @@
-import { useState, type FormEvent } from "react"
+import { useEffect, useState, type FormEvent } from "react"
 import { Link } from "react-router-dom"
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
-import { ChevronDown, ChevronUp, Flag, MessageSquare, Trash2 } from "lucide-react"
+import { ChevronDown, ChevronUp, Coins, Flag, Languages, MessageSquare, Sparkles, Trash2 } from "lucide-react"
 import { api } from "@klygenixvideo/auth"
-import { useConfirm } from "@klygenixvideo/ui"
-import { errText, loginPath, useMe, useSignedIn } from "../lib/api"
-import { compactNumber, hue, initials, timeAgo } from "../lib/format"
-import type { CommentRow } from "../lib/types"
+import { cn, useConfirm } from "@klygenixvideo/ui"
+import { errText, getJson, loginPath, useMe, useSignedIn } from "../lib/api"
+import { compactNumber, hue, initials, langName, rupees, timeAgo } from "../lib/format"
+import { TRANSLATE_LANGS, useTranslateLang } from "../lib/prefs"
+import type { CommentRow, CommentSummary, Translation } from "../lib/types"
 import { Btn, ChannelAvatar, Skel, TEXTAREA } from "./bits"
 import type { ReportTarget } from "./ReportDialog"
 
@@ -81,22 +82,41 @@ function Bubble({ name }: { name: string }) {
   )
 }
 
-function Replies({ videoId, parentId, onReport }: { videoId: string; parentId: number; onReport: (t: ReportTarget) => void }) {
+function Replies({ videoId, parentId, onReport, lang }: { videoId: string; parentId: number; onReport: (t: ReportTarget) => void; lang: string }) {
   const q = useQuery({ queryKey: ["comments", videoId, parentId], queryFn: () => fetchComments(videoId, 0, parentId) })
   if (q.isLoading) return <Skel className="ml-11 h-10 w-2/3" />
   return (
     <div className="space-y-4">
-      {(q.data?.rows ?? []).slice().reverse().map((c) => <CommentItem key={c.id} videoId={videoId} comment={c} onReport={onReport} isReply />)}
+      {(q.data?.rows ?? []).slice().reverse().map((c) => <CommentItem key={c.id} videoId={videoId} comment={c} onReport={onReport} lang={lang} isReply />)}
     </div>
   )
 }
 
-function CommentItem({ videoId, comment, onReport, isReply = false }: { videoId: string; comment: CommentRow; onReport: (t: ReportTarget) => void; isReply?: boolean }) {
+function CommentItem({ videoId, comment, onReport, lang, isReply = false }: { videoId: string; comment: CommentRow; onReport: (t: ReportTarget) => void; lang: string; isReply?: boolean }) {
   const signedIn = useSignedIn()
   const confirm = useConfirm()
   const qc = useQueryClient()
   const [replying, setReplying] = useState(false)
   const [open, setOpen] = useState(false)
+  const [translated, setTranslated] = useState<{ lang: string; text: string | null } | null>(null)
+  const [translating, setTranslating] = useState(false)
+
+  async function translate() {
+    if (translated && translated.lang === lang) {
+      setTranslated(null)
+      return
+    }
+    setTranslating(true)
+    try {
+      const { data } = await api.post<Translation>("/api/video/translate", { kind: "comments", ids: [comment.id], lang })
+      const item = data.items.find((x) => x.id === comment.id)
+      setTranslated({ lang, text: data.machine_translation && item ? item.text : null })
+    } catch (err) {
+      toast.error(errText(err, "This comment could not be translated."))
+    } finally {
+      setTranslating(false)
+    }
+  }
 
   async function remove() {
     const ok = await confirm({ title: "Delete this comment?", message: "This cannot be undone.", confirmLabel: "Delete", variant: "destructive" })
@@ -110,8 +130,10 @@ function CommentItem({ videoId, comment, onReport, isReply = false }: { videoId:
     }
   }
 
+  const tip = comment.paid_minor && comment.paid_minor > 0 ? comment.paid_minor : 0
+
   return (
-    <div className="flex gap-3">
+    <div className={cn("flex gap-3", tip > 0 && "rounded-2xl border border-[#FACC15]/50 bg-[#FACC15]/[0.07] p-3")}>
       {comment.author_channel ? (
         <Link to={`/@${comment.author_channel.handle}`} aria-label={comment.author_channel.name} className="shrink-0">
           <ChannelAvatar channel={comment.author_channel} size={32} />
@@ -129,13 +151,31 @@ function CommentItem({ videoId, comment, onReport, isReply = false }: { videoId:
           {comment.is_creator && (
             <span className="rounded-md bg-brand/25 px-1.5 py-0.5 text-[11px] font-semibold text-brand-soft">Creator</span>
           )}
+          {tip > 0 && (
+            <span className="inline-flex items-center gap-1 rounded-md bg-[#FACC15] px-1.5 py-0.5 text-[11px] font-bold text-black">
+              <Coins size={11} aria-hidden="true" /> {rupees(tip)} tip
+            </span>
+          )}
           <span className="text-faint">{timeAgo(comment.created_at)}</span>
         </p>
         <p className="mt-0.5 whitespace-pre-wrap break-words text-sm leading-relaxed text-ink/90">{comment.body}</p>
+        {translated && (
+          translated.text !== null ? (
+            <p className="mt-1 whitespace-pre-wrap break-words border-l-2 border-brand/60 pl-2 text-sm leading-relaxed text-ink/90">
+              <span className="block text-[11px] font-semibold text-muted">Translated to {langName(translated.lang)} by AI</span>
+              {translated.text}
+            </p>
+          ) : (
+            <p className="mt-1 text-xs text-muted">Machine translation is off in this environment.</p>
+          )
+        )}
         <div className="mt-1 flex items-center gap-1 text-xs text-muted">
           {signedIn && !isReply && (
             <button type="button" onClick={() => setReplying(true)} className="rounded-full px-2 py-1 font-semibold hover:bg-white/10">Reply</button>
           )}
+          <button type="button" onClick={translate} disabled={translating} className="inline-flex items-center gap-1 rounded-full px-2 py-1 hover:bg-white/10 disabled:opacity-60">
+            <Languages size={13} aria-hidden="true" /> {translating ? "Translating…" : translated && translated.lang === lang ? "Hide translation" : "Translate"}
+          </button>
           {comment.mine ? (
             <button type="button" onClick={remove} className="inline-flex items-center gap-1 rounded-full px-2 py-1 hover:bg-white/10" aria-label="Delete comment">
               <Trash2 size={13} /> Delete
@@ -159,7 +199,7 @@ function CommentItem({ videoId, comment, onReport, isReply = false }: { videoId:
         )}
         {open && (
           <div className="mt-3">
-            <Replies videoId={videoId} parentId={comment.id} onReport={onReport} />
+            <Replies videoId={videoId} parentId={comment.id} onReport={onReport} lang={lang} />
           </div>
         )}
       </div>
@@ -170,6 +210,7 @@ function CommentItem({ videoId, comment, onReport, isReply = false }: { videoId:
 export function Comments({ videoId, count, onReport, heading = true }: { videoId: string; count?: number; onReport: (t: ReportTarget) => void; heading?: boolean }) {
   const signedIn = useSignedIn()
   const { data: me } = useMe()
+  const [lang, setLang] = useTranslateLang(me?.profile?.language)
   const q = useInfiniteQuery({
     queryKey: ["comments", videoId],
     initialPageParam: 0,
@@ -181,12 +222,21 @@ export function Comments({ videoId, count, onReport, heading = true }: { videoId
 
   return (
     <section aria-label="Comments">
-      {heading && (
-        <h2 className="mb-4 flex items-center gap-2 text-lg font-bold">
-          <MessageSquare size={18} className="text-brand-soft" aria-hidden="true" />
-          {compactNumber(total)} {total === 1 ? "comment" : "comments"}
-        </h2>
-      )}
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        {heading && (
+          <h2 className="flex flex-1 items-center gap-2 text-lg font-bold">
+            <MessageSquare size={18} className="text-brand-soft" aria-hidden="true" />
+            {compactNumber(total)} {total === 1 ? "comment" : "comments"}
+          </h2>
+        )}
+        <label className="ml-auto inline-flex items-center gap-1.5 text-xs text-muted">
+          <Languages size={14} aria-hidden="true" /> Translate to
+          <select value={lang} onChange={(e) => setLang(e.target.value)} className="h-8 rounded-lg border border-line bg-panel-2 px-2 text-xs text-ink outline-none focus:border-brand">
+            {TRANSLATE_LANGS.map((l) => <option key={l} value={l}>{langName(l)}</option>)}
+          </select>
+        </label>
+      </div>
+      {heading && <CommentSummaryCard videoId={videoId} lang={lang} />}
       <div className="mb-6 flex gap-3">
         {signedIn ? (
           <>
@@ -205,7 +255,7 @@ export function Comments({ videoId, count, onReport, heading = true }: { videoId
         <p className="py-6 text-center text-sm text-muted">No comments yet. Start the conversation.</p>
       ) : (
         <div className="space-y-5">
-          {rows.map((c) => <CommentItem key={c.id} videoId={videoId} comment={c} onReport={onReport} />)}
+          {rows.map((c) => <CommentItem key={c.id} videoId={videoId} comment={c} onReport={onReport} lang={lang} />)}
         </div>
       )}
       {q.hasNextPage && (
@@ -215,6 +265,40 @@ export function Comments({ videoId, count, onReport, heading = true }: { videoId
           </Btn>
         </div>
       )}
+    </section>
+  )
+}
+
+function CommentSummaryCard({ videoId, lang }: { videoId: string; lang: string }) {
+  const [ready, setReady] = useState(false)
+  useEffect(() => {
+    const t = window.setTimeout(() => setReady(true), 2500)
+    return () => window.clearTimeout(t)
+  }, [])
+  const q = useQuery({
+    queryKey: ["comment-summary", videoId, lang],
+    enabled: ready,
+    queryFn: () => getJson<CommentSummary>(`/api/video/videos/${videoId}/comments/summary`, { lang }),
+    staleTime: 5 * 60_000,
+    retry: false,
+  })
+  const d = q.data
+  if (!d || !d.available) return null
+  return (
+    <section aria-label="What people are saying" className="mb-5 rounded-2xl border border-line bg-panel p-4">
+      <h3 className="flex items-center gap-2 text-sm font-bold"><Sparkles size={15} className="text-brand-soft" aria-hidden="true" /> What people are saying</h3>
+      <p className="mt-1.5 text-sm leading-relaxed text-ink/90">{d.summary}</p>
+      {d.topics.length > 0 && (
+        <ul className="mt-2.5 flex flex-wrap gap-1.5">
+          {d.topics.map((t) => <li key={t} className="rounded-full bg-white/[0.08] px-2.5 py-0.5 text-xs">{t}</li>)}
+        </ul>
+      )}
+      {d.quotes.length > 0 && (
+        <ul className="mt-3 space-y-1.5">
+          {d.quotes.slice(0, 3).map((t) => <li key={t} className="border-l-2 border-brand/60 pl-2 text-xs italic text-muted">“{t}”</li>)}
+        </ul>
+      )}
+      <p className="mt-2.5 text-[11px] text-faint">Summarised by AI from {d.count} comments.</p>
     </section>
   )
 }

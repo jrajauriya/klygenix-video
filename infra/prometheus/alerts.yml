@@ -221,6 +221,14 @@ groups:
           summary: "The last good database backup is {{ $value | humanizeDuration }} old"
           runbook: "infra/METRICS.md#kvbackupstale"
 
+      - alert: KvBackupNotShipped
+        expr: time() - kv_backup_last_shipped_timestamp_seconds > 26 * 3600
+        for: 10m
+        labels: {severity: critical}
+        annotations:
+          summary: "Backups last reached the off-host bucket {{ $value | humanizeDuration }} ago"
+          runbook: "infra/METRICS.md#kvbackupnotshipped"
+
       - alert: KvBackupMetricMissing
         expr: absent(kv_backup_last_success_timestamp_seconds)
         for: 26h

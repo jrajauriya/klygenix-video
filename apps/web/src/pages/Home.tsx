@@ -57,7 +57,7 @@ export default function HomePage() {
           ) : (
             <div className={GRID}>
               {(following.data ?? []).map((v) => (
-                <VideoGridCard key={v.id} video={v} to={v.kind === "reel" ? `/reels?start=${v.id}` : undefined} />
+                <VideoGridCard key={v.id} video={v} to={v.kind === "reel" ? `/reels?start=${v.id}` : `/watch/${v.id}?src=follow`} />
               ))}
             </div>
           )}
@@ -101,7 +101,7 @@ export default function HomePage() {
               <Empty icon={<Video size={32} />} title="No videos yet" body="When creators publish, their videos show up here." />
             ) : (
               <div className={GRID}>
-                {long.map((v) => <VideoGridCard key={v.id} video={v} />)}
+                {long.map((v, i) => <VideoGridCard key={v.id} video={v} priority={i < 2} />)}
               </div>
             )}
           </section>

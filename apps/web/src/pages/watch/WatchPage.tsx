@@ -1,18 +1,19 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
-import { ExternalLink, Flag, Heart, PartyPopper, Share2, ShieldCheck } from "lucide-react"
+import { Coins, ExternalLink, Flag, Heart, PartyPopper, Share2, ShieldCheck } from "lucide-react"
 import { api } from "@klygenixvideo/auth"
 import { cn } from "@klygenixvideo/ui"
 import {
   BilibiliEmbed, DanmakuLayer, DanmakuRail, HlsPlayer, YouTubeEmbed, useDanmaku,
   type CaptionTrack, type EmbedController,
 } from "@klygenixvideo/player"
-import { STUDIO_URL, apiUrl, errStatus, errText, getJson, loginPath, useSignedIn } from "../../lib/api"
+import { STUDIO_URL, apiUrl, errStatus, errText, getJson, loginPath, useMe, useSignedIn } from "../../lib/api"
 import { clock, compactNumber, langName, longDate, timeAgo, views } from "../../lib/format"
-import { useDanmakuPrefs, useMediaQuery } from "../../lib/prefs"
+import { useDanmakuPrefs, useMediaQuery, useTranslateLang } from "../../lib/prefs"
 import { useProgressReporter } from "../../lib/progress"
+import { trafficSource } from "../../lib/traffic"
 import { useTitle } from "../../lib/title"
 import type { VideoCard, VideoDetail } from "../../lib/types"
 import { AiBadge, Btn, ChannelAvatar, ChannelName, Skel } from "../../components/bits"
@@ -20,11 +21,19 @@ import { Comments } from "../../components/Comments"
 import { FollowButton } from "../../components/FollowButton"
 import { PlaylistPanel, playlistWatchUrl, useAutoplay, usePlaylist } from "../../components/Playlists"
 import { ReportDialog, type ReportTarget } from "../../components/ReportDialog"
+import { feeText, useChannelSupport } from "../../lib/support"
 import { VideoRowCard } from "../../components/VideoCards"
 import NotFound from "../NotFound"
 import { AiPanel } from "./AiPanel"
 import { DanmakuBar } from "./DanmakuBar"
+import { ProductStrip } from "./Products"
+import { useDanmakuTranslation } from "./useDanmakuTranslation"
+import { LockedAi, PreviewBadge } from "./lockBits"
 import { GuestStrip, PartyPanel, partyLink, useParty, usePartySync, type PartyState } from "./Party"
+
+const LockedOverlay = lazy(() => import("./Paywall").then((m) => ({ default: m.LockedOverlay })))
+const LockedPanel = lazy(() => import("./Paywall").then((m) => ({ default: m.LockedPanel })))
+const TipSheet = lazy(() => import("../../components/Support").then((m) => ({ default: m.TipSheet })))
 
 function Description({ video }: { video: VideoDetail }) {
   const [open, setOpen] = useState(false)
@@ -109,6 +118,7 @@ export default function WatchPage() {
     retry: (count, err) => errStatus(err) !== 404 && count < 1,
   })
   const video = q.data
+  const lock = video?.locked ?? null
   useTitle(video?.title)
 
   const [currentMs, setCurrentMs] = useState(0)
@@ -119,12 +129,32 @@ export default function WatchPage() {
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const embedRef = useRef<EmbedController | null>(null)
   const playerBox = useRef<HTMLDivElement>(null)
-  const progress = useProgressReporter(video?.id)
+  const location = useLocation()
+  const progress = useProgressReporter(video?.id, () => trafficSource(location.key, location.search))
   const applyParty = useRef<(s: PartyState) => void>(() => undefined)
   const party = useParty(partyCode, signedIn && video?.playback?.type === "hls", (s) => applyParty.current(s))
   const partySync = usePartySync(party, videoRef, `${video?.id ?? ""}-${video?.playback?.type ?? ""}`)
   applyParty.current = partySync.apply
   const [starting, setStarting] = useState(false)
+  const [tipOpen, setTipOpen] = useState(false)
+  const [previewOver, setPreviewOver] = useState<string | null>(null)
+  const embedded = Boolean(video?.embed) || video?.source === "embed"
+  const [warm, setWarm] = useState<string | null>(null)
+  useEffect(() => {
+    if (!video?.id) return
+    const t = window.setTimeout(() => setWarm(video.id), 2500)
+    return () => window.clearTimeout(t)
+  }, [video?.id])
+  const support = useChannelSupport(video?.channel?.handle, Boolean(video) && !embedded && (warm === video?.id || Boolean(lock)))
+  async function onUnlocked() {
+    for (let i = 0; i < 6; i++) {
+      const r = await q.refetch()
+      if (!r.data?.locked) break
+      await new Promise((res) => setTimeout(res, 1200))
+    }
+    setPreviewOver(null)
+    qc.invalidateQueries({ queryKey: ["support"] })
+  }
 
   useEffect(() => {
     if (party?.info && party.info.video_id !== id) navigate(`/watch/${party.info.video_id}?party=${party.info.code}`, { replace: true })
@@ -136,27 +166,35 @@ export default function WatchPage() {
   }, [playlist, video?.id])
 
   const onEnded = useCallback(() => {
+    if (lock && video) {
+      setPreviewOver(video.id)
+      return
+    }
     progress.onEnded()
     if (playlist?.kind === "series") window.setTimeout(() => qc.invalidateQueries({ queryKey: ["playlist-progress", playlist.id] }), 800)
     if (playlist && nextInList && autoplay && !partyCode) {
       toast.message(`Up next: ${nextInList.title}`)
       navigate(playlistWatchUrl(nextInList.id, playlist.id))
     }
-  }, [progress, playlist, nextInList, autoplay, partyCode, navigate, qc])
+  }, [progress, playlist, nextInList, autoplay, partyCode, navigate, qc, lock, video])
 
   const playback = video?.playback ?? null
   const hosted = playback?.type === "hls"
   const bilibili = playback?.type === "bilibili"
   const danmaku = useDanmaku(video ? video.id : null, currentMs, { api, enabled: Boolean(video), all: bilibili })
+  const me = useMe().data
+  const [tLang, setTLang] = useTranslateLang(me?.profile?.language)
+  const shownDanmaku = useDanmakuTranslation(danmaku.items, currentMs, prefs.translate, tLang, !bilibili)
 
   const startMs = useMemo(() => {
+    if (lock) return undefined
     if (tParam !== null && /^\d+$/.test(tParam)) return Number(tParam)
     if (video?.resume_ms && video.resume_ms > 5000) return video.resume_ms
     return undefined
-  }, [tParam, video?.id])
+  }, [tParam, video?.id, Boolean(lock)])
 
   const captions = useMemo<CaptionTrack[]>(() => {
-    if (!video) return []
+    if (!video || video.locked) return []
     const own = video.captions?.available ?? []
     const auto = (video.captions?.translatable ?? []).filter((l) => !own.includes(l))
     const src = (l: string) => apiUrl(`/api/video/videos/${video.id}/captions/${l}.vtt`)
@@ -164,7 +202,7 @@ export default function WatchPage() {
       ...own.map((l) => ({ lang: l, label: langName(l), src: src(l) })),
       ...auto.map((l) => ({ lang: l, label: `${langName(l)} (auto-translated)`, src: src(l) })),
     ]
-  }, [video?.id, video?.captions])
+  }, [video?.id, video?.captions, Boolean(lock)])
 
   const onTime = useCallback((ms: number) => {
     setCurrentMs(ms)
@@ -213,7 +251,7 @@ export default function WatchPage() {
 
   async function share() {
     const at = currentMs > 5000 ? Math.round(currentMs) : 0
-    const url = `${window.location.origin}/watch/${video!.id}${at ? `?t=${at}` : ""}`
+    const url = `${window.location.origin}/watch/${video!.id}?${at ? `t=${at}&` : ""}src=share`
     if (navigator.share && window.matchMedia("(pointer: coarse)").matches) {
       navigator.share({ title: video!.title, url }).catch(() => undefined)
       return
@@ -266,7 +304,7 @@ export default function WatchPage() {
         <span>Danmaku</span>
         {bilibili ? <span className="font-normal text-faint">Not synced to playback</span> : danmaku.watchers > 0 && <span className="font-normal">{danmaku.watchers} watching</span>}
       </div>
-      <DanmakuRail className="flex-1" items={danmaku.items} currentMs={bilibili ? null : currentMs} blocked={prefs.blocked} onSeek={bilibili ? undefined : seek} />
+      <DanmakuRail className="flex-1" items={shownDanmaku.items} currentMs={bilibili ? null : currentMs} blocked={prefs.blocked} onSeek={bilibili ? undefined : seek} />
     </div>
   )
   const partyPanel = partyCode && (
@@ -275,22 +313,38 @@ export default function WatchPage() {
   const listPanel = playlist && playlist.videos.length > 0 && (
     <PlaylistPanel playlist={playlist} currentId={video.id} autoplay={autoplay} onAutoplay={setAutoplay} />
   )
-  const aiPanel = <AiPanel video={video} currentMs={currentMs} onSeek={seek} className="h-[480px] lg:h-[520px]" />
+  const aiPanel = lock
+    ? <LockedAi className="h-48" />
+    : <AiPanel video={video} currentMs={currentMs} onSeek={seek} className="h-[480px] lg:h-[520px]" />
+  const money = support.data
+  const canTip = Boolean(money?.can_take_money && !money.is_owner && !video.is_owner && !embedded)
+  const canBoost = canTip && hosted && !lock && signedIn
+  const paywallUp = Boolean(lock && (previewOver === video.id || !hosted))
+
+  function replayPreview() {
+    setPreviewOver(null)
+    const v = videoRef.current
+    if (v) {
+      v.currentTime = 0
+      v.play().catch(() => undefined)
+    }
+  }
 
   return (
     <div className="mx-auto max-w-[1700px] sm:px-6 sm:py-6">
       <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_400px] lg:gap-6">
         <div className="min-w-0">
-          <div ref={playerBox} className="sticky top-14 z-30 bg-black sm:static sm:rounded-t-2xl">
+          <div ref={playerBox} className="sticky top-14 z-30 bg-black sm:relative sm:top-0 sm:z-auto sm:rounded-t-2xl">
             {hosted && playback?.type === "hls" ? (
               <HlsPlayer
-                key={video.id}
+                key={`${video.id}-${lock ? "preview" : "full"}`}
                 src={playback.url}
                 poster={video.thumbnail ?? undefined}
                 startMs={partyCode ? undefined : startMs}
                 autoPlay={!partyCode}
                 captions={captions}
                 chapters={video.insight?.chapters}
+                dubs={lock ? undefined : video.dubs}
                 videoRef={videoRef}
                 onTime={onTime}
                 onPlay={() => { setPlaying(true); progress.onPlay() }}
@@ -300,7 +354,7 @@ export default function WatchPage() {
                 className="aspect-video w-full sm:rounded-t-2xl"
               >
                 <DanmakuLayer
-                  items={danmaku.items}
+                  items={shownDanmaku.items}
                   currentMs={currentMs}
                   playing={playing}
                   enabled={prefs.enabled}
@@ -324,8 +378,10 @@ export default function WatchPage() {
             ) : playback?.type === "bilibili" ? (
               <BilibiliEmbed key={video.id} src={playback.url} title={video.title} className="aspect-video w-full sm:rounded-t-2xl" />
             ) : (
-              <div className="flex aspect-video w-full items-center justify-center bg-panel-2 text-sm text-muted sm:rounded-t-2xl">This video is not ready to play yet.</div>
+              <div className="flex aspect-video w-full items-center justify-center bg-panel-2 text-sm text-muted sm:rounded-t-2xl">{lock ? "" : "This video is not ready to play yet."}</div>
             )}
+            {lock && !paywallUp && <PreviewBadge lock={lock} className="pointer-events-none absolute left-2 top-2 z-10" />}
+            {lock && paywallUp && <Suspense fallback={null}><LockedOverlay video={video} lock={lock} onUnlocked={onUnlocked} onReplay={hosted ? replayPreview : undefined} /></Suspense>}
           </div>
           <GuestStrip party={party} blocked={partySync.blocked} onJoin={partySync.join} />
           <DanmakuBar
@@ -333,6 +389,10 @@ export default function WatchPage() {
             onPrefs={setPrefs}
             watchers={danmaku.watchers}
             onPost={(text, mode, color) => danmaku.post(text, mode, color)}
+            translateLang={tLang}
+            onTranslateLang={setTLang}
+            translateOff={shownDanmaku.off}
+            boost={canBoost && money ? { videoId: video.id, tiers: money.boost_tiers, positionMs: () => (videoRef.current ? Math.round(videoRef.current.currentTime * 1000) : currentMs) } : undefined}
             disabledReason={bilibili ? "Bilibili does not share its playback time, so new danmaku can't be placed on this video." : undefined}
           />
 
@@ -350,6 +410,7 @@ export default function WatchPage() {
 
           <div className="space-y-4 px-3 pt-4 sm:px-0">
             {!desktop && rail}
+            {lock && <Suspense fallback={null}><LockedPanel video={video} lock={lock} onUnlocked={onUnlocked} fee={feeText(money)} /></Suspense>}
             <div>
               <h1 className="text-lg font-bold leading-snug sm:text-xl">{video.title}</h1>
               {video.ai_generated && <AiBadge className="mt-2" />}
@@ -381,7 +442,12 @@ export default function WatchPage() {
                   {compactNumber(like.count)}
                 </Btn>
                 <Btn tone="soft" onClick={share}><Share2 size={16} aria-hidden="true" /> Share</Btn>
-                {signedIn && hosted && !partyCode && (
+                {canTip && (
+                  <Btn tone="soft" onClick={() => requireSignIn(() => setTipOpen(true))}>
+                    <Coins size={16} aria-hidden="true" /> Tip
+                  </Btn>
+                )}
+                {signedIn && hosted && !partyCode && !lock && (
                   <Btn tone="soft" onClick={watchTogether} disabled={starting}>
                     <PartyPopper size={16} aria-hidden="true" /> {starting ? "Starting…" : "Watch together"}
                   </Btn>
@@ -395,6 +461,7 @@ export default function WatchPage() {
             {!desktop && partyPanel}
             {!desktop && listPanel}
             {!desktop && aiPanel}
+            {video.products && video.products.items.length > 0 && <ProductStrip products={video.products} />}
             <Description video={video} />
             <div className="pt-2">
               <Comments videoId={video.id} count={video.comments} onReport={(t) => requireSignIn(() => setReport(t))} />
@@ -414,6 +481,18 @@ export default function WatchPage() {
         )}
       </div>
       <ReportDialog target={report} onClose={() => setReport(null)} />
+      {money && canTip && tipOpen && (
+        <Suspense fallback={null}>
+        <TipSheet
+          open={tipOpen}
+          onClose={() => setTipOpen(false)}
+          support={money}
+          name={video.channel?.name ?? "the creator"}
+          videoId={video.id}
+          onPaid={() => qc.invalidateQueries({ queryKey: ["comments", video.id] })}
+        />
+        </Suspense>
+      )}
     </div>
   )
 }

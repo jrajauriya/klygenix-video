@@ -12,8 +12,10 @@ import Clips from "./pages/Clips"
 import ClipEditor from "./pages/ClipEditor"
 import ChannelPage from "./pages/Channel"
 import Comments from "./pages/Comments"
+import Community from "./pages/Community"
 import Analytics from "./pages/Analytics"
 import Billing from "./pages/Billing"
+import Earnings from "./pages/Earnings"
 import Moderation from "./pages/Moderation"
 import Settings from "./pages/Settings"
 import NotFound from "./pages/NotFound"
@@ -42,7 +44,9 @@ export const router = createBrowserRouter([
       { path: "/clips/:id", element: guard("video.clips", <ClipEditor />) },
       { path: "/channel", element: guard("video.channels", <ChannelPage />) },
       { path: "/comments", element: guard("video.comments", <Comments />) },
+      { path: "/community", element: guard("video.channels", <Community />) },
       { path: "/analytics", element: guard("video.analytics", <Analytics />) },
+      { path: "/earnings", element: guard("video.earnings", <Earnings />) },
       { path: "/billing", element: guard("video.billing", <Billing />) },
       { path: "/moderation", element: guard("video.dashboard", <Moderation />) },
       { path: "/settings", element: guard("video.settings", <Settings />) },

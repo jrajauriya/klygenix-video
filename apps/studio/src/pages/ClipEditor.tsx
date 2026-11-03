@@ -9,16 +9,25 @@ import {
 } from "@klygenixvideo/ui"
 import { STUDIO, useMe } from "../lib/hooks"
 import { clock, detail, seconds, status as httpStatus } from "../lib/format"
-import { CLIP_MAX_MS } from "../lib/clips"
-import type { Aspect, CaptionStyle, Clip, StudioVideoDetail } from "../lib/types"
+import { CLIP_MAX_MS, cxAt, sameTrack } from "../lib/clips"
+import type { Aspect, CaptionStyle, Clip, ClipMusic, Keyframe, StudioVideoDetail } from "../lib/types"
 import { VideoPreview, type Seek } from "../components/VideoPreview"
 import { ClipStatusPill } from "../components/StatusChips"
 import { RangeBar } from "../components/clips/RangeBar"
 import { AspectPicker, FrameOverlay, StylePicker } from "../components/clips/ClipLook"
 import { VisibilityField } from "../components/VisibilityField"
+import { Reframe } from "../components/clips/Reframe"
+import { Music } from "../components/clips/Music"
+import { PublishTargets } from "../components/clips/PublishTargets"
 import type { Visibility } from "../lib/types"
 
 const WORKING = ["queued", "rendering"]
+
+const savedTrack = (c: Clip): Keyframe[] => (c.reframe && ["manual", "track"].includes(c.reframe.mode ?? "") ? c.reframe.track ?? [] : [])
+const savedMusic = (c: Clip): ClipMusic | null =>
+  c.music && "track_id" in c.music && c.music.track_id ? { track_id: c.music.track_id, volume: c.music.volume ?? 0.25, duck: c.music.duck ?? true } : null
+const sameMusic = (a: ClipMusic | null, b: ClipMusic | null) =>
+  a === b || (a !== null && b !== null && a.track_id === b.track_id && Math.abs(a.volume - b.volume) < 0.001 && a.duck === b.duck)
 
 export default function ClipEditor() {
   const { id } = useParams()
@@ -30,7 +39,7 @@ export default function ClipEditor() {
   const { data: clip, isLoading, isError } = useQuery({
     queryKey: ["studio-clip", id],
     queryFn: async () => (await api.get<Clip>(`${STUDIO}/clips/${id}`)).data,
-    refetchInterval: (q) => (q.state.data && WORKING.includes(q.state.data.status) ? 2000 : false),
+    refetchInterval: (q) => (q.state.data && (WORKING.includes(q.state.data.status) || q.state.data.reframe?.status === "tracking") ? 2000 : false),
   })
   const { data: source } = useQuery({
     queryKey: ["studio-video", String(clip?.source_video_id)],
@@ -44,10 +53,12 @@ export default function ClipEditor() {
   const [aspect, setAspect] = useState<Aspect>("9:16")
   const [style, setStyle] = useState<CaptionStyle>("bold")
   const [centerX, setCenterX] = useState(0.5)
+  const [keyframes, setKeyframes] = useState<Keyframe[]>([])
+  const [music, setMusic] = useState<ClipMusic | null>(null)
   const [playhead, setPlayhead] = useState(0)
   const [seek, setSeek] = useState<Seek | null>(null)
   const [view, setView] = useState("source")
-  const [busy, setBusy] = useState<"save" | "render" | "delete" | null>(null)
+  const [busy, setBusy] = useState<"save" | "render" | "delete" | "track" | null>(null)
   const [quotaHit, setQuotaHit] = useState<string | null>(null)
   const [publishing, setPublishing] = useState(false)
 
@@ -59,7 +70,9 @@ export default function ClipEditor() {
     setAspect(clip.aspect)
     setStyle(clip.caption_style)
     setCenterX(clip.reframe?.center_x ?? 0.5)
-  }, [clip?.id, clip?.updated_at])
+    setKeyframes(savedTrack(clip))
+    setMusic(savedMusic(clip))
+  }, [clip?.id, clip?.updated_at, clip?.reframe?.status])
 
   useEffect(() => {
     if (clip?.status === "rendered") setView("rendered")
@@ -77,9 +90,14 @@ export default function ClipEditor() {
       : length > CLIP_MAX_MS ? `Clips can be up to ${CLIP_MAX_MS / 1000} seconds.`
         : end > duration + 500 ? "The end is past the end of the video."
           : !title.trim() ? "Give the clip a title." : null
+  const tracking = clip.reframe?.status === "tracking"
+  const trackDirty = !sameTrack(keyframes, savedTrack(clip))
+  const centerDirty = keyframes.length === 0 && Math.abs(centerX - (clip.reframe?.center_x ?? 0.5)) > 0.001
+  const musicDirty = !sameMusic(music, savedMusic(clip))
   const dirty =
     title.trim() !== clip.title || start !== clip.start_ms || end !== clip.end_ms || aspect !== clip.aspect ||
-    style !== clip.caption_style || Math.abs(centerX - (clip.reframe?.center_x ?? 0.5)) > 0.001
+    style !== clip.caption_style || trackDirty || centerDirty || musicDirty
+  const frameX = keyframes.length ? cxAt(keyframes, playhead) : centerX
   const watermark = clip.watermark || Boolean(me?.plans.creator.limits?.watermark)
 
   const setRange = (s: number, e: number) => {
@@ -98,14 +116,11 @@ export default function ClipEditor() {
 
   async function persist(): Promise<boolean> {
     if (!dirty) return true
-    const { data } = await api.patch<Clip>(`${STUDIO}/clips/${clip!.id}`, {
-      title: title.trim(),
-      start_ms: start,
-      end_ms: end,
-      aspect,
-      caption_style: style,
-      center_x: Math.round(centerX * 1000) / 1000,
-    })
+    const body: Record<string, unknown> = { title: title.trim(), start_ms: start, end_ms: end, aspect, caption_style: style }
+    if (keyframes.length && trackDirty) body.keyframes = keyframes.map((k) => ({ t_ms: k.t_ms, cx: Math.round(k.cx * 1000) / 1000 }))
+    if (!keyframes.length && (trackDirty || centerDirty)) body.center_x = Math.round(centerX * 1000) / 1000
+    if (musicDirty) body.music = music ?? { track_id: null }
+    const { data } = await api.patch<Clip>(`${STUDIO}/clips/${clip!.id}`, body)
     refresh(data)
     return true
   }
@@ -137,6 +152,28 @@ export default function ClipEditor() {
       } else {
         toast.error(detail(err, "Could not start the render"))
       }
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function trackFaces() {
+    if (keyframes.length) {
+      const ok = await confirm({
+        title: "Replace your keyframes?",
+        message: "Face tracking finds the speaker and sets new keyframes. The ones you placed are replaced.",
+        confirmLabel: "Track faces",
+      })
+      if (!ok) return
+    }
+    setBusy("track")
+    try {
+      await persist()
+      const { data } = await api.post<Clip>(`${STUDIO}/clips/${clip!.id}/track`)
+      refresh(data)
+      toast.success("Looking for faces. This takes a few seconds.")
+    } catch (err) {
+      toast.error(detail(err, "Could not start face tracking"))
     } finally {
       setBusy(null)
     }
@@ -239,7 +276,7 @@ export default function ClipEditor() {
                 onTime={setPlayhead}
                 aspect={`${sourceRatio}`}
               >
-                <FrameOverlay aspect={aspect} sourceRatio={sourceRatio} centerX={centerX} style={style} />
+                <FrameOverlay aspect={aspect} sourceRatio={sourceRatio} centerX={frameX} style={style} />
               </VideoPreview>
               <p className="text-xs text-slate-500">
                 The preview loops the selected moment. The white frame shows what ends up in the clip; captions are a sample of the style.
@@ -262,6 +299,25 @@ export default function ClipEditor() {
                 onChange={(ms) => setRange(start, ms)} onNow={() => setRange(start, playhead)} />
             </div>
           </Card>
+
+          <Card className="space-y-3 p-4">
+            <h3 className="text-sm font-bold text-navy">Framing</h3>
+            <Reframe
+              info={clip.reframe}
+              keyframes={keyframes}
+              onKeyframes={setKeyframes}
+              startMs={start}
+              endMs={end}
+              playheadMs={playhead}
+              centerX={centerX}
+              onCenterX={setCenterX}
+              disabled={locked || busy !== null}
+              wide={aspect === "16:9"}
+              tracking={tracking || busy === "track"}
+              onTrack={trackFaces}
+              onSeek={(ms) => setSeek({ ms: Math.round(ms), n: Date.now() })}
+            />
+          </Card>
         </div>
 
         <div className="space-y-4 lg:col-span-2">
@@ -275,14 +331,11 @@ export default function ClipEditor() {
             <Field label="Captions">
               <StylePicker value={style} onChange={setStyle} disabled={locked} />
             </Field>
-            <Field label="Framing" hint={aspect === "16:9" ? "Widescreen keeps the whole picture." : "Slide to keep the speaker inside the frame."}>
-              <div className="flex items-center gap-3">
-                <span className="text-xs text-slate-500">Left</span>
-                <input type="range" min={0} max={1} step={0.01} value={centerX} disabled={locked || aspect === "16:9"}
-                  onChange={(e) => setCenterX(Number(e.target.value))} className="flex-1 accent-[#A21CAF]" aria-label="Frame centre" />
-                <span className="text-xs text-slate-500">Right</span>
-              </div>
-            </Field>
+          </Card>
+
+          <Card className="space-y-3 p-4">
+            <h3 className="text-sm font-bold text-navy">Music</h3>
+            <Music value={music} onChange={setMusic} disabled={locked} />
           </Card>
 
           {watermark && (
@@ -301,12 +354,18 @@ export default function ClipEditor() {
             <Button variant="outline" onClick={save} disabled={locked || !dirty || Boolean(problem) || busy !== null}>
               <Save size={14} /> {busy === "save" ? "Saving…" : "Save"}
             </Button>
-            <Button onClick={render} disabled={locked || Boolean(problem) || busy !== null}>
+            <Button onClick={render} disabled={locked || tracking || Boolean(problem) || busy !== null}>
               <Wand2 size={14} /> {busy === "render" ? "Starting…" : clip.status === "rendered" ? "Render again" : "Render clip"}
             </Button>
           </div>
         </div>
       </div>
+
+      {rendered && (
+        <div className="mt-5 lg:w-3/5">
+          <PublishTargets clip={clip} />
+        </div>
+      )}
 
       {publishing && (
         <PublishModal clip={clip} defaultTitle={title} onClose={() => setPublishing(false)} onDone={(c) => refresh(c)} />
@@ -337,7 +396,7 @@ function EdgeInput({
         <Button size="icon" variant="outline" aria-label="Back half a second" disabled={disabled} onClick={() => onChange(Math.max(0, value - 500))}>
           <Minus size={14} />
         </Button>
-        <Input type="number" step="0.1" min="0" value={text} disabled={disabled} className="text-center font-num"
+        <Input type="number" step="0.1" min="0" value={text} disabled={disabled} className="text-center font-num" aria-label={label}
           onChange={(e) => setText(e.target.value)} onBlur={commit}
           onKeyDown={(e) => {
             if (e.key === "Enter") commit()

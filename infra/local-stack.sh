@@ -119,8 +119,8 @@ smoke() {
   local domain port py
   domain="$(value STAGING_DOMAIN)"; port="$(value STAGING_HTTPS_PORT)"
   py="$ROOT/backend/venv/bin/python"; [[ -x "$py" ]] || py=python3
-  KV_METRICS_TOKEN="$(value METRICS_TOKEN)" \
-    "$py" "$ROOT/tests/smoke/post_deploy.py" --base "https://$domain:$port" --insecure \
+  KV_METRICS_TOKEN="$(value METRICS_TOKEN)" KV_ADMIN_EMAIL="$(value GLOBAL_ADMIN_EMAIL)" \
+    KV_ADMIN_PASSWORD="$(value GLOBAL_ADMIN_PASSWORD)" "$py" "$ROOT/tests/smoke/post_deploy.py" --base "https://$domain:$port" --insecure \
       --http-base "http://$domain:$(value STAGING_HTTP_PORT)" "$@"
 }
 

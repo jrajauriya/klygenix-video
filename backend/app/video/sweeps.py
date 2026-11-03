@@ -51,3 +51,21 @@ def channel_video_counts() -> None:
         for cid, n in counts.items():
             db.execute(update(Channel).where(Channel.id == cid, Channel.video_count != n).values(video_count=n))
         db.commit()
+
+
+@sweep
+def creator_money() -> None:
+    from datetime import timedelta
+
+    from app.video.commerce import payouts, splits, statements
+
+    splits.release_due()
+    with platform_session() as db:
+        payouts.refresh_waiting(db)
+        db.commit()
+    now = datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)
+    if now.day <= 5:
+        last = (now.replace(day=1) - timedelta(days=1)).strftime("%Y-%m")
+        with platform_session() as db:
+            statements.issue_month(db, last)
+            db.commit()

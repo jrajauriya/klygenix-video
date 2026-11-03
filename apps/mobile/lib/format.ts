@@ -1,3 +1,7 @@
+import { formatMoney } from "@klygenixvideo/client/src/native"
+
+import type { Access } from "./types"
+
 export function clock(ms: number | null | undefined): string {
   const total = Math.max(0, Math.floor((ms ?? 0) / 1000))
   const h = Math.floor(total / 3600)
@@ -16,4 +20,19 @@ export function compact(n: number | null | undefined): string {
 export function humanise(s: string): string {
   const t = s.replace(/_/g, " ")
   return t.charAt(0).toUpperCase() + t.slice(1)
+}
+
+export function price(minor: number | null | undefined, currency = "INR"): string {
+  return formatMoney(minor, currency).replace(/\.00$/, "")
+}
+
+export function accessLabel(access: Access | undefined, minor?: number | null): string | null {
+  if (access === "members") return "Members"
+  if (access === "paid") return minor ? price(minor) : "Paid"
+  return null
+}
+
+export function day(iso: string | null | undefined): string {
+  if (!iso) return ""
+  return new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
 }

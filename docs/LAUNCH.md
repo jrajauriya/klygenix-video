@@ -55,6 +55,11 @@ All behind Cloudflare (proxied) in `klygenix.com`. **The domain is one value**: 
 6. [ ] **Google Cloud**: OAuth client (web), redirect `https://api.play.klygenix.com/api/video/channels/youtube/callback`, scopes `youtube.readonly` + `youtube.force-ssl`, **OAuth verification submitted** (takes weeks), YouTube Data API quota → `YOUTUBE_PROVIDER=google`.
 7. [ ] **Email**: Microsoft Graph for contact@klygenix.com (as Store).
 8. [ ] **Mobile**: Expo EAS project id, Apple and Google developer accounts; **upgrade to Expo SDK 58 first** (docs/SECURITY.md).
+9. [ ] **Creator money**: CA sign-off (commission GST, TCS s.52 via GSTR-8, TDS 194-O, tips), commission rates per plan
+   (placeholders 20/10/8%), tip limits, boost prices, refund window and reserve; Razorpay Route enabled on Play's
+   account with `ROUTE_PROFILE_CATEGORY/SUBCATEGORY` confirmed; `BUNNY_TOKEN_KEY` on. Rehearse on staging: payout
+   account → tip → release sweep → statement → refund after release → recovery.
+10. [ ] **Dubbing and publishing**: `TTS_PROVIDER=azure`; `PUBLISH_PROVIDER=live` once YouTube upload is verified.
 
 ## 6. First deploy
 - [ ] `bash infra/deploy.sh --dry-run`, then `VPS_HOST=root@<ip> bash infra/deploy.sh`: builds web/studio/admin, uploads the nginx template + `render.sh`, builds the image (ffmpeg inside), **runs readiness inside the new image and stops on a blocking failure**, migrates, syncs the app role, starts `backend`, `worker-ai`, `worker-render`, `scheduler`, restarts nginx.
@@ -69,7 +74,7 @@ Blocking checks include `sandbox.disabled`, every provider switch off `sandbox`,
 Each open warning needs a written reason.
 
 ## 8. Backups and monitoring
-- [ ] Cron `basebackup.sh` 02:30, `backup.sh` 03:00, `archive-metrics.sh` every 5 min (infra/BACKUPS.md). **Off-host copy still open.** Media lives at Bunny; `private_uploads` (clip renders, images) is a Docker volume — include it in the off-host copy.
+- [ ] Cron `basebackup.sh` 02:30, `backup.sh` 03:00, `archive-metrics.sh` every 5 min (infra/BACKUPS.md). **Off-host copy:** set `BACKUP_TARGET` (+ `BACKUP_S3_*`); `backup.sh` ships, deep-verifies and prunes, and `KvBackupNotShipped` fires after 26 h without a verified copy. Rehearsal: `bash infra/backup-ship-rehearse.sh`. Media lives at Bunny; `private_uploads` (clip renders, images) is a Docker volume — include it in the off-host copy.
 - [ ] `bash infra/monitoring.sh check` then start `docker-compose.monitoring.yml`. Play alerts: `KvPipelineBacklog`, `KvRenderWaiting`, `KvAiJobsFailing`, `KvLlmBudgetHigh`, `KvTakedownsOverdue` (infra/METRICS.md).
 
 ## 9. Smoke test

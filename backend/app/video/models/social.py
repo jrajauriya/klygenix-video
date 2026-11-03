@@ -114,6 +114,8 @@ class Comment(Base):
     body: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[str] = mapped_column(String(8), nullable=False, default="visible")
     report_count: Mapped[int] = mapped_column(SmallInteger, nullable=False, default=0, server_default="0")
+    paid_minor: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    checkout_id: Mapped[int | None] = mapped_column(BigInteger)
     created_at: Mapped[datetime] = created()
 
 
@@ -137,6 +139,10 @@ class Danmaku(Base):
     color: Mapped[str] = mapped_column(String(7), nullable=False, default="#FFFFFF")
     status: Mapped[str] = mapped_column(String(8), nullable=False, default="visible")
     report_count: Mapped[int] = mapped_column(SmallInteger, nullable=False, default=0, server_default="0")
+    paid_minor: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    boost_tier: Mapped[int | None] = mapped_column(SmallInteger)
+    pin_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    checkout_id: Mapped[int | None] = mapped_column(BigInteger)
     created_at: Mapped[datetime] = created()
 
 
@@ -154,6 +160,7 @@ class Playlist(Base):
     description: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
     kind: Mapped[str] = mapped_column(String(10), nullable=False, default="playlist")
     visibility: Mapped[str] = mapped_column(String(10), nullable=False, default="public")
+    price_inr_minor: Mapped[int | None] = mapped_column(Integer)
     created_at: Mapped[datetime] = created()
 
 
@@ -194,6 +201,7 @@ class ViewDaily(Base):
     completions: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
     likes: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
     retention: Mapped[list] = mapped_column(JSONB, nullable=False, default=list, server_default="[]")
+    sources: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict, server_default="{}")
 
 
 class DeviceToken(Base):

@@ -23,6 +23,7 @@ check("playback is HLS", d["playback"]["type"], "hls")
 m = httpx.get(d["playback"]["url"], timeout=30)
 check("master playlist served", m.status_code, 200)
 ok("master lists renditions", "#EXT-X-STREAM-INF" in m.text)
+ok("a 240p rung for fast starts", "240p/index.m3u8" in m.text, m.text)
 bad = d["playback"]["url"].replace("/master.m3u8", "x/master.m3u8")
 parts = d["playback"]["url"].split("/")
 parts[-2] = "0" * 32

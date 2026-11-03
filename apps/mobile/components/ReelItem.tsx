@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { useQuery } from "@tanstack/react-query"
 import { router } from "expo-router"
 import { Image, Linking, Pressable, StyleSheet, Text, View } from "react-native"
 
@@ -6,7 +7,9 @@ import { api } from "../lib/api"
 import { useAuth } from "../lib/auth"
 import { compact } from "../lib/format"
 import { colour } from "../lib/theme"
-import type { VideoCard } from "../lib/types"
+import type { VideoCard, VideoDetail } from "../lib/types"
+import { AccessBadge } from "./AccessBadge"
+import { LockCard } from "./LockCard"
 import { ReelPlayer } from "./ReelPlayer"
 
 interface Props {
@@ -34,13 +37,30 @@ export function ReelItem({ video, height, active, muted, onToggleMute }: Props) 
   const [likes, setLikes] = useState(video.likes)
   const [following, setFollowing] = useState(video.following ?? false)
   const [seen, setSeen] = useState(video)
+  const [ended, setEnded] = useState(false)
+  const [wasActive, setWasActive] = useState(active)
   if (seen !== video) {
     setSeen(video)
     setLiked(video.liked ?? false)
     setLikes(video.likes)
     setFollowing(video.following ?? false)
   }
-  const hls = video.playback?.type === "hls" ? video.playback.url : null
+  if (wasActive !== active) {
+    setWasActive(active)
+    if (!active) setEnded(false)
+  }
+  const gated = Boolean(video.access && video.access !== "free")
+  const full = useQuery<VideoDetail>({
+    queryKey: ["video", video.id, Boolean(user)],
+    queryFn: async () => (await api.get(`/api/video/videos/${video.id}`)).data,
+    enabled: gated && active,
+    staleTime: 60_000,
+  })
+  const lock = gated ? (full.data?.locked ?? null) : null
+  const waiting = gated && !full.data
+  const previewUrl = full.data?.playback?.type === "hls" ? full.data.playback.url : null
+  const hls = waiting ? null : lock ? previewUrl : video.playback?.type === "hls" ? video.playback.url : null
+  const showLock = Boolean(lock) && (ended || !hls)
   const embed = video.playback && video.playback.type !== "hls" ? video.playback : null
 
   function needSignIn(): boolean {
@@ -77,18 +97,31 @@ export function ReelItem({ video, height, active, muted, onToggleMute }: Props) 
 
   return (
     <View style={[st.page, { height }]}>
-      {active && hls ? (
-        <ReelPlayer publicId={video.id} url={hls} muted={muted} track={Boolean(user)} />
+      {active && hls && !showLock ? (
+        <ReelPlayer
+          publicId={video.id}
+          url={hls}
+          muted={muted}
+          track={Boolean(user) && !lock}
+          limitSeconds={lock?.preview_seconds || undefined}
+          onDone={lock ? () => setEnded(true) : undefined}
+        />
       ) : video.thumbnail ? (
         <Image source={{ uri: video.thumbnail }} style={StyleSheet.absoluteFill} resizeMode="cover" />
       ) : null}
 
       <Pressable style={StyleSheet.absoluteFill} onPress={hls ? onToggleMute : undefined} accessibilityLabel="Toggle sound" />
 
-      {hls && (
-        <Pressable onPress={onToggleMute} style={st.mute} accessibilityRole="button">
+      {hls && !showLock && (
+        <Pressable onPress={onToggleMute} style={st.mute} accessibilityRole="button" accessibilityLabel={muted ? "Turn sound on" : "Turn sound off"}>
           <Text style={st.muteText}>{muted ? "Sound off" : "Sound on"}</Text>
         </Pressable>
+      )}
+
+      {lock && showLock && (
+        <View style={st.lock}>
+          <LockCard lock={lock} publicId={video.id} ended={ended} dark />
+        </View>
       )}
 
       {embed && (
@@ -106,16 +139,19 @@ export function ReelItem({ video, height, active, muted, onToggleMute }: Props) 
         <Action label="Follow" value={following ? "Following" : "Follow"} onPress={toggleFollow} on={following} />
       </View>
 
-      <Pressable style={st.meta} onPress={() => router.push(`/watch/${video.id}`)}>
+      <Pressable style={st.meta} onPress={() => router.push(`/watch/${video.id}`)} accessibilityRole="button" accessibilityLabel={`Open ${video.title}`}>
         <Text style={st.handle}>@{video.channel.handle}</Text>
         <Text style={st.title} numberOfLines={2}>
           {video.title}
         </Text>
-        {video.ai_generated && (
-          <View style={st.ai}>
-            <Text style={st.aiText}>AI-generated</Text>
-          </View>
-        )}
+        <View style={{ flexDirection: "row", gap: 6, marginTop: 8 }}>
+          {video.ai_generated && (
+            <View style={st.ai}>
+              <Text style={st.aiText}>AI-generated</Text>
+            </View>
+          )}
+          <AccessBadge access={video.access} priceMinor={video.price_minor} dark />
+        </View>
       </Pressable>
     </View>
   )
@@ -138,7 +174,8 @@ const st = StyleSheet.create({
   meta: { position: "absolute", left: 16, right: 80, bottom: 24 },
   handle: { color: colour.white, fontWeight: "700", fontSize: 15 },
   title: { marginTop: 4, color: colour.white, fontSize: 14 },
-  ai: { marginTop: 8, alignSelf: "flex-start", borderRadius: 6, backgroundColor: "rgba(162,28,175,0.85)", paddingHorizontal: 8, paddingVertical: 3 },
+  lock: { position: "absolute", left: 16, right: 80, top: "22%" },
+  ai: { alignSelf: "flex-start", borderRadius: 6, backgroundColor: "rgba(162,28,175,0.85)", paddingHorizontal: 8, paddingVertical: 3 },
   aiText: { color: colour.white, fontSize: 11, fontWeight: "700" },
   mute: { position: "absolute", top: 56, right: 12, borderRadius: 999, backgroundColor: "rgba(0,0,0,0.5)", paddingHorizontal: 12, paddingVertical: 6 },
   muteText: { color: colour.white, fontSize: 12, fontWeight: "600" },

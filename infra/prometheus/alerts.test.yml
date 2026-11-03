@@ -155,6 +155,22 @@ tests:
               summary: "The last good database backup is 1d 4h 0m 0s old"
               runbook: "infra/METRICS.md#kvbackupstale"
 
+  - interval: 5m
+    input_series:
+      - series: 'kv_backup_last_shipped_timestamp_seconds'
+        values: '0x400'
+    alert_rule_test:
+      - eval_time: 25h
+        alertname: KvBackupNotShipped
+        exp_alerts: []
+      - eval_time: 28h
+        alertname: KvBackupNotShipped
+        exp_alerts:
+          - exp_labels: {severity: critical}
+            exp_annotations:
+              summary: "Backups last reached the off-host bucket 1d 4h 0m 0s ago"
+              runbook: "infra/METRICS.md#kvbackupnotshipped"
+
   - interval: 1m
     input_series:
       - series: 'kv_wal_archive_last_archived_timestamp_seconds'

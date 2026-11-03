@@ -22,6 +22,17 @@ echo "[$(date)] Saved: $BACKUP_FILE ($(du -h "$BACKUP_FILE" | cut -f1))"
 find "$BACKUP_DIR" -name "*.sql.gz" -mtime +30 -delete
 echo "[$(date)] Cleanup done. Retained: $(ls -1 "$BACKUP_DIR"/*.sql.gz 2>/dev/null | wc -l)"
 
+SHIPPED=""
+if [ -n "${BACKUP_TARGET:-}" ]; then
+  bash "$(dirname "$0")/backup-ship.sh" push "$BACKUP_DIR"
+  bash "$(dirname "$0")/backup-ship.sh" verify --deep --repair "$BACKUP_DIR"
+  bash "$(dirname "$0")/backup-ship.sh" prune "$BACKUP_DIR"
+  SHIPPED=$(date +%s)
+  echo "[$(date)] Shipped off the host to $BACKUP_TARGET"
+else
+  echo "[$(date)] WARNING: BACKUP_TARGET is not set; this backup lives only on this host"
+fi
+
 if mkdir -p "$TEXTFILE_DIR" 2>/dev/null && [[ -w "$TEXTFILE_DIR" ]]; then
   PROM="$TEXTFILE_DIR/klygenix_video_backup.prom"
   cat > "$PROM.$$" <<METRICS
@@ -32,6 +43,13 @@ kv_backup_last_success_timestamp_seconds $(date +%s)
 # TYPE kv_backup_last_size_bytes gauge
 kv_backup_last_size_bytes $(wc -c < "$BACKUP_FILE" | tr -d ' ')
 METRICS
+  if [ -n "$SHIPPED" ]; then
+    cat >> "$PROM.$$" <<METRICS
+# HELP kv_backup_last_shipped_timestamp_seconds When the backups last reached the off-host target and verified.
+# TYPE kv_backup_last_shipped_timestamp_seconds gauge
+kv_backup_last_shipped_timestamp_seconds $SHIPPED
+METRICS
+  fi
   chmod 644 "$PROM.$$"
   mv "$PROM.$$" "$PROM"
   echo "[$(date)] Metric written: $PROM"

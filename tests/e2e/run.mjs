@@ -67,4 +67,10 @@ try {
   stop()
 }
 
+if (!failed) {
+  await wait(1000)
+  const speed = spawn("node", ["tests/e2e/speed.mjs"], { stdio: "inherit" })
+  failed = await new Promise((resolve) => speed.on("exit", (code) => resolve(code ?? 1)))
+}
+
 process.exit(failed)

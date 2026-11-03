@@ -30,6 +30,66 @@ its suites green **twice over one database**; CLAUDE.md updated.
 | 14 Stretch | Playlists and series with progress (V1.7 / V3.1); watch parties with a shared playhead and chat (V3.7); AI thumbnail ideas + custom thumbnails shown (V1.3); data export / erasure; studio analytics with daily series; comment inbox with hide/unhide | Done | `test_playlists.py`, `test_parties.py`, `test_thumbnails.py`, `test_viewer_extras.py` |
 | 14 not started | Tips, boost danmaku, channel memberships, paid videos (V2.2–V2.5) | Waiting | They pay creators: rule S11 needs Razorpay Route linked accounts and creator KYC (V2.1), not forked yet |
 
+## Run 2 — V1 gaps, V2 Earn on the sandbox rail, V3 Community & learning (3 Nov 2026)
+
+Owner's choice: build all of V2 now on the sandbox rail; live money waits for CA sign-off, creator KYC and Play's
+Razorpay Route keys. Started from the owner's commit `d95dd50`. **Nothing committed, nothing deployed.**
+
+| Phase | Scope | Status | Proven by |
+|---|---|---|---|
+| 1 V1 gaps | Clip reframe keyframes + face tracking (sandbox marker / OpenCV Haar, smoothing, piecewise crop); speed suite (4G video start, LCP, TBT, JS); 240p rung + 2 s segments; thumbnails 854 px; Ask suite at 50 questions EN + HI; off-host backups (ship, deep verify, repair, prune, restore from target) + `KvBackupNotShipped`; `restore.sh` verification fixed | Done (face quality untested on real footage; R2 itself blocked) | `test_clips`, `test_ask_citations`, `tests/e2e/speed.mjs`, `infra/backup-ship-rehearse.sh` |
+| 2 V2.1 money foundation | Payout accounts + KYC (Route linked accounts, sealed bank number), creator splits (commission + GST, TCS s.52, TDS 194-O, reserve), Route transfers held for the refund window, release sweep, refund unwind with recovery netting, commission invoices, GSTR-8 / 194-O files, one `entitlements.revoke()` | Done (sandbox rail) | `test_payouts` |
+| 3 V2.2–V2.6 | Tips (highlighted comment), boost danmaku (pre-checked text, live broadcast, creator delete refunds), memberships with tiers (members-only videos + posts, 60 s preview, lapse), paid videos and series, admin refunds for every purpose with credit notes; nothing on embeds | Done (sandbox rail) | `test_monetisation`, `test_refunds`, `test_embed_policy` |
+| 4 V2 non-money | Retention curve + traffic sources + revenue by stream; recommendations v1.5 (video vectors, viewer taste); publish clips to YouTube Shorts / Instagram Reels (adapters + sandbox); product links with disclosure; licensed music library with ducking | Done (YouTube upload untested live; Instagram connection not built) | `test_analytics_reco`, `test_publishing` |
+| 5 V3 | Community posts + polls + members-only posts; channel moderators; comment/danmaku translation (cached) and "what people are saying"; notes, quizzes, flashcards grounded in timestamps; Ask across a channel or a series; AI dubbing with consent and an "AI-dubbed" label | Done (sandbox models and TTS) | `test_community`, `test_learning`, `test_dubbing` |
+| 6 Frontends | Web: tips, boosts, paywalls (watch + reels), memberships, purchases, study panel, notes, quiz, channel/series Ask, community, translation, comment summary, products, dub audio switch, traffic sources. Studio: Earnings (payouts, balances, tiers, sales, statements), monetisation per video, series price, analytics charts, keyframe/track reframe, music, publish targets, product links, community posts, moderators, dubbing. Admin: Money (summary, creators, transfers, payments + refunds, tax files). Mobile: lock cards, badges, products, notes, community, memberships, purchases, dub switch — money only via the web | Done | tsc + build, e2e 138/72/14 |
+| 7 Verification | Suites ×2, parity, e2e, speed, production stack + smoke money journeys, load, scans, docs | Done | results below |
+| 8 Stretch V4 live | not started | — | — |
+
+### Run 2 results
+| Check | Result |
+|---|---|
+| API suites, **twice over one database** | **30 suites, 800 checks per pass, 0 failed both passes.** New in run 2: payouts 67, monetisation 51, refunds 16, analytics + recommendations 17, publishing 24, community 33, learning 34, dubbing 16; grown: clips 33, Ask citations 13 (50 questions EN + HI), embed policy 29, readiness 24, upload flow 20 |
+| Migrations | 7 revisions (`kv0000000006_creator_money`, `kv0000000007_community_learning_analytics`); `alembic check` clean; 77 tables; parity green (public-read policies 10 → 15) |
+| Frontends | tsc + vite build green for web, studio, admin; mobile tsc + `expo export` iOS + Android; native imports 12/0 |
+| Browser (`node tests/e2e/run.mjs`) | screens **138/0**, axe WCAG 2.2 AA **72/0**, speed **14/0** |
+| Speed on 4G (9 Mbps, 170 ms, 4× CPU, 390 px, cold) | video start **watch ≈ 1.5 s, reels ≈ 1.6 s** (target < 2 s, plan §18); LCP home 1.5 s, reels 1.2 s, watch 1.4 s; TBT < 100 ms. Slow 4G (reported, not gated): LCP 2.6–3.5 s, video start 4.4–4.6 s. Fixes: 854 px thumbnails, 240p rung + 2 s segments, route loaders prefetch data, preconnect, hls.js preloaded, the HLS chain warmed from the loader, neighbouring reels wait for the active one |
+| Production stack `play.localhost:8443` | rebuilt; **smoke 103/0** incl. the creator-money journey through the real workers (payout account → tip → split held on Route → statement → tier → members-only lock → join → full stream → admin refund → tip transfers reversed); **CSP 27/0** |
+| Load (100 continuous viewers + 200 sockets, nginx + TLS) | **471 req/s, 0 errors, p95 300–380 ms**, 200/200 sockets got live danmaku. Run 1 measured 523 req/s at p95 200–330 ms; each feed/watch request now does more (locks, products, dubs, recommendations; affinity cached 2 min). **The 500-viewer / p95 < 300 ms target is still not proven** — rerun on the server |
+| Off-host backups (`infra/backup-ship-rehearse.sh`) | 12/0: dump → ship → verify → tamper caught → `--repair` → restore from the target into a scratch DB → verified; retention keeps a monthly dump for 7 years |
+| Monitoring | `monitoring.sh check` green, 31 rules incl. `KvBackupNotShipped` (+ unit test) |
+| Security | gitleaks 0 · bandit 0 medium+ (2 fixed: fixed `/tmp` paths in backup shipping) · semgrep 0 (262 rules, 574 files) · pip-audit 0 (opencv-python-headless 4.14.0.94 added) · npm: the same 5 Expo-toolchain highs, allow-listed — **Expo SDK 58 is now the `latest` release (58.0.23)**, so the upgrade can be done next |
+
+### Bugs found and fixed in run 2
+- **The reels feed handed out the full stream of members-only and paid reels** (found by the mobile agent); it now serves the preview and marks `locked`, with a regression check.
+- `infra/restore.sh` verified against Pay's tables (`kp_%`, `kv_ar_tmp.invoices`): every restore would have failed at the check.
+- OpenCV 5 removed `CascadeClassifier` — pinned 4.14.
+- Speed: the first measurement was invalid (the measuring server's port was not an allowed origin); after fixing it the real LCP was 3.2–3.9 s on Slow 4G — see the fixes above.
+- Tests made robust to a growing database (search) and to async workers (payments, publishing, party broadcasts).
+
+### Decisions taken in run 2
+- V2 built on the sandbox rail now (owner's choice); money is India/INR only and never on embeds.
+- Commission placeholders 20/10/8% (free/pro/business), tips ₹10–₹10,000, boosts ₹29/₹99/₹199, reserve 5% for 30 days, refund window 7 days — **owner and CA to confirm**.
+- Tips carry no GST or TCS; a creator's own GST applies to boosts, memberships and paid videos only when they gave a GSTIN.
+- A creator deleting a paid boost refunds it; a moderator hiding it does not (state it in the guidelines).
+- Locked videos: 60 s preview on the sandbox provider; Bunny has no preview, so its locked viewers see only the paywall.
+- Search never shows transcript text from members-only or paid videos.
+- Ask across a channel/series skips videos the viewer cannot open and says how many (`skipped_locked`).
+- Dubbed audio is a separate AAC track synced by the player (byte ranges served), not an HLS audio rendition.
+- The mobile app sells nothing; every money action opens the web.
+
+### Still blocked or open after run 2
+| Item | Needs |
+|---|---|
+| Live creator money | CA sign-off (commission GST, TCS s.52/GSTR-8, TDS 194-O, tips), Play's Razorpay keys with Route, `ROUTE_PROFILE_CATEGORY/SUBCATEGORY` from Razorpay, prices and rates confirmed |
+| Paid content on Bunny | `BUNNY_TOKEN_KEY` (token auth) — without it Bunny URLs are public |
+| In-app purchases (V2.8), store builds (V1.24) | Apple and Google developer accounts; Expo SDK 58 upgrade first |
+| Instagram publishing | a Meta app and per-creator Instagram account connection (not built) |
+| Bilibili connect (V2.10) | Bilibili Open Platform admission |
+| Real TTS voices, real face detection quality | Azure TTS key; a test on real footage |
+| Off-host target | the R2/S3 bucket and keys |
+| V4 Live | not started (stretch) |
+
 ## Results — 3 Nov 2026 (end of the run)
 
 | Check | Result |

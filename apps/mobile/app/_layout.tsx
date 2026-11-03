@@ -23,6 +23,10 @@ export default function Layout() {
               name="watch/[id]"
               options={{ headerShown: true, title: "", headerBackTitle: "Back", headerTintColor: "#A21CAF" }}
             />
+            <Stack.Screen
+              name="channel/[handle]"
+              options={{ headerShown: true, title: "", headerBackTitle: "Back", headerTintColor: "#A21CAF" }}
+            />
           </Stack>
         </AuthProvider>
       </QueryClientProvider>

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObject } from "react"
 import type HlsType from "hls.js"
-import type { CaptionTrack, Chapter } from "./types"
+import type { CaptionTrack, Chapter, DubTrack } from "./types"
 import { ChapterBar } from "./ChapterBar"
 import { activeChapter, cx, formatClock } from "./format"
 import {
@@ -23,6 +23,7 @@ export interface HlsPlayerProps {
   captions?: CaptionTrack[]
   captionLang?: string | null
   chapters?: Chapter[]
+  dubs?: DubTrack[]
   hotkeys?: boolean
   fit?: "contain" | "cover"
   onTime?: (ms: number) => void
@@ -43,7 +44,9 @@ interface Level {
   bitrate: number
 }
 
-type Menu = null | "root" | "quality" | "speed" | "captions"
+type Menu = null | "root" | "quality" | "speed" | "captions" | "audio"
+
+const DRIFT = 0.3
 
 function editable(target: EventTarget | null): boolean {
   const el = target as HTMLElement | null
@@ -60,7 +63,7 @@ function useLatest<T>(value: T) {
 
 export function HlsPlayer({
   src, poster, startMs, autoPlay = false, muted: mutedProp = false, loop = false, controls = true, captions,
-  captionLang: captionProp, chapters, hotkeys = true, fit = "contain", onTime, onEnded, onPlay, onPause,
+  captionLang: captionProp, chapters, dubs, hotkeys = true, fit = "contain", onTime, onEnded, onPlay, onPause,
   onDanmakuToggle, onCaptionChange, onMutedChange, className, videoRef, children,
 }: HlsPlayerProps) {
   const video = useRef<HTMLVideoElement>(null)
@@ -87,6 +90,11 @@ export function HlsPlayer({
   const [active, setActive] = useState(true)
   const [menu, setMenu] = useState<Menu>(null)
   const [failed, setFailed] = useState(false)
+  const [dubLang, setDubLang] = useState<string | null>(null)
+  const audio = useRef<HTMLAudioElement>(null)
+  const dub = dubs?.find((d) => d.language === dubLang) ?? null
+  const dubRef = useLatest(dub)
+  const [dubSrc, setDubSrc] = useState<string | null>(null)
   const cb = useLatest({ onTime, onEnded, onPlay, onPause, onDanmakuToggle, onCaptionChange, onMutedChange })
 
   useEffect(() => {
@@ -140,7 +148,7 @@ export function HlsPlayer({
           kick()
           return
         }
-        const h = new Hls({ capLevelToPlayerSize: true, enableWorker: true })
+        const h = new Hls({ capLevelToPlayerSize: true, enableWorker: true, startLevel: 0, startFragPrefetch: true })
         hls.current = h
         h.on(Hls.Events.MANIFEST_PARSED, (_e, data) => {
           setLevels(data.levels.map((l, index) => ({ index, height: l.height, bitrate: l.bitrate })))
@@ -216,6 +224,81 @@ export function HlsPlayer({
     return () => document.removeEventListener("fullscreenchange", onChange)
   }, [])
 
+  useEffect(() => {
+    if (dubLang && !dubs?.some((d) => d.language === dubLang)) setDubLang(null)
+  }, [dubs, dubLang])
+
+  useEffect(() => {
+    setDubSrc(null)
+    if (!dub) return
+    let alive = true
+    let made: string | null = null
+    fetch(dub.url)
+      .then((r) => (r.ok ? r.blob() : Promise.reject(new Error(String(r.status)))))
+      .then((b) => {
+        if (!alive) return
+        made = URL.createObjectURL(b)
+        setDubSrc(made)
+      })
+      .catch(() => {
+        if (alive) setDubSrc(dub.url)
+      })
+    return () => {
+      alive = false
+      if (made) URL.revokeObjectURL(made)
+    }
+  }, [dub?.url])
+
+  useEffect(() => {
+    const v = video.current
+    const a = audio.current
+    if (!v || !dub || !dubSrc || !a) return
+    a.volume = v.volume
+    a.muted = v.muted
+    v.muted = true
+    setVolume(a.volume)
+    setMuted(a.muted)
+    const align = () => {
+      if (Math.abs(a.currentTime - v.currentTime) > DRIFT) a.currentTime = v.currentTime
+    }
+    const play = () => {
+      align()
+      a.playbackRate = v.playbackRate
+      a.play().catch(() => undefined)
+    }
+    const pause = () => a.pause()
+    const rate = () => { a.playbackRate = v.playbackRate }
+    const seeked = () => { a.currentTime = v.currentTime }
+    v.addEventListener("playing", play)
+    v.addEventListener("pause", pause)
+    v.addEventListener("waiting", pause)
+    v.addEventListener("seeking", seeked)
+    v.addEventListener("ratechange", rate)
+    v.addEventListener("ended", pause)
+    const timer = window.setInterval(() => {
+      if (!v.paused && !v.seeking) {
+        align()
+        if (a.paused && v.readyState >= 3) a.play().catch(() => undefined)
+      }
+    }, 500)
+    a.currentTime = v.currentTime
+    if (!v.paused) play()
+    return () => {
+      window.clearInterval(timer)
+      v.removeEventListener("playing", play)
+      v.removeEventListener("pause", pause)
+      v.removeEventListener("waiting", pause)
+      v.removeEventListener("seeking", seeked)
+      v.removeEventListener("ratechange", rate)
+      v.removeEventListener("ended", pause)
+      a.pause()
+      v.volume = a.volume
+      v.muted = a.muted
+      setVolume(v.volume)
+      setMuted(v.muted)
+    }
+  }, [dubSrc])
+
   const toggle = useCallback(() => {
     const v = video.current
     if (!v) return
@@ -237,12 +320,14 @@ export function HlsPlayer({
     if (v) seek(v.currentTime * 1000 + delta)
   }, [seek])
 
+  const sink = useCallback((): HTMLMediaElement | null => (dubRef.current && audio.current ? audio.current : video.current), [dubRef])
+
   const toggleMute = useCallback(() => {
-    const v = video.current
+    const v = sink()
     if (!v) return
     v.muted = !v.muted
     if (!v.muted && v.volume === 0) v.volume = 0.5
-  }, [])
+  }, [sink])
 
   const toggleFullscreen = useCallback(() => {
     const el = box.current
@@ -394,6 +479,7 @@ export function HlsPlayer({
           }
         }}
         onVolumeChange={(e) => {
+          if (dubRef.current && audio.current) return
           setVolume(e.currentTarget.volume)
           setMuted(e.currentTarget.muted)
           cb.current.onMutedChange?.(e.currentTarget.muted)
@@ -407,8 +493,27 @@ export function HlsPlayer({
           <track key={`${c.lang}:${c.src}`} kind="subtitles" srcLang={c.lang} label={c.label} src={c.src} />
         ))}
       </video>
+      {dub && dubSrc && (
+        <audio
+          key={dubSrc}
+          ref={audio}
+          src={dubSrc}
+          preload="auto"
+          onVolumeChange={(e) => {
+            setVolume(e.currentTarget.volume)
+            setMuted(e.currentTarget.muted)
+            cb.current.onMutedChange?.(e.currentTarget.muted)
+          }}
+        />
+      )}
 
       {children && <div className="pointer-events-none absolute inset-0">{children}</div>}
+
+      {dub && (
+        <span className="pointer-events-none absolute left-2 top-2 z-10 rounded-md bg-black/75 px-2 py-1 text-xs font-semibold text-white">
+          {dub.label} · {dub.name}
+        </span>
+      )}
 
       {controls && <div className="absolute inset-0" onPointerUp={onSurfaceUp} onDoubleClick={toggleFullscreen} />}
 
@@ -457,7 +562,7 @@ export function HlsPlayer({
                 value={muted ? 0 : volume}
                 aria-label="Volume"
                 onChange={(e) => {
-                  const v = video.current
+                  const v = sink()
                   if (!v) return
                   v.volume = Number(e.target.value)
                   v.muted = v.volume === 0
@@ -494,6 +599,7 @@ export function HlsPlayer({
                       {levels.length > 0 && <MenuRow label="Quality" value={qualityLabel} onClick={() => setMenu("quality")} />}
                       <MenuRow label="Speed" value={rate === 1 ? "Normal" : `${rate}x`} onClick={() => setMenu("speed")} />
                       {!!captions?.length && <MenuRow label="Subtitles" value={captionLabel} onClick={() => setMenu("captions")} />}
+                      {!!dubs?.length && <MenuRow label="Audio" value={dub ? `${dub.name} (${dub.label})` : "Original"} onClick={() => setMenu("audio")} />}
                     </>
                   )}
                   {menu === "quality" && (
@@ -510,6 +616,15 @@ export function HlsPlayer({
                       <MenuBack label="Speed" onClick={() => setMenu("root")} />
                       {SPEEDS.map((s) => (
                         <MenuOption key={s} label={s === 1 ? "Normal" : `${s}x`} on={rate === s} onClick={() => { chooseRate(s); setMenu(null) }} />
+                      ))}
+                    </>
+                  )}
+                  {menu === "audio" && (
+                    <>
+                      <MenuBack label="Audio" onClick={() => setMenu("root")} />
+                      <MenuOption label="Original" on={!dub} onClick={() => { setDubLang(null); setMenu(null) }} />
+                      {dubs?.map((d) => (
+                        <MenuOption key={d.language} label={`${d.name} (${d.label})`} on={dubLang === d.language} onClick={() => { setDubLang(d.language); setMenu(null) }} />
                       ))}
                     </>
                   )}

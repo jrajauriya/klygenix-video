@@ -13,6 +13,7 @@ from app.config import settings
 from app.core.models.tenant import Tenant
 from app.core.models.user import User
 from app.database import SessionLocal
+from app.video.commerce import entitlements
 from app.video.ledger.posting import Entry, post
 from app.video.models.commerce import Checkout, Entitlement, Payment, Plan, ProviderEvent, Subscription
 from app.video.models.social import Profile
@@ -178,10 +179,7 @@ def grant_plan(db: Session, *, user_id: int, tenant_id: int, plan: Plan, rail: s
         db.add(sub)
     else:
         if sub.plan_key != plan.key:
-            for e in db.execute(select(Entitlement).where(Entitlement.user_id == user_id, Entitlement.kind == "plan",
-                                                          Entitlement.ref == sub.plan_key,
-                                                          Entitlement.revoked_at.is_(None))).scalars().all():
-                e.revoked_at, e.revoke_reason = now(), "plan_changed"
+            entitlements.revoke(db, user_id=user_id, kind="plan", ref=sub.plan_key, reason="plan_changed")
             sub.current_period_start = now()
         sub.plan_key, sub.status, sub.rail, sub.current_period_end = plan.key, "active", rail, end
         sub.cancel_at_period_end = False
@@ -206,7 +204,6 @@ def fulfil(db: Session, fact) -> str:
     if fact.amount_minor and int(fact.amount_minor) != int(chk.amount_minor):
         logger.warning("amount mismatch", extra={"checkout": chk.id, "got": fact.amount_minor})
         return "amount_mismatch"
-    plan = db.execute(select(Plan).where(Plan.key == chk.plan_key)).scalars().one()
     buyer = db.get(User, chk.user_id)
     payment = Payment(tenant_id=chk.tenant_id, checkout_id=chk.id, gateway_payment_id=fact.gateway_payment_id,
                       amount_minor=chk.amount_minor, fee_minor=fact.fee_minor, tax_on_fee_minor=fact.tax_on_fee_minor,
@@ -218,6 +215,12 @@ def fulfil(db: Session, fact) -> str:
         db.rollback()
         return "duplicate"
     chk.status, chk.paid_at = "paid", now()
+    if chk.purpose != "plan":
+        from app.video.commerce import support
+
+        support.fulfil(db, chk, payment)
+        return "paid"
+    plan = db.execute(select(Plan).where(Plan.key == chk.plan_key)).scalars().one()
     grant_plan(db, user_id=chk.user_id, tenant_id=chk.tenant_id, plan=plan, rail=chk.rail, source="payment",
                source_id=payment.id)
     inv = _invoice(db, chk, payment, buyer)
@@ -246,10 +249,8 @@ def lapse_due(db: Session) -> int:
             continue
         if sub.current_period_end + timedelta(days=0 if sub.cancel_at_period_end else GRACE_DAYS) <= t:
             sub.status = "cancelled" if sub.cancel_at_period_end else "lapsed"
-            for e in db.execute(select(Entitlement).where(Entitlement.user_id == sub.user_id, Entitlement.kind == "plan",
-                                                          Entitlement.ref == sub.plan_key,
-                                                          Entitlement.revoked_at.is_(None))).scalars().all():
-                e.revoked_at, e.revoke_reason = t, sub.status
+            entitlements.revoke(db, user_id=sub.user_id, kind="membership" if sub.audience == "member" else "plan",
+                                ref=sub.plan_key, reason=sub.status)
             n += 1
     db.flush()
     return n

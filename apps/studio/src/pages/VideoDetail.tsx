@@ -2,6 +2,7 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
 import { ExternalLink } from "lucide-react"
 import { api } from "@klygenixvideo/auth"
+import { formatMoney, useHasFeature, useHasPermission } from "@klygenixvideo/client"
 import { Badge, EmptyState, ListPage, PageHeader, Spinner, Tabs } from "@klygenixvideo/ui"
 import { STUDIO } from "../lib/hooks"
 import { watchUrl } from "../lib/format"
@@ -13,6 +14,9 @@ import { CaptionsTab } from "../components/video/CaptionsTab"
 import { ClipsTab } from "../components/video/ClipsTab"
 import { CommentsPanel } from "../components/video/CommentsPanel"
 import { AnalyticsTab } from "../components/video/AnalyticsTab"
+import { MonetisationTab } from "../components/video/MonetisationTab"
+import { ProductsTab } from "../components/video/ProductsTab"
+import { DubbingTab } from "../components/video/DubbingTab"
 
 const TABS = [
   { key: "details", label: "Details" },
@@ -21,7 +25,11 @@ const TABS = [
   { key: "clips", label: "Clips" },
   { key: "comments", label: "Comments" },
   { key: "analytics", label: "Analytics" },
+  { key: "products", label: "Product links" },
+  { key: "dubbing", label: "Dubbing" },
 ]
+
+const MONEY_TAB = { key: "monetisation", label: "Monetisation" }
 
 const BUSY = ["uploading", "processing", "scanning"]
 
@@ -29,7 +37,11 @@ export default function VideoDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
-  const tab = TABS.some((t) => t.key === params.get("tab")) ? params.get("tab")! : "details"
+  const moneyOn = useHasFeature("video.earnings")
+  const moneyAllowed = useHasPermission("video.earnings")
+  const money = moneyOn && moneyAllowed
+  const tabs = money ? [...TABS, MONEY_TAB] : TABS
+  const tab = tabs.some((t) => t.key === params.get("tab")) ? params.get("tab")! : "details"
 
   const { data: video, isLoading, isError } = useQuery({
     queryKey: ["studio-video", id],
@@ -66,12 +78,14 @@ export default function VideoDetail() {
         <VideoStatusPill video={video} />
         <AiStatusBadge value={video.ai_status} />
         {video.ai_generated && <Badge color="purple">AI-generated</Badge>}
+        {video.access === "members" && <Badge color="purple">Members only</Badge>}
+        {video.access === "paid" && <Badge color="green">Paid · {formatMoney(video.price_minor ?? null, "INR")}</Badge>}
         {video.source === "embed" && <Badge color="blue">Linked from {video.embed_platform === "bilibili" ? "Bilibili" : "YouTube"}</Badge>}
       </div>
       {video.status_note && (
         <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">{video.status_note}</p>
       )}
-      <Tabs tabs={TABS} active={tab} onChange={(k) => setParams({ tab: k }, { replace: true })} />
+      <Tabs tabs={tabs} active={tab} onChange={(k) => setParams({ tab: k }, { replace: true })} />
       <div className="pb-8 pt-4">
         {tab === "details" && <DetailsTab video={video} />}
         {tab === "transcript" && <TranscriptTab video={video} />}
@@ -79,6 +93,9 @@ export default function VideoDetail() {
         {tab === "clips" && <ClipsTab video={video} />}
         {tab === "comments" && <CommentsPanel publicId={video.public_id} durationMs={video.duration_ms} />}
         {tab === "analytics" && <AnalyticsTab video={video} />}
+        {tab === "products" && <ProductsTab video={video} />}
+        {tab === "dubbing" && <DubbingTab video={video} />}
+        {tab === "monetisation" && <MonetisationTab key={video.id} video={video} />}
       </div>
     </ListPage>
   )

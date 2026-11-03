@@ -19,6 +19,11 @@ by the sandbox path's tests only.
 | Payments, abroad (MoR) | `LEMONSQUEEZY_API_KEY` set (any non-IN country) | `LEMONSQUEEZY_API_KEY`, `LEMONSQUEEZY_STORE_ID`, `LEMONSQUEEZY_VARIANT_ID`, `LEMONSQUEEZY_WEBHOOK_SECRET` | same sandbox rail | `rails/lemonsqueezy.py`: hosted checkout, `X-Signature` webhook; no GST invoice (the MoR is the seller) |
 | Email | Admin → Email Config, or `MS_GRAPH_*`, or `SMTP_*` | as Store | reserved test domains never sent (`.example`, `.test`, `.invalid`) | `core/services/graph_mail.py` (contact@klygenix.com) |
 | Push | EAS project id in `apps/mobile/app.json` | — | no-op without a project id | Expo push service; tokens in `kv_social.device_tokens` |
+| Creator payouts (Route) | `PAYMENT_RAIL=razorpay` (Route rides on the same key pair) | `RAZORPAY_KEY_ID/SECRET`, `ROUTE_PROFILE_CATEGORY`, `ROUTE_PROFILE_SUBCATEGORY` (Razorpay's business category for Play — **confirm with Razorpay**; empty = refused), `MARKETPLACE_RESERVE_BPS`, `MARKETPLACE_RESERVE_DAYS`, `REFUND_WINDOW_DAYS` | `SandboxRoute`: linked accounts activate on submit (a PAN starting `AAAAA` comes back "needs clarification"), transfers/releases/reversals return fake ids | `rails/route.py` (Store's): linked account + stakeholder + product, settlement bank, transfers with `on_hold_until`, release, reversal |
+| Clip publishing | `PUBLISH_PROVIDER=live` | YouTube: the creator's connected channel (`youtube.force-ssl` covers upload). Instagram: **not built** — needs a Meta app and per-creator Instagram professional-account connection | records a fake external id | `studio/publishers.py`: YouTube resumable upload as a Short; Instagram Graph REELS container → poll → `media_publish` |
+| Text to speech (AI dubbing) | `TTS_PROVIDER=azure` | `AZURE_TTS_KEY`, `AZURE_TTS_REGION` (Neural voices per language in `ai/tts.py`) | a short tone at each caption start, so sync is audible | `ai/tts.py`: Azure Speech REST with SSML; `media/dubbing.py` fits each line to its slot (atempo ≤ 2×) and joins them into one AAC track |
+| Face tracking (clips) | `FACE_PROVIDER=opencv` | — (OpenCV Haar cascade in the image, `opencv-python-headless==4.14`) | follows the magenta test marker | `studio/faces.py`: largest face per sampled frame (4 fps), smoothed and simplified into crop keyframes |
+| Off-host backups | `BACKUP_TARGET=s3://bucket/prefix` | `BACKUP_S3_ENDPOINT`, `BACKUP_S3_ACCESS_KEY`, `BACKUP_S3_SECRET_KEY`, `BACKUP_S3_REGION` (§22: S3 `ap-south-1`, versioned) or R2 | `BACKUP_TARGET=dir:/path` (rehearsal) | `backend/scripts/backup_ship.py` via `infra/backup-ship.sh`; `backup.sh` ships, deep-verifies and prunes nightly |
 
 ## Order to switch on
 1. Bunny Stream (nothing plays without it), with `PLAYBACK_TTL_SECONDS` decided.
@@ -26,5 +31,10 @@ by the sandbox path's tests only.
 3. Safety vendor. **Until it is live, keep `SIGNUP_ENABLED=false` (Klygenix's own channel only) or route every upload to review.**
 4. Razorpay (Play's own key pair, not Store's), then Lemon Squeezy.
 5. Google OAuth verification for YouTube (weeks; start early).
+6. Creator money (Route) — **only after CA sign-off** on commission GST, TCS (s.52), TDS (194-O) and tips;
+   creator KYC goes through Route's linked-account onboarding. Until then the sandbox rail is the only rail for
+   tips, boosts, memberships and paid videos. Paid and members-only videos also need `BUNNY_TOKEN_KEY` set
+   (without it Bunny playback URLs are public).
+7. Azure TTS for dubbing; YouTube upload for Shorts (needs step 5); Instagram after a Meta app review.
 
 After each: `python -m app.readiness`, then `tests/smoke/post_deploy.py --skip-purchase` against the host.

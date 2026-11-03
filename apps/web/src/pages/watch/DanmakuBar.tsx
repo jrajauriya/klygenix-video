@@ -1,11 +1,13 @@
-import { useEffect, useRef, useState, type FormEvent } from "react"
+import { Suspense, lazy, useEffect, useRef, useState, type FormEvent } from "react"
 import { Link } from "react-router-dom"
 import { toast } from "sonner"
-import { MessageSquareText, MessageSquareOff, Send, SlidersHorizontal, Users, X } from "lucide-react"
+import { Languages, MessageSquareText, MessageSquareOff, Rocket, Send, SlidersHorizontal, Users, X } from "lucide-react"
 import { cn } from "@klygenixvideo/ui"
 import type { DanmakuMode } from "@klygenixvideo/player"
 import { errText, loginPath, useSignedIn } from "../../lib/api"
-import type { DanmakuPrefs } from "../../lib/prefs"
+import { langName } from "../../lib/format"
+import type { BoostTier } from "../../lib/types"
+import { TRANSLATE_LANGS, type DanmakuPrefs } from "../../lib/prefs"
 import { Sheet } from "../../components/Sheet"
 import { Btn, INPUT } from "../../components/bits"
 
@@ -16,14 +18,26 @@ const MODES: { key: DanmakuMode; label: string }[] = [
   { key: "bottom", label: "Bottom" },
 ]
 
+const BoostSheet = lazy(() => import("./BoostSheet"))
+
+export interface BoostOptions {
+  videoId: string
+  tiers: BoostTier[]
+  positionMs: () => number
+}
+
 export function DanmakuBar({
-  prefs, onPrefs, watchers, onPost, disabledReason,
+  prefs, onPrefs, watchers, onPost, disabledReason, boost, translateLang = "en", onTranslateLang, translateOff = false,
 }: {
   prefs: DanmakuPrefs
   onPrefs: (patch: Partial<DanmakuPrefs>) => void
   watchers: number
   onPost: (text: string, mode: DanmakuMode, color: string) => Promise<unknown>
   disabledReason?: string
+  boost?: BoostOptions
+  translateLang?: string
+  onTranslateLang?: (lang: string) => void
+  translateOff?: boolean
 }) {
   const signedIn = useSignedIn()
   const [text, setText] = useState("")
@@ -32,6 +46,7 @@ export function DanmakuBar({
   const [style, setStyle] = useState(false)
   const [settings, setSettings] = useState(false)
   const [pending, setPending] = useState(false)
+  const [boosting, setBoosting] = useState<{ t_ms: number } | null>(null)
   const pop = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -139,6 +154,17 @@ export function DanmakuBar({
             />
             <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[11px] tabular-nums text-faint">{text.length}/60</span>
           </div>
+          {boost && (
+            <button
+              type="button"
+              onClick={() => setBoosting({ t_ms: boost.positionMs() })}
+              title="Boost a danmaku"
+              className="flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-[#FACC15] px-3 text-sm font-semibold text-black hover:bg-[#fde047]"
+            >
+              <Rocket size={15} aria-hidden="true" />
+              <span className="sr-only sm:not-sr-only">Boost</span>
+            </button>
+          )}
           <button type="submit" disabled={!text.trim() || pending} aria-label="Send danmaku" className="flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-brand px-3 text-sm font-semibold text-white hover:bg-brand-hover disabled:opacity-50">
             <Send size={15} aria-hidden="true" />
             <span className="hidden sm:inline">Send</span>
@@ -150,12 +176,43 @@ export function DanmakuBar({
         </Link>
       )}
 
-      <DanmakuSettings open={settings} onClose={() => setSettings(false)} prefs={prefs} onPrefs={onPrefs} />
+      <DanmakuSettings
+        open={settings}
+        onClose={() => setSettings(false)}
+        prefs={prefs}
+        onPrefs={onPrefs}
+        lang={translateLang}
+        onLang={onTranslateLang}
+        translateOff={translateOff}
+      />
+      {boost && boosting !== null && (
+        <Suspense fallback={null}>
+        <BoostSheet
+          open={boosting !== null}
+          onClose={() => setBoosting(null)}
+          boost={boost}
+          tMs={boosting?.t_ms ?? 0}
+          initial={text}
+          onPaid={() => {
+            setText("")
+            if (!prefs.enabled) onPrefs({ enabled: true })
+          }}
+        />
+        </Suspense>
+      )}
     </div>
   )
 }
 
-function DanmakuSettings({ open, onClose, prefs, onPrefs }: { open: boolean; onClose: () => void; prefs: DanmakuPrefs; onPrefs: (patch: Partial<DanmakuPrefs>) => void }) {
+function DanmakuSettings({ open, onClose, prefs, onPrefs, lang, onLang, translateOff }: {
+  open: boolean
+  onClose: () => void
+  prefs: DanmakuPrefs
+  onPrefs: (patch: Partial<DanmakuPrefs>) => void
+  lang: string
+  onLang?: (lang: string) => void
+  translateOff: boolean
+}) {
   const [word, setWord] = useState("")
 
   function addWord(e: FormEvent) {
@@ -176,6 +233,24 @@ function DanmakuSettings({ open, onClose, prefs, onPrefs }: { open: boolean; onC
           </span>
           <input type="checkbox" role="switch" checked={prefs.enabled} onChange={(e) => onPrefs({ enabled: e.target.checked })} className="h-5 w-9 accent-[#A21CAF]" />
         </label>
+        {onLang && (
+          <div className="space-y-2">
+            <label className="flex items-center justify-between gap-4">
+              <span>
+                <span className="flex items-center gap-1.5 text-sm font-semibold"><Languages size={15} aria-hidden="true" /> Translate danmaku</span>
+                <span className="block text-xs text-muted">Lines on screen now and in the next few seconds, translated by AI.</span>
+              </span>
+              <input type="checkbox" role="switch" checked={prefs.translate} onChange={(e) => onPrefs({ translate: e.target.checked })} className="h-5 w-9 accent-[#A21CAF]" />
+            </label>
+            <label className="flex items-center justify-between gap-4 text-sm">
+              <span className="text-muted">Translate to</span>
+              <select value={lang} onChange={(e) => onLang(e.target.value)} className="h-9 rounded-lg border border-line bg-panel-2 px-2 text-sm text-ink outline-none focus:border-brand">
+                {TRANSLATE_LANGS.map((l) => <option key={l} value={l}>{langName(l)}</option>)}
+              </select>
+            </label>
+            {translateOff && <p role="status" className="rounded-lg bg-white/[0.06] px-3 py-2 text-xs text-muted">Machine translation is off in this environment. Showing the original lines.</p>}
+          </div>
+        )}
         <label className="block">
           <span className="mb-2 flex justify-between text-sm font-semibold">Density <span className="font-normal text-muted">{Math.round(prefs.density * 100)}%</span></span>
           <input type="range" min={0.1} max={1} step={0.05} value={prefs.density} onChange={(e) => onPrefs({ density: Number(e.target.value) })} className="w-full accent-[#C026D3]" />

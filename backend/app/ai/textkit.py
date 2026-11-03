@@ -10,6 +10,8 @@ not no yes do does did done have has had will would can could should may might m
 there here than more most less least about into over under again further once all any both each few other some
 such only own same now up down out off s t ll re ve d m o y let lets going get got gonna wanna okay ok um uh like
 hai hain ka ki ke ko se mein aur ye yeh woh wo kya nahi bhi toh to
+है हैं था थी थे हो का की के को से में और यह ये वह वो क्या नहीं भी तो हम आप मैं तुम एक पर ने कि इस उस इसे उसे
+कैसे कैसा कैसी कब कहाँ कहां क्यों कौन किस किसने जो लिए साथ अब फिर बाद पहले तक कितनी कितने कितना करें करना
 """.split())
 
 WORD = re.compile(r"[A-Za-zऀ-ॿঀ-৿஀-௿ఀ-౿][\w'ऀ-౿-]*")
@@ -17,7 +19,7 @@ SENTENCE = re.compile(r"(?<=[.!?।])\s+")
 
 
 def words(text: str) -> list[str]:
-    return [w.lower() for w in WORD.findall(text or "")]
+    return [x for x in (w.lower().strip("।॥") for w in WORD.findall(text or "")) if x]
 
 
 def keywords(text: str, n: int = 8) -> list[str]:

@@ -106,7 +106,7 @@ def comment_out(c: Comment, replies: int = 0, mine: bool = False, author_channel
 
     return {"id": c.id, "body": c.body if c.status == "visible" else "", "author": c.author_name,
             "parent_id": c.parent_id, "status": c.status, "created_at": iso(c.created_at), "replies": replies,
-            "mine": mine, "is_creator": is_creator,
+            "mine": mine, "is_creator": is_creator, "paid_minor": c.paid_minor,
             "author_channel": None if author_channel is None or author_channel.is_suspended else {
                 "handle": author_channel.handle, "name": author_channel.name, "avatar": public_url(author_channel.avatar_key)}}
 
@@ -183,7 +183,8 @@ def delete_comment(comment_id: int, ctx: Ctx = Depends(signed_in)):
 
 
 def danmaku_out(d: Danmaku, mine: bool = False) -> dict:
-    return {"id": d.id, "t_ms": d.t_ms, "text": d.text, "mode": d.mode, "color": d.color, "mine": mine}
+    return {"id": d.id, "t_ms": d.t_ms, "text": d.text, "mode": d.mode, "color": d.color, "mine": mine,
+            "boost_tier": d.boost_tier, "pin_ms": d.pin_ms, "paid_minor": d.paid_minor}
 
 
 @router.get("/videos/{public_id}/danmaku")
@@ -235,6 +236,14 @@ def delete_danmaku(danmaku_id: int, ctx: Ctx = Depends(signed_in)):
         v = db.get(Video, d.video_id)
         if d.user_id != ctx.user.id and (v is None or v.tenant_id != ctx.tenant_id):
             raise err(403, "action_not_allowed")
+        if d.paid_minor and d.checkout_id and d.status == "visible" and d.user_id != ctx.user.id:
+            from app.video.commerce import refunds
+            from app.video.models.commerce import Payment
+
+            pay = db.execute(select(Payment).where(Payment.checkout_id == d.checkout_id)).scalars().first()
+            if pay is not None and refunds.refunded(db, pay.id) < pay.amount_minor:
+                refunds.refund(db, payment_id=pay.id, amount_minor=None, reason="Boost removed by the creator",
+                               actor_user_id=ctx.user.id, idempotency_key=f"boost-removed-{d.id}")
         d.status = "deleted"
         db.commit()
         publish(d.video_id, {"type": "danmaku_removed", "id": d.id})
@@ -246,6 +255,8 @@ class ProgressIn(BaseModel):
     watched_ms: int = Field(default=0, ge=0, le=600_000)
     started: bool = False
     completed: bool = False
+    src: str | None = Field(default=None, max_length=20)
+    ref: str | None = Field(default=None, max_length=300)
 
 
 @router.post("/videos/{public_id}/progress")
@@ -256,8 +267,10 @@ def progress(public_id: str, data: ProgressIn, request: Request, viewer: Viewer 
     v = readable(viewer, public_id)
     if data.started:
         counters.incr("video", v.id, "view_count", 1)
+        counters.source(v.id, data.src, data.ref)
     if data.watched_ms:
         counters.incr("video", v.id, "watch_ms", data.watched_ms)
+        counters.watched(v.id, v.duration_ms, data.position_ms, data.watched_ms)
     if data.completed:
         counters.incr("video", v.id, "completions", 1)
     if viewer.user is not None:
@@ -268,6 +281,10 @@ def progress(public_id: str, data: ProgressIn, request: Request, viewer: Viewer 
             wp = WatchProgress(tenant_id=viewer.user.tenant_id, user_id=viewer.user.id, video_id=v.id)
             db.add(wp)
         wp.position_ms = min(data.position_ms, v.duration_ms or data.position_ms)
+        if data.completed and not wp.completed:
+            from app.video.social import reco
+
+            reco.forget(viewer.user.id)
         wp.completed = data.completed or wp.completed
         try:
             db.commit()
@@ -328,14 +345,22 @@ def home(response: Response, limit: int = Query(24, le=60), offset: int = 0, vie
 
 @router.get("/feed/reels")
 def reels(response: Response, limit: int = Query(10, le=30), offset: int = 0, viewer: Viewer = Depends(optional_viewer)):
-    from app.video.media.service import playback
+    from app.video.media.service import playback, preview_playback
 
     def build():
         rows = feed.ranked(viewer.db, user_id=viewer.user.id if viewer.user else None, lang=_lang(viewer), kind="reel")
         page = rows[offset:offset + limit]
         cards = _cards(viewer.db, page, viewer.user.id if viewer.user else None)
+        locked: set[int] = set()
+        if any(v.access != "free" for v in page):
+            from app.video.commerce import access
+            from app.video.sessions import platform_session
+
+            with platform_session() as pdb:
+                locked = access.locked_ids(pdb, viewer.user, page)
         for card, v in zip(cards, page):
-            card["playback"] = playback(v)
+            card["locked"] = v.id in locked
+            card["playback"] = preview_playback(v) if v.id in locked else playback(v)
         return len(rows), cards
 
     if viewer.user is None:

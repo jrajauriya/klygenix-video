@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import BigInteger, Boolean, CheckConstraint, ForeignKey, Integer, String, Text
+from sqlalchemy import BigInteger, Boolean, CheckConstraint, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -40,5 +40,44 @@ class Clip(Base):
     output_video_id: Mapped[int | None] = mapped_column(BigInteger)
     error: Mapped[str | None] = mapped_column(Text)
     created_by: Mapped[int | None] = mapped_column(Integer)
+    music: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict, server_default="{}")
     created_at: Mapped[datetime] = created()
     updated_at: Mapped[datetime] = updated()
+
+
+class PublishTarget(Base):
+    __tablename__ = "publish_targets"
+    __table_args__ = (
+        CheckConstraint("platform IN ('youtube','instagram')", name="ck_publish_targets_platform"),
+        CheckConstraint("status IN ('queued','publishing','published','failed')", name="ck_publish_targets_status"),
+        UniqueConstraint("clip_id", "platform", name="uq_publish_targets"),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[int] = pk()
+    tenant_id: Mapped[int] = tenant_fk()
+    clip_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("kv_studio.clips.id", ondelete="CASCADE"), nullable=False)
+    platform: Mapped[str] = mapped_column(String(10), nullable=False)
+    status: Mapped[str] = mapped_column(String(10), nullable=False, default="queued")
+    caption: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
+    external_id: Mapped[str | None] = mapped_column(String(80))
+    external_url: Mapped[str | None] = mapped_column(String(300))
+    error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = created()
+    updated_at: Mapped[datetime] = updated()
+
+
+class MusicTrack(Base):
+    __tablename__ = "music_tracks"
+    __table_args__ = ({"schema": SCHEMA},)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    title: Mapped[str] = mapped_column(String(120), nullable=False)
+    artist: Mapped[str] = mapped_column(String(120), nullable=False)
+    mood: Mapped[str] = mapped_column(String(30), nullable=False, default="", server_default="")
+    duration_ms: Mapped[int] = mapped_column(Integer, nullable=False)
+    licence: Mapped[str] = mapped_column(String(120), nullable=False)
+    licence_url: Mapped[str] = mapped_column(String(300), nullable=False, default="", server_default="")
+    storage_key: Mapped[str] = mapped_column(String(300), nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
+    created_at: Mapped[datetime] = created()

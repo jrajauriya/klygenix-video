@@ -2,25 +2,28 @@ import { useEffect, useRef, useState, type FormEvent } from "react"
 import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom"
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
-import { Download, FileText, History, LogOut, ShieldAlert, Trash2, UserX, Users, X } from "lucide-react"
+import { Crown, Download, FileText, History, ListVideo, LogOut, PlayCircle, ShieldAlert, ShoppingBag, Trash2, UserX, Users, X } from "lucide-react"
 import { api, useAuthStore } from "@klygenixvideo/auth"
 import { formatMoney } from "@klygenixvideo/client"
 import { cn, saveBlob, useConfirm } from "@klygenixvideo/ui"
 import { PageShell } from "../components/Layout"
 import { Btn, ChannelAvatar, Empty, Field, INPUT, Skel, TEXTAREA } from "../components/bits"
 import { FollowButton } from "../components/FollowButton"
+import { TierBadge } from "../components/Support"
 import { Thumb } from "../components/VideoCards"
 import { STUDIO_URL, errStatus, errText, getJson, useMe, useSignedIn } from "../lib/api"
-import { LANG_NAMES, compactNumber, longDate, timeAgo } from "../lib/format"
+import { LANG_NAMES, compactNumber, longDate, rupees, timeAgo } from "../lib/format"
 import { useTitle } from "../lib/title"
-import type { ChannelCard, HistoryItem, Invoice, Moderation } from "../lib/types"
+import type { ChannelCard, HistoryItem, Invoice, Membership, Moderation, Purchase } from "../lib/types"
 import type { UserSettings } from "@klygenixvideo/types"
 
-type Tab = "profile" | "plans" | "invoices" | "history" | "following" | "notices" | "privacy"
+type Tab = "profile" | "plans" | "memberships" | "purchases" | "invoices" | "history" | "following" | "notices" | "privacy"
 
 const TABS: { key: Tab; label: string }[] = [
   { key: "profile", label: "Profile" },
   { key: "plans", label: "Plans & usage" },
+  { key: "memberships", label: "Memberships" },
+  { key: "purchases", label: "Purchases" },
   { key: "invoices", label: "Invoices" },
   { key: "history", label: "History" },
   { key: "following", label: "Following" },
@@ -154,6 +157,103 @@ function PlansUsage() {
         </ul>
       </Panel>
     </div>
+  )
+}
+
+const MEMBER_STATUS: Record<string, string> = {
+  active: "Active", grace: "Payment pending", cancelled: "Ended", lapsed: "Lapsed", expired: "Ended",
+}
+
+function Memberships() {
+  const qc = useQueryClient()
+  const confirm = useConfirm()
+  const [busy, setBusy] = useState<number | null>(null)
+  const q = useQuery({ queryKey: ["memberships"], queryFn: () => getJson<Membership[]>("/api/video/me/memberships") })
+
+  async function cancel(m: Membership) {
+    if (!m.tier) return
+    const ok = await confirm({
+      title: `Cancel ${m.tier.name}?`,
+      message: `You keep your membership of ${m.channel_name ?? "this channel"} until ${longDate(m.current_period_end)}. It will not renew after that.`,
+      confirmLabel: "Cancel membership",
+      cancelLabel: "Keep it",
+      variant: "destructive",
+    })
+    if (!ok) return
+    setBusy(m.tier.id)
+    try {
+      await api.post(`/api/video/me/memberships/${m.tier.id}/cancel`)
+      await qc.invalidateQueries({ queryKey: ["memberships"] })
+      qc.invalidateQueries({ queryKey: ["support"] })
+      toast.success(`Cancelled. You keep it until ${longDate(m.current_period_end)}.`)
+    } catch (err) {
+      toast.error(errText(err, "The membership could not be cancelled."))
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  return (
+    <Panel title="Memberships">
+      {q.isLoading ? (
+        <Skel className="h-24 w-full" />
+      ) : (q.data ?? []).length === 0 ? (
+        <Empty icon={<Crown size={28} />} title="No memberships" body="Join a channel's membership to watch its members-only videos. They show up here." />
+      ) : (
+        <ul className="divide-y divide-line">
+          {(q.data ?? []).map((m, i) => {
+            const live = m.status === "active" || m.status === "grace"
+            return (
+              <li key={`${m.tier?.id ?? "x"}-${i}`} className="flex flex-wrap items-center gap-3 py-3">
+                <div className="min-w-0 flex-1">
+                  <p className="flex flex-wrap items-center gap-2 text-sm font-semibold">
+                    {m.channel ? <Link to={`/@${m.channel}`} className="hover:underline">{m.channel_name ?? m.channel}</Link> : <span>{m.channel_name ?? "Channel"}</span>}
+                    {m.tier && <TierBadge>{m.tier.badge || m.tier.name}</TierBadge>}
+                  </p>
+                  <p className="text-xs text-muted">
+                    {m.tier ? `${m.tier.name} · ${rupees(m.tier.price_minor, m.tier.currency)} / month` : "Membership"} · {MEMBER_STATUS[m.status] ?? m.status}
+                    {live && m.current_period_end ? ` · ${m.cancel_at_period_end ? "Ends" : "Renews"} on ${longDate(m.current_period_end)}` : ""}
+                  </p>
+                </div>
+                {live && m.status === "active" && !m.cancel_at_period_end && m.tier && (
+                  <Btn tone="ghost" size="sm" className="text-muted" onClick={() => cancel(m)} disabled={busy !== null}>
+                    {busy === m.tier.id ? "Cancelling…" : "Cancel"}
+                  </Btn>
+                )}
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </Panel>
+  )
+}
+
+function Purchases() {
+  const q = useQuery({ queryKey: ["purchases"], queryFn: () => getJson<Purchase[]>("/api/video/me/purchases") })
+  return (
+    <Panel title="Purchases">
+      {q.isLoading ? (
+        <Skel className="h-24 w-full" />
+      ) : (q.data ?? []).length === 0 ? (
+        <Empty icon={<ShoppingBag size={28} />} title="Nothing bought yet" body="Videos and series you buy are yours to keep. They show up here." />
+      ) : (
+        <ul className="divide-y divide-line">
+          {(q.data ?? []).map((p, i) => {
+            const to = p.id === null ? null : p.kind === "series" ? `/playlist/${p.id}` : `/watch/${p.id}`
+            return (
+              <li key={`${p.kind}-${p.id ?? i}`} className="flex items-center gap-3 py-3">
+                {p.kind === "series" ? <ListVideo size={18} className="shrink-0 text-faint" aria-hidden="true" /> : <PlayCircle size={18} className="shrink-0 text-faint" aria-hidden="true" />}
+                <div className="min-w-0 flex-1">
+                  {to ? <Link to={to} className="block truncate text-sm font-semibold hover:underline">{p.title || "Untitled"}</Link> : <p className="truncate text-sm font-semibold">{p.title || "Untitled"}</p>}
+                  <p className="text-xs text-muted">{p.kind === "series" ? "Series" : "Video"} · bought {longDate(p.bought_at)}</p>
+                </div>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </Panel>
   )
 }
 
@@ -513,6 +613,8 @@ export default function AccountPage() {
       </div>
       {tab === "profile" && <Profile />}
       {tab === "plans" && <PlansUsage />}
+      {tab === "memberships" && <Memberships />}
+      {tab === "purchases" && <Purchases />}
       {tab === "invoices" && <Invoices />}
       {tab === "history" && <WatchHistory />}
       {tab === "following" && <Following />}

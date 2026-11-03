@@ -1,6 +1,6 @@
 import {
-  BarChart3, Clapperboard, CreditCard, LayoutDashboard, MessageSquareText, PlaySquare, Settings, ShieldAlert,
-  Sparkles, Tv, UserCog, Users,
+  BarChart3, Clapperboard, Megaphone, CreditCard, LayoutDashboard, MessageSquareText, PlaySquare, Settings, ShieldAlert,
+  Sparkles, Tv, UserCog, Users, Wallet,
 } from "lucide-react"
 import type { NavItem, NavSection } from "@klygenixvideo/ui"
 
@@ -24,6 +24,7 @@ export const sections: NavSection[] = [
     icon: Users,
     items: [
       { to: "/comments", label: "Comments & danmaku", icon: MessageSquareText, featureKey: "video.comments", permissionKey: "video.comments" },
+      { to: "/community", label: "Community", icon: Megaphone, featureKey: "video.channels", permissionKey: "video.channels" },
       { to: "/analytics", label: "Analytics", icon: BarChart3, featureKey: "video.analytics", permissionKey: "video.analytics" },
     ],
   },
@@ -32,6 +33,7 @@ export const sections: NavSection[] = [
     label: "Account",
     icon: UserCog,
     items: [
+      { to: "/earnings", label: "Earnings", icon: Wallet, featureKey: "video.earnings", permissionKey: "video.earnings" },
       { to: "/billing", label: "Billing", icon: CreditCard, featureKey: "video.billing", permissionKey: "video.billing" },
       { to: "/moderation", label: "Moderation", icon: ShieldAlert, featureKey: "video.dashboard", permissionKey: "video.dashboard" },
       { to: "/settings", label: "Settings", icon: Settings, featureKey: "video.settings", permissionKey: "video.settings" },

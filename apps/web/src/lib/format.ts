@@ -60,3 +60,14 @@ export function hue(seed: string): number {
   for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) % 360
   return h
 }
+
+export function rupees(minor: number | null | undefined, currency = "INR"): string {
+  const v = minor ?? 0
+  const whole = v % 100 === 0
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency,
+    minimumFractionDigits: whole ? 0 : 2,
+    maximumFractionDigits: whole ? 0 : 2,
+  }).format(v / 100)
+}

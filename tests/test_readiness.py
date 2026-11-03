@@ -81,6 +81,9 @@ for k in ("sandbox.disabled", "jobs.mode", "secret.key", "metrics.token", "url.a
           "video.provider", "stt.provider", "scan.provider", "razorpay.keys"):
     ok(f"blocks on {k}", k in failed)
 ok("every failure carries a fix", all(c["fix"] for c in report["checks"] if not c["ok"]))
+warned = {c["key"] for c in report.get("checks", []) if c["severity"] == "warn" and not c["ok"]}
+ok("warns that creator money stays off without Route", "route.payouts" in warned, warned)
+ok("warns about sandbox dubbing, publishing and face tracking", {"tts.provider", "publish.provider", "face.provider"} <= warned, warned)
 
 print("\n== One bad value is enough")
 code, report = run(write("one.env", {**GOOD, "SCAN_PROVIDER": "sandbox"}))

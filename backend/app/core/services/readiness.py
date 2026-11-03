@@ -377,6 +377,22 @@ def evaluate(s: Settings, *, mode: str = "app", env: dict | None = None) -> list
     add(Check("youtube.oauth", "YouTube channel connection", "Integrations", WARN, yt_ok,
               "Configured." if yt_ok else "YOUTUBE_PROVIDER is sandbox: Connect YouTube imports a sample channel.",
               f"Google Cloud → OAuth client (web) with redirect {s.YOUTUBE_OAUTH_REDIRECT}; submit the consent screen for verification (sensitive scopes) and request a YouTube API quota extension."))
+    route_ok = bool(s.RAZORPAY_KEY_ID and s.RAZORPAY_KEY_SECRET and s.ROUTE_PROFILE_CATEGORY and s.ROUTE_PROFILE_SUBCATEGORY)
+    add(Check("route.payouts", "Creator payouts (Razorpay Route)", "Creator money", WARN, route_ok,
+              "Route is configured: creators can activate payouts and take tips, memberships and paid videos." if route_ok else
+              "Route is not configured: payout accounts cannot be submitted, so no creator can take money (tips, boosts, memberships, paid videos are off).",
+              "Only after CA sign-off: enable Route on Play's Razorpay account, set ROUTE_PROFILE_CATEGORY/SUBCATEGORY to the category Razorpay confirms, and review commission, reserve and refund-window settings."))
+    tts_ok = s.TTS_PROVIDER == "azure" and bool(s.AZURE_TTS_KEY)
+    add(Check("tts.provider", "Text to speech for AI dubbing", "Video & AI", WARN, tts_ok,
+              "Configured." if tts_ok else "TTS_PROVIDER is sandbox: dub tracks are placeholder tones.",
+              "Set TTS_PROVIDER=azure with AZURE_TTS_KEY and AZURE_TTS_REGION, or keep dubbing consent off."))
+    add(Check("publish.provider", "Publishing clips to YouTube Shorts / Instagram Reels", "Integrations", WARN,
+              s.PUBLISH_PROVIDER != "sandbox",
+              "Live." if s.PUBLISH_PROVIDER != "sandbox" else "PUBLISH_PROVIDER is sandbox: publishing records a fake external id.",
+              "Set PUBLISH_PROVIDER=live once YouTube upload is verified; Instagram needs a Meta app and account connection."))
+    add(Check("face.provider", "Face tracking for clip reframing", "Video & AI", WARN, s.FACE_PROVIDER == "opencv",
+              "OpenCV face detection." if s.FACE_PROVIDER == "opencv" else "FACE_PROVIDER is sandbox: tracking follows the test marker only.",
+              "Set FACE_PROVIDER=opencv (OpenCV is in the image)."))
     g = bool(s.GOOGLE_CLIENT_ID and s.GOOGLE_CLIENT_SECRET)
     add(Check("google.oauth", "Google sign-in", "Integrations", WARN, g,
               "Set." if g else "GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET are empty: staff sign in with a password only.",

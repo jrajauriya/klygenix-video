@@ -38,6 +38,30 @@ export interface VideoCard {
   captions?: { available: string[]; translatable?: string[] }
   liked?: boolean
   following?: boolean
+  access?: VideoAccess
+  price_minor?: number | null
+  locked?: boolean | VideoLock | null
+}
+
+export type VideoAccess = "free" | "members" | "paid"
+
+export interface LockTier {
+  id: number
+  name: string
+  rank: number
+  price_minor: number
+  badge: string
+}
+
+export interface VideoLock {
+  access: "members" | "paid"
+  preview_seconds: number
+  signed_in: boolean
+  members_rank?: number
+  tiers?: LockTier[]
+  price_minor?: number | null
+  currency?: string
+  series?: { id: number; title: string; price_minor: number }[]
 }
 
 export interface Insight {
@@ -65,6 +89,9 @@ export interface VideoDetail extends VideoCard {
   following: boolean
   resume_ms: number
   is_owner: boolean
+  locked: VideoLock | null
+  products?: { disclosure: string; items: ProductLink[] } | null
+  dubs?: { language: string; name: string; label: string; url: string }[]
 }
 
 export interface HistoryItem extends VideoCard {
@@ -88,6 +115,7 @@ export interface CommentRow {
   replies: number
   mine: boolean
   is_creator: boolean
+  paid_minor?: number | null
   author_channel: { handle: string; name: string; avatar: string | null } | null
 }
 
@@ -187,11 +215,13 @@ export interface PlaylistSummary {
   video_count: number
   cover: string | null
   created_at: string | null
+  price_minor?: number | null
 }
 
 export interface PlaylistDetail extends PlaylistSummary {
   channel: ChannelCard
   videos: VideoCard[]
+  owned?: boolean
 }
 
 export interface SeriesProgress {
@@ -201,4 +231,172 @@ export interface SeriesProgress {
   percent: number
   next: string | null
   videos: { id: string; completed: boolean; position_ms: number }[]
+}
+
+export interface BoostTier {
+  tier: number
+  price_minor: number
+  pin_ms: number
+  color: string
+  label: string
+}
+
+export interface MemberTier {
+  id: number
+  name: string
+  rank: number
+  price_minor: number
+  currency: string
+  perks: string
+  badge: string
+  is_active: boolean
+}
+
+export interface ChannelSupport {
+  channel: string
+  can_take_money: boolean
+  tip_min_minor: number
+  tip_max_minor: number
+  currency: string
+  boost_tiers: BoostTier[]
+  tiers: MemberTier[]
+  my_rank: number
+  is_owner: boolean
+  commission_bps?: number
+}
+
+export type SupportPurpose = "tip" | "boost" | "membership" | "video" | "series"
+
+export interface SupportCheckout {
+  id: number
+  amount_minor: number
+  taxable_minor: number
+  tax_minor: number
+  currency: string
+  rail: string
+  status: string
+  client: Record<string, unknown> | null
+  quote: Record<string, unknown> | null
+  purpose: SupportPurpose
+  target: Record<string, unknown> | null
+}
+
+export interface Membership {
+  tier: MemberTier | null
+  channel: string | null
+  channel_name: string | null
+  status: string
+  current_period_end: string | null
+  cancel_at_period_end: boolean
+}
+
+export interface Purchase {
+  kind: "video" | "series"
+  id: string | number | null
+  title: string
+  bought_at: string | null
+}
+
+export interface StudySet<T> {
+  kind: string
+  language: string
+  model: string
+  items: T[]
+}
+
+export interface StudyNote {
+  t_ms: number
+  label: string
+  heading?: string
+  text: string
+}
+
+export interface Flashcard {
+  front: string
+  back: string
+  t_ms: number
+  label: string
+}
+
+export interface QuizItem {
+  question: string
+  options: string[]
+  t_ms: number
+  label: string
+}
+
+export interface QuizResult {
+  id: number
+  score: number
+  total: number
+  results: { index: number; given: number | null; correct: number; right: boolean; t_ms: number; label: string }[]
+}
+
+export interface QuizAttempt {
+  id: number
+  score: number
+  total: number
+  created_at: string | null
+}
+
+export interface PersonalNote {
+  id: number
+  t_ms: number
+  label: string
+  body: string
+  created_at: string | null
+}
+
+export interface ScopedCitation {
+  video_id: string
+  title: string
+  start_ms: number
+  label: string
+  text: string
+}
+
+export interface ScopedAnswer {
+  id: number
+  scope: string
+  question: string
+  answer: string
+  citations: ScopedCitation[]
+  status: "answered" | "declined" | string
+  videos: number
+  quota?: Quota
+}
+
+export interface PollOption {
+  id: number
+  label: string
+  votes: number
+}
+
+export interface CommunityPost {
+  id: number
+  kind: "text" | "poll" | "image"
+  body: string
+  image: string | null
+  members_rank: number | null
+  locked: boolean
+  created_at: string | null
+  poll: { total: number; my_vote: number | null; options: PollOption[] } | null
+}
+
+export interface Translation {
+  lang: string
+  machine_translation: boolean
+  items: { id: number; text: string; model: string }[]
+}
+
+export type CommentSummary =
+  | { available: true; summary: string; topics: string[]; quotes: string[]; count: number; model?: string }
+  | { available: false; count: number; needed: number }
+
+export interface ProductLink {
+  id: number
+  title: string
+  price_text: string
+  position: number
+  host: string
 }

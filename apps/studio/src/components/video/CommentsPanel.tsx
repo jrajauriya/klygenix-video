@@ -3,7 +3,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { ChevronDown, ChevronRight, Trash2 } from "lucide-react"
 import { api } from "@klygenixvideo/auth"
-import { Button, Card, Pager, Select, Spinner, useConfirm } from "@klygenixvideo/ui"
+import { Badge, Button, Card, Pager, Select, Spinner, useConfirm } from "@klygenixvideo/ui"
+import { formatMoney } from "@klygenixvideo/client"
 import { clock, detail, when } from "../../lib/format"
 import type { Comment, Danmaku } from "../../lib/types"
 
@@ -91,6 +92,7 @@ function CommentRow({ comment, publicId, reply = false }: { comment: Comment; pu
         <div className="min-w-0 flex-1">
           <p className="text-xs text-slate-500">
             <span className="font-semibold text-slate-700">{comment.author}</span> · {when(comment.created_at, true)}
+            {comment.paid_minor ? <Badge color="green" className="ml-1.5">Tip {formatMoney(comment.paid_minor, "INR")}</Badge> : null}
           </p>
           <p className="mt-0.5 whitespace-pre-wrap break-words text-sm text-slate-800">{comment.body}</p>
           {!reply && comment.replies > 0 && (
@@ -147,6 +149,9 @@ function DanmakuList({ publicId, durationMs }: { publicId: string; durationMs: n
               <span className="w-12 shrink-0 font-num text-xs text-brand">{clock(d.t_ms)}</span>
               <span className="h-3 w-3 shrink-0 rounded-full border border-slate-300" style={{ background: d.color }} title={d.color} />
               <span className="min-w-0 flex-1 truncate text-sm text-slate-800">{d.text}</span>
+              {d.boost_tier || d.paid_minor ? (
+                <Badge color="purple">Boost{d.paid_minor ? ` ${formatMoney(d.paid_minor, "INR")}` : ""}</Badge>
+              ) : null}
               {d.mode !== "scroll" && <span className="text-[11px] text-slate-400">{d.mode}</span>}
               <Button size="icon" variant="ghost" aria-label="Delete danmaku" onClick={() => remove("danmaku", d.id, d.text)}>
                 <Trash2 size={15} />

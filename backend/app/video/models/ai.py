@@ -4,7 +4,7 @@ from datetime import datetime
 
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
-    BigInteger, CheckConstraint, Computed, DateTime, Float, ForeignKey, Index, Integer, String, Text,
+    BigInteger, CheckConstraint, Computed, DateTime, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column
@@ -106,7 +106,9 @@ class AskMessage(Base):
     id: Mapped[int] = pk()
     tenant_id: Mapped[int] = tenant_fk()
     user_id: Mapped[int] = mapped_column(Integer, nullable=False)
-    video_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("kv_media.videos.id", ondelete="CASCADE"), nullable=False)
+    video_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("kv_media.videos.id", ondelete="CASCADE"))
+    scope: Mapped[str] = mapped_column(String(8), nullable=False, default="video", server_default="video")
+    scope_id: Mapped[int | None] = mapped_column(BigInteger)
     question: Mapped[str] = mapped_column(Text, nullable=False)
     answer: Mapped[str] = mapped_column(Text, nullable=False)
     citations: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
@@ -162,4 +164,44 @@ class LlmCall(Base):
     latency_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     status: Mapped[str] = mapped_column(String(8), nullable=False)
     error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = created()
+
+
+class VideoVector(Base):
+    __tablename__ = "video_vectors"
+    __table_args__ = ({"schema": SCHEMA},)
+
+    video_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("kv_media.videos.id", ondelete="CASCADE"), primary_key=True)
+    embedding = mapped_column(Vector(settings.EMBED_DIM), nullable=False)
+    model: Mapped[str] = mapped_column(String(60), nullable=False)
+    updated_at: Mapped[datetime] = created()
+
+
+class StudySet(Base):
+    __tablename__ = "study_sets"
+    __table_args__ = (
+        CheckConstraint("kind IN ('notes','quiz','flashcards')", name="ck_study_sets_kind"),
+        UniqueConstraint("video_id", "language", "kind", name="uq_study_sets"),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[int] = pk()
+    tenant_id: Mapped[int] = tenant_fk()
+    video_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("kv_media.videos.id", ondelete="CASCADE"), nullable=False)
+    language: Mapped[str] = mapped_column(String(8), nullable=False)
+    kind: Mapped[str] = mapped_column(String(10), nullable=False)
+    items: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    model: Mapped[str] = mapped_column(String(60), nullable=False)
+    created_at: Mapped[datetime] = created()
+
+
+class TextTranslation(Base):
+    __tablename__ = "text_translations"
+    __table_args__ = (UniqueConstraint("digest", "language", name="uq_text_translations"), {"schema": SCHEMA})
+
+    id: Mapped[int] = pk()
+    digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    language: Mapped[str] = mapped_column(String(8), nullable=False)
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    model: Mapped[str] = mapped_column(String(60), nullable=False)
     created_at: Mapped[datetime] = created()

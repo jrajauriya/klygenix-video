@@ -69,6 +69,49 @@ def hls(video_id: int, exp: int, sig: str, path: str):
                         headers={"Cache-Control": "private, max-age=3600", "Access-Control-Allow-Origin": "*"})
 
 
+def _preview_playlist(text: str, seconds: int) -> tuple[str, int]:
+    out, total, segs, take = [], 0.0, 0, True
+    for line in text.splitlines():
+        if line.startswith("#EXT-X-ENDLIST"):
+            continue
+        if line.startswith("#EXTINF:"):
+            if total >= seconds:
+                take = False
+            else:
+                total += float(line[8:].split(",")[0] or 0)
+        if not take:
+            continue
+        if line and not line.startswith("#"):
+            segs += 1
+        out.append(line)
+    out.append("#EXT-X-ENDLIST")
+    return "\n".join(out) + "\n", segs
+
+
+@router.get("/hls-preview/{video_id}/{seconds}/{exp}/{sig}/{path:path}")
+def hls_preview(video_id: int, seconds: int, exp: int, sig: str, path: str):
+    _on()
+    if not alive(exp) or not valid(sig, "hlsp", video_id, seconds, exp):
+        raise err(403, "upload_link_expired")
+    try:
+        full = inside(os.path.join(video_dir(video_id), "hls"), path)
+    except ValueError:
+        raise err(404, "video_not_found")
+    if not os.path.isfile(full):
+        raise err(404, "video_not_found")
+    headers = {"Cache-Control": "private, max-age=600", "Access-Control-Allow-Origin": "*"}
+    if full.endswith(".m3u8") and os.path.basename(full) != "master.m3u8":
+        body, _ = _preview_playlist(open(full).read(), seconds)
+        return Response(body, media_type=TYPES[".m3u8"], headers=headers)
+    if full.endswith(".ts"):
+        _, allowed = _preview_playlist(open(os.path.join(os.path.dirname(full), "index.m3u8")).read(), seconds)
+        name = os.path.basename(full)
+        if not name.startswith("seg_") or int(name[4:8]) >= allowed:
+            raise err(403, "video_locked")
+    ext = os.path.splitext(full)[1]
+    return FileResponse(full, media_type=TYPES.get(ext, "application/octet-stream"), headers=headers)
+
+
 @router.get("/thumb/{video_id}/{exp}/{sig}.jpg")
 def thumb(video_id: int, exp: int, sig: str):
     _on()

@@ -40,7 +40,7 @@ class Checkout(Base):
         UniqueConstraint("tenant_id", "idempotency_key", name="uq_checkouts_idem"),
         UniqueConstraint("gateway_order_id", name="uq_checkouts_gateway_order"),
         CheckConstraint("status IN ('created','paid','failed','expired')", name="ck_checkouts_status"),
-        CheckConstraint("purpose IN ('plan','tip','membership')", name="ck_checkouts_purpose"),
+        CheckConstraint("purpose IN ('plan','tip','boost','membership','video','series')", name="ck_checkouts_purpose"),
         {"schema": SCHEMA},
     )
 

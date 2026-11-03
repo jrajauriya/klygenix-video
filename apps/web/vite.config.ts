@@ -3,8 +3,20 @@ import react from "@vitejs/plugin-react"
 import tailwindcss from "@tailwindcss/vite"
 import path from "path"
 
+const apiOrigin = new URL(process.env.VITE_API_URL || "http://localhost:9300").origin
+
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [
+    react(),
+    tailwindcss(),
+    {
+      name: "kv-preconnect",
+      transformIndexHtml: () => [
+        { tag: "link", attrs: { rel: "preconnect", href: apiOrigin, crossorigin: "" }, injectTo: "head-prepend" },
+        { tag: "link", attrs: { rel: "preconnect", href: apiOrigin }, injectTo: "head-prepend" },
+      ],
+    },
+  ],
   resolve: {
     alias: { "@": path.resolve(__dirname, "./src") },
   },

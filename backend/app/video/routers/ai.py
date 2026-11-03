@@ -10,7 +10,7 @@ from app.ai import intel
 from app.ai.captions import parse, to_vtt
 from app.ai.textkit import fmt_ts, lexical
 from app.core.messages import err
-from app.video.commerce import quotas
+from app.video.commerce import access, quotas
 from app.video.models.ai import AskMessage, Segment, Transcript
 from app.video.models.media import CaptionTrack, Video
 from app.video.models.social import Channel
@@ -60,6 +60,7 @@ def _ask_out(m: AskMessage) -> dict:
 def ask(public_id: str, data: AskIn, request: Request, ctx: Ctx = Depends(signed_in)):
     limits.ask(request)
     video = readable(Viewer(db=ctx.db, user=ctx.user), public_id)
+    access.guard(ctx.user, video)
     if video.ai_status != "ready":
         raise err(409, "ai_not_available_for_video")
     try:
@@ -101,6 +102,7 @@ def ask_history(public_id: str, ctx: Ctx = Depends(signed_in)):
 @router.get("/videos/{public_id}/transcript")
 def transcript(public_id: str, viewer: Viewer = Depends(optional_viewer)):
     video = readable(viewer, public_id)
+    access.guard(viewer.user, video)
     tr = viewer.db.execute(select(Transcript).where(Transcript.video_id == video.id, Transcript.is_current.is_(True))).scalars().first()
     if tr is None:
         return {"language": video.language, "segments": []}
@@ -112,6 +114,7 @@ def transcript(public_id: str, viewer: Viewer = Depends(optional_viewer)):
 @router.get("/videos/{public_id}/captions/{lang}.vtt", response_class=PlainTextResponse)
 def captions(public_id: str, lang: str, viewer: Viewer = Depends(optional_viewer)):
     video = readable(viewer, public_id)
+    access.guard(viewer.user, video)
     if lang not in LANGS:
         raise err(404, "video_not_found")
     tracks = viewer.db.execute(select(CaptionTrack).where(CaptionTrack.video_id == video.id)).scalars().all()
@@ -147,12 +150,12 @@ def search(request: Request, response: Response, q: str = Query(min_length=2, ma
         published, Video.search.op("@@")(tsq)).order_by(text("r DESC"), Video.id.desc()).limit(200)).all()
     seg_text = db.execute(select(Segment.video_id, Segment.start_ms, Segment.text, func.ts_rank(Segment.search, tsq).label("r"))
                           .join(Video, Video.id == Segment.video_id).join(Transcript, Transcript.id == Segment.transcript_id)
-                          .where(published, Transcript.is_current.is_(True), Segment.search.op("@@")(tsq))
+                          .where(published, Video.access == "free", Transcript.is_current.is_(True), Segment.search.op("@@")(tsq))
                           .order_by(text("r DESC"), Segment.video_id.desc()).limit(200)).all()
     dist = Segment.embedding.cosine_distance(vec)
     seg_vec = db.execute(select(Segment.video_id, Segment.start_ms, Segment.text, dist.label("d"))
                          .join(Video, Video.id == Segment.video_id).join(Transcript, Transcript.id == Segment.transcript_id)
-                         .where(published, Transcript.is_current.is_(True), Segment.embedding.is_not(None))
+                         .where(published, Video.access == "free", Transcript.is_current.is_(True), Segment.embedding.is_not(None))
                          .order_by(dist, Segment.video_id.desc()).limit(200)).all()
     results: dict[int, dict] = {}
 

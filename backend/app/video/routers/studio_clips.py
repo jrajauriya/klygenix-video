@@ -18,6 +18,7 @@ from app.video.routers.deps import StudioCtx, studio
 from app.video.routers.studio_videos import own_video
 from app.video.sessions import platform_session
 from app.video.storage import backend
+from app.video.studio import reframe
 
 router = APIRouter(prefix="/api/video/studio", tags=["studio-clips"])
 
@@ -30,7 +31,7 @@ def clip_out(c: Clip) -> dict:
            "start_ms": c.start_ms, "end_ms": c.end_ms, "duration_ms": c.end_ms - c.start_ms, "aspect": c.aspect,
            "reframe": c.reframe, "caption_style": c.caption_style, "watermark": c.watermark, "status": c.status,
            "error": c.error, "output_video_id": c.output_video_id, "created_at": iso(c.created_at),
-           "updated_at": iso(c.updated_at), "download_url": None}
+           "updated_at": iso(c.updated_at), "download_url": None, "music": c.music or {}}
     if c.output_key and c.status in ("rendered", "published"):
         exp = expiry(3600)
         out["download_url"] = (f"{settings.API_PUBLIC_BASE_URL.rstrip('/')}/api/video/studio/clip-files/"
@@ -58,6 +59,11 @@ class ClipIn(BaseModel):
     center_x: float = Field(default=0.5, ge=0, le=1)
 
 
+class Keyframe(BaseModel):
+    t_ms: int = Field(ge=0)
+    cx: float = Field(ge=0, le=1)
+
+
 class ClipPatch(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=160)
     start_ms: int | None = Field(default=None, ge=0)
@@ -65,6 +71,8 @@ class ClipPatch(BaseModel):
     aspect: str | None = None
     caption_style: str | None = None
     center_x: float | None = Field(default=None, ge=0, le=1)
+    keyframes: list[Keyframe] | None = Field(default=None, max_length=60)
+    music: dict | None = None
 
 
 def _validate(v: Video, start: int, end: int, aspect: str, style: str) -> None:
@@ -134,11 +142,99 @@ def patch_clip(clip_id: int, data: ClipPatch, ctx: StudioCtx = Depends(studio("v
         c.title = data.title.strip()
     if data.center_x is not None:
         c.reframe = {"mode": "manual" if data.center_x != 0.5 else "center", "center_x": data.center_x}
+    if data.keyframes is not None:
+        if any(k.t_ms < start - 1000 or k.t_ms > end + 1000 for k in data.keyframes):
+            raise err(400, "clip_range_invalid")
+        track = reframe.clean([k.model_dump() for k in data.keyframes])
+        c.reframe = ({"mode": "manual", "center_x": track[0]["cx"], "track": track} if track
+                     else {"mode": "center", "center_x": 0.5})
+    if data.music is not None:
+        c.music = _music(ctx, data.music)
     if c.status in ("rendered", "failed"):
         c.status = "draft"
         c.output_key = None
     ctx.db.commit()
     return clip_out(c)
+
+
+def _music(ctx: StudioCtx, data: dict) -> dict:
+    from app.video.models.studio import MusicTrack
+
+    tid = data.get("track_id")
+    if not tid:
+        return {}
+    t = ctx.db.get(MusicTrack, int(tid))
+    if t is None or not t.is_active:
+        raise err(404, "action_not_allowed")
+    vol = float(data.get("volume", 0.25))
+    return {"track_id": t.id, "title": t.title, "volume": max(0.0, min(1.0, vol)), "duck": bool(data.get("duck", True))}
+
+
+@router.get("/music")
+def music_library(ctx: StudioCtx = Depends(studio("video.clips"))):
+    from app.video.models.studio import MusicTrack
+    from app.video.studio.music import ensure_library, track_out
+
+    with platform_session() as db:
+        if ensure_library(db):
+            db.commit()
+        return [track_out(t) for t in db.execute(select(MusicTrack).where(MusicTrack.is_active.is_(True))
+                                                  .order_by(MusicTrack.id)).scalars()]
+
+
+@router.get("/music/{track_id}.m4a")
+def music_file(track_id: int, ctx: StudioCtx = Depends(studio("video.clips"))):
+    from app.video.models.studio import MusicTrack
+
+    with platform_session() as db:
+        t = db.get(MusicTrack, track_id)
+        if t is None:
+            raise err(404, "action_not_allowed")
+        return RawResponse(backend().get(t.storage_key), media_type="audio/mp4",
+                           headers={"Cache-Control": "private, max-age=3600"})
+
+
+class TargetIn(BaseModel):
+    platform: str
+    caption: str = Field(default="", max_length=2200)
+
+
+def target_out(t) -> dict:
+    return {"id": t.id, "platform": t.platform, "status": t.status, "caption": t.caption, "external_id": t.external_id,
+            "external_url": t.external_url, "error": t.error, "updated_at": iso(t.updated_at)}
+
+
+@router.get("/clips/{clip_id}/targets")
+def list_targets(clip_id: int, ctx: StudioCtx = Depends(studio("video.clips"))):
+    from app.video.models.studio import PublishTarget
+
+    c = own_clip(ctx, clip_id)
+    return [target_out(t) for t in ctx.db.execute(select(PublishTarget).where(PublishTarget.clip_id == c.id)
+                                                  .order_by(PublishTarget.id)).scalars()]
+
+
+@router.post("/clips/{clip_id}/targets", status_code=202)
+def add_target(clip_id: int, data: TargetIn, ctx: StudioCtx = Depends(studio("video.clips", "full"))):
+    from app.video.models.studio import PublishTarget
+    from app.video.studio.jobs import publish_target
+
+    c = own_clip(ctx, clip_id)
+    if data.platform not in ("youtube", "instagram"):
+        raise err(400, "action_not_allowed")
+    if c.status not in ("rendered", "published") or not c.output_key:
+        raise err(409, "video_not_ready")
+    t = ctx.db.execute(select(PublishTarget).where(PublishTarget.clip_id == c.id,
+                                                   PublishTarget.platform == data.platform)).scalars().first()
+    if t is not None and t.status in ("queued", "publishing", "published"):
+        raise err(409, "action_not_allowed")
+    if t is None:
+        t = PublishTarget(tenant_id=ctx.tenant_id, clip_id=c.id, platform=data.platform)
+        ctx.db.add(t)
+    t.caption, t.status, t.error = data.caption.strip(), "queued", None
+    ctx.db.commit()
+    publish_target.enqueue(t.id)
+    ctx.db.refresh(t)
+    return target_out(t)
 
 
 @router.delete("/clips/{clip_id}", status_code=204)
@@ -160,6 +256,8 @@ def render_clip(clip_id: int, ctx: StudioCtx = Depends(studio("video.clips", "fu
     c = own_clip(ctx, clip_id)
     if c.status in ("queued", "rendering", "published"):
         raise err(409, "action_not_allowed")
+    if (c.reframe or {}).get("status") == "tracking":
+        raise err(409, "video_not_ready")
     owner = quotas.owner_user_id(ctx.db, ctx.tenant_id) or ctx.user.id
     try:
         per = quotas.reserve(ctx.db, ctx.tenant_id, owner, "renders", 1)
@@ -170,6 +268,23 @@ def render_clip(clip_id: int, ctx: StudioCtx = Depends(studio("video.clips", "fu
     c.status = "queued"
     ctx.db.commit()
     job.enqueue(c.id, per)
+    return clip_out(c)
+
+
+@router.post("/clips/{clip_id}/track", status_code=202)
+def track(clip_id: int, ctx: StudioCtx = Depends(studio("video.clips", "full"))):
+    from app.video.studio.jobs import track_clip
+
+    c = own_clip(ctx, clip_id)
+    if c.status in ("queued", "rendering", "published") or (c.reframe or {}).get("status") == "tracking":
+        raise err(409, "action_not_allowed")
+    c.reframe = {"mode": "track", "status": "tracking", "center_x": 0.5}
+    if c.status in ("rendered", "failed"):
+        c.status = "draft"
+        c.output_key = None
+    ctx.db.commit()
+    track_clip.enqueue(c.id)
+    ctx.db.refresh(c)
     return clip_out(c)
 
 

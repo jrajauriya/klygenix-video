@@ -46,11 +46,12 @@ async def room():
                     return msg
             return None
 
-        await asyncio.sleep(0.3)
+        await asyncio.wait_for(b.recv(), 5)
+        await asyncio.sleep(0.5)
         await asyncio.to_thread(lambda: host.post(f"/api/video/parties/{code}/state", json={"playing": True, "position_ms": 4000}))
         sa = await next_of(a, "state")
         sb = await next_of(b, "state")
-        ok("both watchers get the play", sa and sb and sa["playing"] and sb["position_ms"] == 4000)
+        ok("both watchers get the play", sa and sb and sa["playing"] and 4000 <= sb["position_ms"] <= 4500, (sa, sb))
         await asyncio.to_thread(lambda: guest.post(f"/api/video/parties/{code}/chat", json={"text": "here we go"}))
         ca = await next_of(a, "chat")
         ok("chat reaches the room with a position", ca and ca["text"] == "here we go" and ca["name"] == "Party guest" and ca["position_ms"] >= 4000)

@@ -29,7 +29,8 @@ def video_card(v: Video, channel: Channel | None, pend: dict | None = None) -> d
         "duration_ms": v.duration_ms, "duration": fmt_ts(v.duration_ms), "thumbnail": media.thumb(v),
         "views": v.view_count + pend.get("view_count", 0), "likes": v.like_count + pend.get("like_count", 0),
         "published_at": iso(v.published_at), "language": v.language, "ai_generated": v.ai_generated,
-        "embed_platform": v.embed_platform, "channel": channel_card(channel),
+        "embed_platform": v.embed_platform, "channel": channel_card(channel), "access": v.access,
+        "price_minor": v.price_inr_minor if v.access == "paid" else None,
     }
 
 
@@ -45,5 +46,7 @@ def studio_video(v: Video, pend: dict | None = None) -> dict:
         "comments": v.comment_count + pend.get("comment_count", 0),
         "danmaku": v.danmaku_count + pend.get("danmaku_count", 0),
         "watch_ms": v.watch_ms + pend.get("watch_ms", 0), "embed_platform": v.embed_platform,
-        "embed_url": v.embed_url, "created_at": iso(v.created_at),
+        "embed_url": v.embed_url, "created_at": iso(v.created_at), "access": v.access,
+        "price_minor": v.price_inr_minor, "members_rank": v.members_rank, "preview_seconds": v.preview_seconds,
+        "dubbing_allowed": v.dubbing_allowed,
     }

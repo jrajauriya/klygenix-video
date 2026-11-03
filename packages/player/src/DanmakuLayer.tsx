@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import type { DanmakuItem } from "./types"
 import { cx, hashUnit, isBlocked } from "./format"
 
@@ -30,6 +30,15 @@ interface LaneState {
 }
 
 const GAP = 24
+const MAX_PINNED = 3
+
+function isBoosted(item: DanmakuItem): boolean {
+  return Boolean(item.boost_tier && item.pin_ms)
+}
+
+function glow(color: string, alpha: string): string {
+  return /^#[0-9a-f]{6}$/i.test(color) ? `${color}${alpha}` : color
+}
 
 function useReducedMotion(): boolean {
   const [reduced, setReduced] = useState(() => typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches)
@@ -149,6 +158,7 @@ export function DanmakuLayer({
     const next: Flying[] = []
     for (const item of due) {
       const key = `${item.id}`
+      if (isBoosted(item)) continue
       if (launched.current.has(key)) continue
       if (!item.mine && density < 1 && hashUnit(item.id) >= density) continue
       if (isBlocked(item.text, blocked)) continue
@@ -171,6 +181,14 @@ export function DanmakuLayer({
     }
     if (next.length) setFlying((list) => [...list, ...next])
   }, [currentMs, enabled, items, size.w])
+
+  const pinned = useMemo(() => {
+    if (!enabled) return []
+    return items
+      .filter((d) => isBoosted(d) && d.t_ms <= currentMs && currentMs < d.t_ms + Number(d.pin_ms) && !isBlocked(d.text, blocked))
+      .sort((a, b) => Number(b.boost_tier) - Number(a.boost_tier) || b.t_ms - a.t_ms)
+      .slice(0, MAX_PINNED)
+  }, [items, currentMs, enabled, blocked])
 
   const register = useCallback((key: string, anim: Animation) => {
     anims.current.set(key, anim)
@@ -202,6 +220,31 @@ export function DanmakuLayer({
           register={register}
         />
       ))}
+      {pinned.length > 0 && (
+        <div className="absolute inset-x-0 top-2 flex flex-col items-center gap-1.5 px-3">
+          {pinned.map((d) => {
+            const color = d.color || "#FACC15"
+            return (
+              <div
+                key={`pin-${d.id}`}
+                className={cx("flex max-w-full items-center gap-1.5 whitespace-nowrap rounded-full px-3 font-bold", d.mine && "outline outline-1 outline-offset-2 outline-[#E879F9]/90")}
+                style={{
+                  color,
+                  fontSize: Math.round(fontSize * 1.18),
+                  lineHeight: `${Math.round(laneHeight * 1.2)}px`,
+                  background: "rgba(0,0,0,.6)",
+                  border: `1.5px solid ${color}`,
+                  boxShadow: `0 0 14px ${glow(color, "73")}`,
+                  textShadow: `0 0 8px ${glow(color, "99")}, 0 0 2px #000`,
+                }}
+              >
+                <span style={{ fontSize: "0.8em" }}>✦</span>
+                <span className="min-w-0 truncate">{d.text}</span>
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }

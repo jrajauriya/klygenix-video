@@ -11,33 +11,9 @@ import { Sheet } from "../components/Sheet"
 import { Btn, Skel } from "../components/bits"
 import { errText, getJson, loginPath, useMe, useSignedIn } from "../lib/api"
 import { longDate } from "../lib/format"
+import { loadRazorpay } from "../lib/razorpay"
 import { useTitle } from "../lib/title"
 import type { Checkout, Me, Plan } from "../lib/types"
-
-declare global {
-  interface Window {
-    Razorpay?: new (options: Record<string, unknown>) => { open: () => void; on: (event: string, cb: (r: unknown) => void) => void }
-  }
-}
-
-let razorpayScript: Promise<void> | null = null
-
-function loadRazorpay(): Promise<void> {
-  if (window.Razorpay) return Promise.resolve()
-  if (razorpayScript) return razorpayScript
-  razorpayScript = new Promise((resolve, reject) => {
-    const s = document.createElement("script")
-    s.src = "https://checkout.razorpay.com/v1/checkout.js"
-    s.async = true
-    s.onload = () => resolve()
-    s.onerror = () => {
-      razorpayScript = null
-      reject(new Error("Razorpay could not load"))
-    }
-    document.head.appendChild(s)
-  })
-  return razorpayScript
-}
 
 const LIMIT_LABELS: Record<string, (v: number | boolean) => string | null> = {
   ask_per_day: (v) => `${v} Ask questions a day`,

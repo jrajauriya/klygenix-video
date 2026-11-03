@@ -778,13 +778,16 @@ CREATE TABLE kv_ai.ask_messages (
     id bigint NOT NULL,
     tenant_id integer NOT NULL,
     user_id integer NOT NULL,
-    video_id bigint NOT NULL,
+    video_id bigint,
     question text NOT NULL,
     answer text NOT NULL,
     citations jsonb NOT NULL,
     status character varying(10) NOT NULL,
     model character varying(60) NOT NULL,
     created_at timestamp with time zone NOT NULL,
+    scope character varying(8) DEFAULT 'video'::character varying NOT NULL,
+    scope_id bigint,
+    CONSTRAINT ck_ask_messages_scope CHECK (((scope)::text = ANY ((ARRAY['video'::character varying, 'channel'::character varying, 'series'::character varying])::text[]))),
     CONSTRAINT ck_ask_messages_status CHECK (((status)::text = ANY ((ARRAY['answered'::character varying, 'declined'::character varying, 'failed'::character varying])::text[])))
 );
 
@@ -964,6 +967,75 @@ ALTER SEQUENCE kv_ai.segments_id_seq OWNED BY kv_ai.segments.id;
 
 
 --
+-- Name: study_sets; Type: TABLE; Schema: kv_ai; Owner: -
+--
+
+CREATE TABLE kv_ai.study_sets (
+    id bigint NOT NULL,
+    tenant_id integer NOT NULL,
+    video_id bigint NOT NULL,
+    language character varying(8) NOT NULL,
+    kind character varying(10) NOT NULL,
+    items jsonb NOT NULL,
+    model character varying(60) NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    CONSTRAINT ck_study_sets_kind CHECK (((kind)::text = ANY ((ARRAY['notes'::character varying, 'quiz'::character varying, 'flashcards'::character varying])::text[])))
+);
+
+
+--
+-- Name: study_sets_id_seq; Type: SEQUENCE; Schema: kv_ai; Owner: -
+--
+
+CREATE SEQUENCE kv_ai.study_sets_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: study_sets_id_seq; Type: SEQUENCE OWNED BY; Schema: kv_ai; Owner: -
+--
+
+ALTER SEQUENCE kv_ai.study_sets_id_seq OWNED BY kv_ai.study_sets.id;
+
+
+--
+-- Name: text_translations; Type: TABLE; Schema: kv_ai; Owner: -
+--
+
+CREATE TABLE kv_ai.text_translations (
+    id bigint NOT NULL,
+    digest character varying(64) NOT NULL,
+    language character varying(8) NOT NULL,
+    text text NOT NULL,
+    model character varying(60) NOT NULL,
+    created_at timestamp with time zone NOT NULL
+);
+
+
+--
+-- Name: text_translations_id_seq; Type: SEQUENCE; Schema: kv_ai; Owner: -
+--
+
+CREATE SEQUENCE kv_ai.text_translations_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: text_translations_id_seq; Type: SEQUENCE OWNED BY; Schema: kv_ai; Owner: -
+--
+
+ALTER SEQUENCE kv_ai.text_translations_id_seq OWNED BY kv_ai.text_translations.id;
+
+
+--
 -- Name: transcripts; Type: TABLE; Schema: kv_ai; Owner: -
 --
 
@@ -1002,6 +1074,18 @@ ALTER SEQUENCE kv_ai.transcripts_id_seq OWNED BY kv_ai.transcripts.id;
 
 
 --
+-- Name: video_vectors; Type: TABLE; Schema: kv_ai; Owner: -
+--
+
+CREATE TABLE kv_ai.video_vectors (
+    video_id bigint NOT NULL,
+    embedding public.vector(1536) NOT NULL,
+    model character varying(60) NOT NULL,
+    updated_at timestamp with time zone NOT NULL
+);
+
+
+--
 -- Name: checkouts; Type: TABLE; Schema: kv_commerce; Owner: -
 --
 
@@ -1024,7 +1108,7 @@ CREATE TABLE kv_commerce.checkouts (
     status character varying(8) NOT NULL,
     created_at timestamp with time zone NOT NULL,
     paid_at timestamp with time zone,
-    CONSTRAINT ck_checkouts_purpose CHECK (((purpose)::text = ANY ((ARRAY['plan'::character varying, 'tip'::character varying, 'membership'::character varying])::text[]))),
+    CONSTRAINT ck_checkouts_purpose CHECK (((purpose)::text = ANY ((ARRAY['plan'::character varying, 'tip'::character varying, 'boost'::character varying, 'membership'::character varying, 'video'::character varying, 'series'::character varying])::text[]))),
     CONSTRAINT ck_checkouts_status CHECK (((status)::text = ANY ((ARRAY['created'::character varying, 'paid'::character varying, 'failed'::character varying, 'expired'::character varying])::text[])))
 );
 
@@ -1046,6 +1130,64 @@ CREATE SEQUENCE kv_commerce.checkouts_id_seq
 --
 
 ALTER SEQUENCE kv_commerce.checkouts_id_seq OWNED BY kv_commerce.checkouts.id;
+
+
+--
+-- Name: creator_splits; Type: TABLE; Schema: kv_commerce; Owner: -
+--
+
+CREATE TABLE kv_commerce.creator_splits (
+    id bigint NOT NULL,
+    tenant_id integer NOT NULL,
+    source_key character varying(40) NOT NULL,
+    purpose character varying(12) NOT NULL,
+    checkout_id bigint,
+    payment_id bigint,
+    reference character varying(40) NOT NULL,
+    paid_at timestamp with time zone NOT NULL,
+    currency character varying(3) NOT NULL,
+    gross_minor bigint DEFAULT '0'::bigint NOT NULL,
+    taxable_minor bigint DEFAULT '0'::bigint NOT NULL,
+    seller_tax_minor bigint DEFAULT '0'::bigint NOT NULL,
+    seller_gstin character varying(15),
+    seller_pan character varying(10),
+    place_of_supply character varying(2),
+    commission_bps integer NOT NULL,
+    commission_minor bigint DEFAULT '0'::bigint NOT NULL,
+    commission_cgst_minor bigint DEFAULT '0'::bigint NOT NULL,
+    commission_sgst_minor bigint DEFAULT '0'::bigint NOT NULL,
+    commission_igst_minor bigint DEFAULT '0'::bigint NOT NULL,
+    tcs_rate_bps integer NOT NULL,
+    tcs_cgst_minor bigint DEFAULT '0'::bigint NOT NULL,
+    tcs_sgst_minor bigint DEFAULT '0'::bigint NOT NULL,
+    tcs_igst_minor bigint DEFAULT '0'::bigint NOT NULL,
+    tds_rate_bps integer NOT NULL,
+    tds_minor bigint DEFAULT '0'::bigint NOT NULL,
+    reserve_minor bigint DEFAULT '0'::bigint NOT NULL,
+    creator_net_minor bigint DEFAULT '0'::bigint NOT NULL,
+    refunded_minor bigint DEFAULT '0'::bigint NOT NULL,
+    commission_invoice_id bigint,
+    created_at timestamp with time zone NOT NULL
+);
+
+
+--
+-- Name: creator_splits_id_seq; Type: SEQUENCE; Schema: kv_commerce; Owner: -
+--
+
+CREATE SEQUENCE kv_commerce.creator_splits_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: creator_splits_id_seq; Type: SEQUENCE OWNED BY; Schema: kv_commerce; Owner: -
+--
+
+ALTER SEQUENCE kv_commerce.creator_splits_id_seq OWNED BY kv_commerce.creator_splits.id;
 
 
 --
@@ -1090,6 +1232,46 @@ ALTER SEQUENCE kv_commerce.entitlements_id_seq OWNED BY kv_commerce.entitlements
 
 
 --
+-- Name: membership_tiers; Type: TABLE; Schema: kv_commerce; Owner: -
+--
+
+CREATE TABLE kv_commerce.membership_tiers (
+    id bigint NOT NULL,
+    tenant_id integer NOT NULL,
+    channel_id bigint NOT NULL,
+    name character varying(60) NOT NULL,
+    rank integer NOT NULL,
+    price_inr_minor integer NOT NULL,
+    perks text DEFAULT ''::text NOT NULL,
+    badge character varying(16) DEFAULT 'Member'::character varying NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    CONSTRAINT ck_membership_tiers_price CHECK ((price_inr_minor > 0)),
+    CONSTRAINT ck_membership_tiers_rank CHECK (((rank >= 1) AND (rank <= 5)))
+);
+
+
+--
+-- Name: membership_tiers_id_seq; Type: SEQUENCE; Schema: kv_commerce; Owner: -
+--
+
+CREATE SEQUENCE kv_commerce.membership_tiers_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: membership_tiers_id_seq; Type: SEQUENCE OWNED BY; Schema: kv_commerce; Owner: -
+--
+
+ALTER SEQUENCE kv_commerce.membership_tiers_id_seq OWNED BY kv_commerce.membership_tiers.id;
+
+
+--
 -- Name: payments; Type: TABLE; Schema: kv_commerce; Owner: -
 --
 
@@ -1126,6 +1308,58 @@ CREATE SEQUENCE kv_commerce.payments_id_seq
 --
 
 ALTER SEQUENCE kv_commerce.payments_id_seq OWNED BY kv_commerce.payments.id;
+
+
+--
+-- Name: payout_accounts; Type: TABLE; Schema: kv_commerce; Owner: -
+--
+
+CREATE TABLE kv_commerce.payout_accounts (
+    id bigint NOT NULL,
+    tenant_id integer NOT NULL,
+    status character varying(20) NOT NULL,
+    business_type character varying(20) NOT NULL,
+    legal_name character varying(200) NOT NULL,
+    contact_name character varying(120) NOT NULL,
+    email character varying(200) NOT NULL,
+    phone character varying(20) NOT NULL,
+    pan character varying(10),
+    gstin character varying(15),
+    address jsonb DEFAULT '{}'::jsonb NOT NULL,
+    beneficiary_name character varying(120),
+    ifsc character varying(11),
+    account_number text,
+    account_last4 character varying(4),
+    gateway_account_id character varying(40),
+    gateway_stakeholder_id character varying(40),
+    gateway_product_id character varying(40),
+    requirements jsonb DEFAULT '[]'::jsonb NOT NULL,
+    submitted_at timestamp with time zone,
+    activated_at timestamp with time zone,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    CONSTRAINT ck_payout_accounts_business_type CHECK (((business_type)::text = ANY ((ARRAY['individual'::character varying, 'proprietorship'::character varying, 'partnership'::character varying, 'private_limited'::character varying, 'public_limited'::character varying, 'llp'::character varying, 'trust'::character varying, 'society'::character varying, 'ngo'::character varying])::text[]))),
+    CONSTRAINT ck_payout_accounts_status CHECK (((status)::text = ANY ((ARRAY['draft'::character varying, 'submitted'::character varying, 'under_review'::character varying, 'needs_clarification'::character varying, 'activated'::character varying, 'suspended'::character varying, 'rejected'::character varying])::text[])))
+);
+
+
+--
+-- Name: payout_accounts_id_seq; Type: SEQUENCE; Schema: kv_commerce; Owner: -
+--
+
+CREATE SEQUENCE kv_commerce.payout_accounts_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: payout_accounts_id_seq; Type: SEQUENCE OWNED BY; Schema: kv_commerce; Owner: -
+--
+
+ALTER SEQUENCE kv_commerce.payout_accounts_id_seq OWNED BY kv_commerce.payout_accounts.id;
 
 
 --
@@ -1203,6 +1437,92 @@ CREATE SEQUENCE kv_commerce.provider_events_id_seq
 --
 
 ALTER SEQUENCE kv_commerce.provider_events_id_seq OWNED BY kv_commerce.provider_events.id;
+
+
+--
+-- Name: refunds; Type: TABLE; Schema: kv_commerce; Owner: -
+--
+
+CREATE TABLE kv_commerce.refunds (
+    id bigint NOT NULL,
+    tenant_id integer NOT NULL,
+    payment_id bigint NOT NULL,
+    checkout_id bigint NOT NULL,
+    amount_minor bigint DEFAULT '0'::bigint NOT NULL,
+    reason character varying(200) NOT NULL,
+    status character varying(10) NOT NULL,
+    gateway_refund_id character varying(80),
+    credit_note_id bigint,
+    actor_user_id integer,
+    idempotency_key character varying(80) NOT NULL,
+    error text,
+    created_at timestamp with time zone NOT NULL,
+    CONSTRAINT ck_refunds_status CHECK (((status)::text = ANY ((ARRAY['requested'::character varying, 'processed'::character varying, 'failed'::character varying])::text[])))
+);
+
+
+--
+-- Name: refunds_id_seq; Type: SEQUENCE; Schema: kv_commerce; Owner: -
+--
+
+CREATE SEQUENCE kv_commerce.refunds_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: refunds_id_seq; Type: SEQUENCE OWNED BY; Schema: kv_commerce; Owner: -
+--
+
+ALTER SEQUENCE kv_commerce.refunds_id_seq OWNED BY kv_commerce.refunds.id;
+
+
+--
+-- Name: route_transfers; Type: TABLE; Schema: kv_commerce; Owner: -
+--
+
+CREATE TABLE kv_commerce.route_transfers (
+    id bigint NOT NULL,
+    tenant_id integer NOT NULL,
+    payout_account_id bigint,
+    split_id bigint,
+    kind character varying(8) NOT NULL,
+    amount_minor bigint DEFAULT '0'::bigint NOT NULL,
+    reversed_minor bigint DEFAULT '0'::bigint NOT NULL,
+    status character varying(10) NOT NULL,
+    hold_until timestamp with time zone,
+    gateway_transfer_id character varying(40),
+    released_at timestamp with time zone,
+    recovered_by_id bigint,
+    note character varying(200),
+    error text,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    CONSTRAINT ck_route_transfers_kind CHECK (((kind)::text = ANY ((ARRAY['sale'::character varying, 'reserve'::character varying, 'recovery'::character varying])::text[]))),
+    CONSTRAINT ck_route_transfers_status CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'held'::character varying, 'released'::character varying, 'reversed'::character varying, 'recovered'::character varying, 'failed'::character varying])::text[])))
+);
+
+
+--
+-- Name: route_transfers_id_seq; Type: SEQUENCE; Schema: kv_commerce; Owner: -
+--
+
+CREATE SEQUENCE kv_commerce.route_transfers_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: route_transfers_id_seq; Type: SEQUENCE OWNED BY; Schema: kv_commerce; Owner: -
+--
+
+ALTER SEQUENCE kv_commerce.route_transfers_id_seq OWNED BY kv_commerce.route_transfers.id;
 
 
 --
@@ -1464,6 +1784,80 @@ ALTER SEQUENCE kv_media.caption_tracks_id_seq OWNED BY kv_media.caption_tracks.i
 
 
 --
+-- Name: dub_tracks; Type: TABLE; Schema: kv_media; Owner: -
+--
+
+CREATE TABLE kv_media.dub_tracks (
+    id bigint NOT NULL,
+    tenant_id integer NOT NULL,
+    video_id bigint NOT NULL,
+    language character varying(8) NOT NULL,
+    status character varying(8) NOT NULL,
+    voice character varying(60) DEFAULT ''::character varying NOT NULL,
+    model character varying(60) DEFAULT ''::character varying NOT NULL,
+    error text,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    CONSTRAINT ck_dub_tracks_status CHECK (((status)::text = ANY ((ARRAY['queued'::character varying, 'ready'::character varying, 'failed'::character varying])::text[])))
+);
+
+
+--
+-- Name: dub_tracks_id_seq; Type: SEQUENCE; Schema: kv_media; Owner: -
+--
+
+CREATE SEQUENCE kv_media.dub_tracks_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: dub_tracks_id_seq; Type: SEQUENCE OWNED BY; Schema: kv_media; Owner: -
+--
+
+ALTER SEQUENCE kv_media.dub_tracks_id_seq OWNED BY kv_media.dub_tracks.id;
+
+
+--
+-- Name: product_links; Type: TABLE; Schema: kv_media; Owner: -
+--
+
+CREATE TABLE kv_media.product_links (
+    id bigint NOT NULL,
+    tenant_id integer NOT NULL,
+    video_id bigint NOT NULL,
+    title character varying(120) NOT NULL,
+    url character varying(500) NOT NULL,
+    price_text character varying(40) DEFAULT ''::character varying NOT NULL,
+    "position" smallint NOT NULL,
+    clicks bigint DEFAULT '0'::bigint NOT NULL,
+    created_at timestamp with time zone NOT NULL
+);
+
+
+--
+-- Name: product_links_id_seq; Type: SEQUENCE; Schema: kv_media; Owner: -
+--
+
+CREATE SEQUENCE kv_media.product_links_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: product_links_id_seq; Type: SEQUENCE OWNED BY; Schema: kv_media; Owner: -
+--
+
+ALTER SEQUENCE kv_media.product_links_id_seq OWNED BY kv_media.product_links.id;
+
+
+--
 -- Name: videos; Type: TABLE; Schema: kv_media; Owner: -
 --
 
@@ -1511,7 +1905,14 @@ CREATE TABLE kv_media.videos (
     updated_at timestamp with time zone NOT NULL,
     is_deleted boolean DEFAULT false NOT NULL,
     thumbnail_ideas jsonb DEFAULT '[]'::jsonb NOT NULL,
+    access character varying(8) DEFAULT 'free'::character varying NOT NULL,
+    price_inr_minor integer,
+    members_rank smallint,
+    preview_seconds integer DEFAULT 60 NOT NULL,
+    dubbing_allowed boolean DEFAULT false NOT NULL,
+    CONSTRAINT ck_videos_access CHECK (((access)::text = ANY ((ARRAY['free'::character varying, 'members'::character varying, 'paid'::character varying])::text[]))),
     CONSTRAINT ck_videos_kind CHECK (((kind)::text = ANY ((ARRAY['long'::character varying, 'reel'::character varying])::text[]))),
+    CONSTRAINT ck_videos_paid_price CHECK ((((access)::text <> 'paid'::text) OR (price_inr_minor > 0))),
     CONSTRAINT ck_videos_source CHECK (((source)::text = ANY ((ARRAY['upload'::character varying, 'clip'::character varying, 'embed'::character varying])::text[]))),
     CONSTRAINT ck_videos_status CHECK (((status)::text = ANY ((ARRAY['uploading'::character varying, 'processing'::character varying, 'scanning'::character varying, 'in_review'::character varying, 'published'::character varying, 'blocked'::character varying, 'failed'::character varying])::text[]))),
     CONSTRAINT ck_videos_visibility CHECK (((visibility)::text = ANY ((ARRAY['public'::character varying, 'unlisted'::character varying, 'private'::character varying, 'scheduled'::character varying])::text[])))
@@ -1535,6 +1936,39 @@ CREATE SEQUENCE kv_media.videos_id_seq
 --
 
 ALTER SEQUENCE kv_media.videos_id_seq OWNED BY kv_media.videos.id;
+
+
+--
+-- Name: channel_moderators; Type: TABLE; Schema: kv_social; Owner: -
+--
+
+CREATE TABLE kv_social.channel_moderators (
+    id bigint NOT NULL,
+    tenant_id integer NOT NULL,
+    channel_id bigint NOT NULL,
+    user_id integer NOT NULL,
+    added_by integer,
+    created_at timestamp with time zone NOT NULL
+);
+
+
+--
+-- Name: channel_moderators_id_seq; Type: SEQUENCE; Schema: kv_social; Owner: -
+--
+
+CREATE SEQUENCE kv_social.channel_moderators_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: channel_moderators_id_seq; Type: SEQUENCE OWNED BY; Schema: kv_social; Owner: -
+--
+
+ALTER SEQUENCE kv_social.channel_moderators_id_seq OWNED BY kv_social.channel_moderators.id;
 
 
 --
@@ -1595,6 +2029,8 @@ CREATE TABLE kv_social.comments (
     status character varying(8) NOT NULL,
     report_count smallint DEFAULT '0'::smallint NOT NULL,
     created_at timestamp with time zone NOT NULL,
+    paid_minor integer DEFAULT 0 NOT NULL,
+    checkout_id bigint,
     CONSTRAINT ck_comments_status CHECK (((status)::text = ANY ((ARRAY['visible'::character varying, 'hidden'::character varying, 'deleted'::character varying])::text[])))
 );
 
@@ -1675,6 +2111,10 @@ CREATE TABLE kv_social.danmaku (
     status character varying(8) NOT NULL,
     report_count smallint DEFAULT '0'::smallint NOT NULL,
     created_at timestamp with time zone NOT NULL,
+    paid_minor integer DEFAULT 0 NOT NULL,
+    boost_tier smallint,
+    pin_ms integer DEFAULT 0 NOT NULL,
+    checkout_id bigint,
     CONSTRAINT ck_danmaku_len CHECK ((char_length((text)::text) <= 60)),
     CONSTRAINT ck_danmaku_mode CHECK (((mode)::text = ANY ((ARRAY['scroll'::character varying, 'top'::character varying, 'bottom'::character varying])::text[]))),
     CONSTRAINT ck_danmaku_status CHECK (((status)::text = ANY ((ARRAY['visible'::character varying, 'hidden'::character varying, 'deleted'::character varying])::text[])))
@@ -1800,6 +2240,40 @@ ALTER SEQUENCE kv_social.likes_id_seq OWNED BY kv_social.likes.id;
 
 
 --
+-- Name: notes; Type: TABLE; Schema: kv_social; Owner: -
+--
+
+CREATE TABLE kv_social.notes (
+    id bigint NOT NULL,
+    tenant_id integer NOT NULL,
+    user_id integer NOT NULL,
+    video_id bigint NOT NULL,
+    t_ms bigint NOT NULL,
+    body text NOT NULL,
+    created_at timestamp with time zone NOT NULL
+);
+
+
+--
+-- Name: notes_id_seq; Type: SEQUENCE; Schema: kv_social; Owner: -
+--
+
+CREATE SEQUENCE kv_social.notes_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: notes_id_seq; Type: SEQUENCE OWNED BY; Schema: kv_social; Owner: -
+--
+
+ALTER SEQUENCE kv_social.notes_id_seq OWNED BY kv_social.notes.id;
+
+
+--
 -- Name: playlist_items; Type: TABLE; Schema: kv_social; Owner: -
 --
 
@@ -1844,6 +2318,7 @@ CREATE TABLE kv_social.playlists (
     kind character varying(10) NOT NULL,
     visibility character varying(10) NOT NULL,
     created_at timestamp with time zone NOT NULL,
+    price_inr_minor integer,
     CONSTRAINT ck_playlists_kind CHECK (((kind)::text = ANY ((ARRAY['playlist'::character varying, 'series'::character varying])::text[])))
 );
 
@@ -1868,6 +2343,110 @@ ALTER SEQUENCE kv_social.playlists_id_seq OWNED BY kv_social.playlists.id;
 
 
 --
+-- Name: poll_options; Type: TABLE; Schema: kv_social; Owner: -
+--
+
+CREATE TABLE kv_social.poll_options (
+    id bigint NOT NULL,
+    tenant_id integer NOT NULL,
+    post_id bigint NOT NULL,
+    "position" smallint NOT NULL,
+    label character varying(80) NOT NULL
+);
+
+
+--
+-- Name: poll_options_id_seq; Type: SEQUENCE; Schema: kv_social; Owner: -
+--
+
+CREATE SEQUENCE kv_social.poll_options_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: poll_options_id_seq; Type: SEQUENCE OWNED BY; Schema: kv_social; Owner: -
+--
+
+ALTER SEQUENCE kv_social.poll_options_id_seq OWNED BY kv_social.poll_options.id;
+
+
+--
+-- Name: poll_votes; Type: TABLE; Schema: kv_social; Owner: -
+--
+
+CREATE TABLE kv_social.poll_votes (
+    id bigint NOT NULL,
+    tenant_id integer NOT NULL,
+    post_id bigint NOT NULL,
+    option_id bigint NOT NULL,
+    user_id integer NOT NULL,
+    created_at timestamp with time zone NOT NULL
+);
+
+
+--
+-- Name: poll_votes_id_seq; Type: SEQUENCE; Schema: kv_social; Owner: -
+--
+
+CREATE SEQUENCE kv_social.poll_votes_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: poll_votes_id_seq; Type: SEQUENCE OWNED BY; Schema: kv_social; Owner: -
+--
+
+ALTER SEQUENCE kv_social.poll_votes_id_seq OWNED BY kv_social.poll_votes.id;
+
+
+--
+-- Name: posts; Type: TABLE; Schema: kv_social; Owner: -
+--
+
+CREATE TABLE kv_social.posts (
+    id bigint NOT NULL,
+    tenant_id integer NOT NULL,
+    channel_id bigint NOT NULL,
+    author_user_id integer NOT NULL,
+    kind character varying(6) NOT NULL,
+    body text DEFAULT ''::text NOT NULL,
+    image_key character varying(300),
+    members_rank smallint,
+    status character varying(8) NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    CONSTRAINT ck_posts_kind CHECK (((kind)::text = ANY ((ARRAY['text'::character varying, 'image'::character varying, 'poll'::character varying])::text[]))),
+    CONSTRAINT ck_posts_status CHECK (((status)::text = ANY ((ARRAY['visible'::character varying, 'hidden'::character varying, 'deleted'::character varying])::text[])))
+);
+
+
+--
+-- Name: posts_id_seq; Type: SEQUENCE; Schema: kv_social; Owner: -
+--
+
+CREATE SEQUENCE kv_social.posts_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: posts_id_seq; Type: SEQUENCE OWNED BY; Schema: kv_social; Owner: -
+--
+
+ALTER SEQUENCE kv_social.posts_id_seq OWNED BY kv_social.posts.id;
+
+
+--
 -- Name: profiles; Type: TABLE; Schema: kv_social; Owner: -
 --
 
@@ -1885,6 +2464,42 @@ CREATE TABLE kv_social.profiles (
 
 
 --
+-- Name: quiz_attempts; Type: TABLE; Schema: kv_social; Owner: -
+--
+
+CREATE TABLE kv_social.quiz_attempts (
+    id bigint NOT NULL,
+    tenant_id integer NOT NULL,
+    user_id integer NOT NULL,
+    video_id bigint NOT NULL,
+    study_set_id bigint NOT NULL,
+    score integer NOT NULL,
+    total integer NOT NULL,
+    answers jsonb NOT NULL,
+    created_at timestamp with time zone NOT NULL
+);
+
+
+--
+-- Name: quiz_attempts_id_seq; Type: SEQUENCE; Schema: kv_social; Owner: -
+--
+
+CREATE SEQUENCE kv_social.quiz_attempts_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: quiz_attempts_id_seq; Type: SEQUENCE OWNED BY; Schema: kv_social; Owner: -
+--
+
+ALTER SEQUENCE kv_social.quiz_attempts_id_seq OWNED BY kv_social.quiz_attempts.id;
+
+
+--
 -- Name: view_daily; Type: TABLE; Schema: kv_social; Owner: -
 --
 
@@ -1897,7 +2512,8 @@ CREATE TABLE kv_social.view_daily (
     watch_ms bigint NOT NULL,
     completions bigint NOT NULL,
     likes bigint NOT NULL,
-    retention jsonb DEFAULT '[]'::jsonb NOT NULL
+    retention jsonb DEFAULT '[]'::jsonb NOT NULL,
+    sources jsonb DEFAULT '{}'::jsonb NOT NULL
 );
 
 
@@ -1977,6 +2593,7 @@ CREATE TABLE kv_studio.clips (
     created_by integer,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
+    music jsonb DEFAULT '{}'::jsonb NOT NULL,
     CONSTRAINT ck_clips_aspect CHECK (((aspect)::text = ANY ((ARRAY['9:16'::character varying, '1:1'::character varying, '16:9'::character varying])::text[]))),
     CONSTRAINT ck_clips_caption_style CHECK (((caption_style)::text = ANY ((ARRAY['none'::character varying, 'clean'::character varying, 'bold'::character varying, 'karaoke'::character varying])::text[]))),
     CONSTRAINT ck_clips_range CHECK ((end_ms > start_ms)),
@@ -2001,6 +2618,84 @@ CREATE SEQUENCE kv_studio.clips_id_seq
 --
 
 ALTER SEQUENCE kv_studio.clips_id_seq OWNED BY kv_studio.clips.id;
+
+
+--
+-- Name: music_tracks; Type: TABLE; Schema: kv_studio; Owner: -
+--
+
+CREATE TABLE kv_studio.music_tracks (
+    id integer NOT NULL,
+    title character varying(120) NOT NULL,
+    artist character varying(120) NOT NULL,
+    mood character varying(30) DEFAULT ''::character varying NOT NULL,
+    duration_ms integer NOT NULL,
+    licence character varying(120) NOT NULL,
+    licence_url character varying(300) DEFAULT ''::character varying NOT NULL,
+    storage_key character varying(300) NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone NOT NULL
+);
+
+
+--
+-- Name: music_tracks_id_seq; Type: SEQUENCE; Schema: kv_studio; Owner: -
+--
+
+CREATE SEQUENCE kv_studio.music_tracks_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: music_tracks_id_seq; Type: SEQUENCE OWNED BY; Schema: kv_studio; Owner: -
+--
+
+ALTER SEQUENCE kv_studio.music_tracks_id_seq OWNED BY kv_studio.music_tracks.id;
+
+
+--
+-- Name: publish_targets; Type: TABLE; Schema: kv_studio; Owner: -
+--
+
+CREATE TABLE kv_studio.publish_targets (
+    id bigint NOT NULL,
+    tenant_id integer NOT NULL,
+    clip_id bigint NOT NULL,
+    platform character varying(10) NOT NULL,
+    status character varying(10) NOT NULL,
+    caption text DEFAULT ''::text NOT NULL,
+    external_id character varying(80),
+    external_url character varying(300),
+    error text,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    CONSTRAINT ck_publish_targets_platform CHECK (((platform)::text = ANY ((ARRAY['youtube'::character varying, 'instagram'::character varying])::text[]))),
+    CONSTRAINT ck_publish_targets_status CHECK (((status)::text = ANY ((ARRAY['queued'::character varying, 'publishing'::character varying, 'published'::character varying, 'failed'::character varying])::text[])))
+);
+
+
+--
+-- Name: publish_targets_id_seq; Type: SEQUENCE; Schema: kv_studio; Owner: -
+--
+
+CREATE SEQUENCE kv_studio.publish_targets_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: publish_targets_id_seq; Type: SEQUENCE OWNED BY; Schema: kv_studio; Owner: -
+--
+
+ALTER SEQUENCE kv_studio.publish_targets_id_seq OWNED BY kv_studio.publish_targets.id;
 
 
 --
@@ -2565,6 +3260,20 @@ ALTER TABLE ONLY kv_ai.segments ALTER COLUMN id SET DEFAULT nextval('kv_ai.segme
 
 
 --
+-- Name: study_sets id; Type: DEFAULT; Schema: kv_ai; Owner: -
+--
+
+ALTER TABLE ONLY kv_ai.study_sets ALTER COLUMN id SET DEFAULT nextval('kv_ai.study_sets_id_seq'::regclass);
+
+
+--
+-- Name: text_translations id; Type: DEFAULT; Schema: kv_ai; Owner: -
+--
+
+ALTER TABLE ONLY kv_ai.text_translations ALTER COLUMN id SET DEFAULT nextval('kv_ai.text_translations_id_seq'::regclass);
+
+
+--
 -- Name: transcripts id; Type: DEFAULT; Schema: kv_ai; Owner: -
 --
 
@@ -2579,6 +3288,13 @@ ALTER TABLE ONLY kv_commerce.checkouts ALTER COLUMN id SET DEFAULT nextval('kv_c
 
 
 --
+-- Name: creator_splits id; Type: DEFAULT; Schema: kv_commerce; Owner: -
+--
+
+ALTER TABLE ONLY kv_commerce.creator_splits ALTER COLUMN id SET DEFAULT nextval('kv_commerce.creator_splits_id_seq'::regclass);
+
+
+--
 -- Name: entitlements id; Type: DEFAULT; Schema: kv_commerce; Owner: -
 --
 
@@ -2586,10 +3302,24 @@ ALTER TABLE ONLY kv_commerce.entitlements ALTER COLUMN id SET DEFAULT nextval('k
 
 
 --
+-- Name: membership_tiers id; Type: DEFAULT; Schema: kv_commerce; Owner: -
+--
+
+ALTER TABLE ONLY kv_commerce.membership_tiers ALTER COLUMN id SET DEFAULT nextval('kv_commerce.membership_tiers_id_seq'::regclass);
+
+
+--
 -- Name: payments id; Type: DEFAULT; Schema: kv_commerce; Owner: -
 --
 
 ALTER TABLE ONLY kv_commerce.payments ALTER COLUMN id SET DEFAULT nextval('kv_commerce.payments_id_seq'::regclass);
+
+
+--
+-- Name: payout_accounts id; Type: DEFAULT; Schema: kv_commerce; Owner: -
+--
+
+ALTER TABLE ONLY kv_commerce.payout_accounts ALTER COLUMN id SET DEFAULT nextval('kv_commerce.payout_accounts_id_seq'::regclass);
 
 
 --
@@ -2604,6 +3334,20 @@ ALTER TABLE ONLY kv_commerce.plans ALTER COLUMN id SET DEFAULT nextval('kv_comme
 --
 
 ALTER TABLE ONLY kv_commerce.provider_events ALTER COLUMN id SET DEFAULT nextval('kv_commerce.provider_events_id_seq'::regclass);
+
+
+--
+-- Name: refunds id; Type: DEFAULT; Schema: kv_commerce; Owner: -
+--
+
+ALTER TABLE ONLY kv_commerce.refunds ALTER COLUMN id SET DEFAULT nextval('kv_commerce.refunds_id_seq'::regclass);
+
+
+--
+-- Name: route_transfers id; Type: DEFAULT; Schema: kv_commerce; Owner: -
+--
+
+ALTER TABLE ONLY kv_commerce.route_transfers ALTER COLUMN id SET DEFAULT nextval('kv_commerce.route_transfers_id_seq'::regclass);
 
 
 --
@@ -2656,10 +3400,31 @@ ALTER TABLE ONLY kv_media.caption_tracks ALTER COLUMN id SET DEFAULT nextval('kv
 
 
 --
+-- Name: dub_tracks id; Type: DEFAULT; Schema: kv_media; Owner: -
+--
+
+ALTER TABLE ONLY kv_media.dub_tracks ALTER COLUMN id SET DEFAULT nextval('kv_media.dub_tracks_id_seq'::regclass);
+
+
+--
+-- Name: product_links id; Type: DEFAULT; Schema: kv_media; Owner: -
+--
+
+ALTER TABLE ONLY kv_media.product_links ALTER COLUMN id SET DEFAULT nextval('kv_media.product_links_id_seq'::regclass);
+
+
+--
 -- Name: videos id; Type: DEFAULT; Schema: kv_media; Owner: -
 --
 
 ALTER TABLE ONLY kv_media.videos ALTER COLUMN id SET DEFAULT nextval('kv_media.videos_id_seq'::regclass);
+
+
+--
+-- Name: channel_moderators id; Type: DEFAULT; Schema: kv_social; Owner: -
+--
+
+ALTER TABLE ONLY kv_social.channel_moderators ALTER COLUMN id SET DEFAULT nextval('kv_social.channel_moderators_id_seq'::regclass);
 
 
 --
@@ -2712,6 +3477,13 @@ ALTER TABLE ONLY kv_social.likes ALTER COLUMN id SET DEFAULT nextval('kv_social.
 
 
 --
+-- Name: notes id; Type: DEFAULT; Schema: kv_social; Owner: -
+--
+
+ALTER TABLE ONLY kv_social.notes ALTER COLUMN id SET DEFAULT nextval('kv_social.notes_id_seq'::regclass);
+
+
+--
 -- Name: playlist_items id; Type: DEFAULT; Schema: kv_social; Owner: -
 --
 
@@ -2723,6 +3495,34 @@ ALTER TABLE ONLY kv_social.playlist_items ALTER COLUMN id SET DEFAULT nextval('k
 --
 
 ALTER TABLE ONLY kv_social.playlists ALTER COLUMN id SET DEFAULT nextval('kv_social.playlists_id_seq'::regclass);
+
+
+--
+-- Name: poll_options id; Type: DEFAULT; Schema: kv_social; Owner: -
+--
+
+ALTER TABLE ONLY kv_social.poll_options ALTER COLUMN id SET DEFAULT nextval('kv_social.poll_options_id_seq'::regclass);
+
+
+--
+-- Name: poll_votes id; Type: DEFAULT; Schema: kv_social; Owner: -
+--
+
+ALTER TABLE ONLY kv_social.poll_votes ALTER COLUMN id SET DEFAULT nextval('kv_social.poll_votes_id_seq'::regclass);
+
+
+--
+-- Name: posts id; Type: DEFAULT; Schema: kv_social; Owner: -
+--
+
+ALTER TABLE ONLY kv_social.posts ALTER COLUMN id SET DEFAULT nextval('kv_social.posts_id_seq'::regclass);
+
+
+--
+-- Name: quiz_attempts id; Type: DEFAULT; Schema: kv_social; Owner: -
+--
+
+ALTER TABLE ONLY kv_social.quiz_attempts ALTER COLUMN id SET DEFAULT nextval('kv_social.quiz_attempts_id_seq'::regclass);
 
 
 --
@@ -2744,6 +3544,20 @@ ALTER TABLE ONLY kv_social.watch_progress ALTER COLUMN id SET DEFAULT nextval('k
 --
 
 ALTER TABLE ONLY kv_studio.clips ALTER COLUMN id SET DEFAULT nextval('kv_studio.clips_id_seq'::regclass);
+
+
+--
+-- Name: music_tracks id; Type: DEFAULT; Schema: kv_studio; Owner: -
+--
+
+ALTER TABLE ONLY kv_studio.music_tracks ALTER COLUMN id SET DEFAULT nextval('kv_studio.music_tracks_id_seq'::regclass);
+
+
+--
+-- Name: publish_targets id; Type: DEFAULT; Schema: kv_studio; Owner: -
+--
+
+ALTER TABLE ONLY kv_studio.publish_targets ALTER COLUMN id SET DEFAULT nextval('kv_studio.publish_targets_id_seq'::regclass);
 
 
 --
@@ -3032,11 +3846,51 @@ ALTER TABLE ONLY kv_ai.segments
 
 
 --
+-- Name: study_sets study_sets_pkey; Type: CONSTRAINT; Schema: kv_ai; Owner: -
+--
+
+ALTER TABLE ONLY kv_ai.study_sets
+    ADD CONSTRAINT study_sets_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: text_translations text_translations_pkey; Type: CONSTRAINT; Schema: kv_ai; Owner: -
+--
+
+ALTER TABLE ONLY kv_ai.text_translations
+    ADD CONSTRAINT text_translations_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: transcripts transcripts_pkey; Type: CONSTRAINT; Schema: kv_ai; Owner: -
 --
 
 ALTER TABLE ONLY kv_ai.transcripts
     ADD CONSTRAINT transcripts_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: study_sets uq_study_sets; Type: CONSTRAINT; Schema: kv_ai; Owner: -
+--
+
+ALTER TABLE ONLY kv_ai.study_sets
+    ADD CONSTRAINT uq_study_sets UNIQUE (video_id, language, kind);
+
+
+--
+-- Name: text_translations uq_text_translations; Type: CONSTRAINT; Schema: kv_ai; Owner: -
+--
+
+ALTER TABLE ONLY kv_ai.text_translations
+    ADD CONSTRAINT uq_text_translations UNIQUE (digest, language);
+
+
+--
+-- Name: video_vectors video_vectors_pkey; Type: CONSTRAINT; Schema: kv_ai; Owner: -
+--
+
+ALTER TABLE ONLY kv_ai.video_vectors
+    ADD CONSTRAINT video_vectors_pkey PRIMARY KEY (video_id);
 
 
 --
@@ -3048,6 +3902,14 @@ ALTER TABLE ONLY kv_commerce.checkouts
 
 
 --
+-- Name: creator_splits creator_splits_pkey; Type: CONSTRAINT; Schema: kv_commerce; Owner: -
+--
+
+ALTER TABLE ONLY kv_commerce.creator_splits
+    ADD CONSTRAINT creator_splits_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: entitlements entitlements_pkey; Type: CONSTRAINT; Schema: kv_commerce; Owner: -
 --
 
@@ -3056,11 +3918,27 @@ ALTER TABLE ONLY kv_commerce.entitlements
 
 
 --
+-- Name: membership_tiers membership_tiers_pkey; Type: CONSTRAINT; Schema: kv_commerce; Owner: -
+--
+
+ALTER TABLE ONLY kv_commerce.membership_tiers
+    ADD CONSTRAINT membership_tiers_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: payments payments_pkey; Type: CONSTRAINT; Schema: kv_commerce; Owner: -
 --
 
 ALTER TABLE ONLY kv_commerce.payments
     ADD CONSTRAINT payments_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: payout_accounts payout_accounts_pkey; Type: CONSTRAINT; Schema: kv_commerce; Owner: -
+--
+
+ALTER TABLE ONLY kv_commerce.payout_accounts
+    ADD CONSTRAINT payout_accounts_pkey PRIMARY KEY (id);
 
 
 --
@@ -3088,6 +3966,22 @@ ALTER TABLE ONLY kv_commerce.provider_events
 
 
 --
+-- Name: refunds refunds_pkey; Type: CONSTRAINT; Schema: kv_commerce; Owner: -
+--
+
+ALTER TABLE ONLY kv_commerce.refunds
+    ADD CONSTRAINT refunds_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: route_transfers route_transfers_pkey; Type: CONSTRAINT; Schema: kv_commerce; Owner: -
+--
+
+ALTER TABLE ONLY kv_commerce.route_transfers
+    ADD CONSTRAINT route_transfers_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: subscriptions subscriptions_pkey; Type: CONSTRAINT; Schema: kv_commerce; Owner: -
 --
 
@@ -3112,6 +4006,22 @@ ALTER TABLE ONLY kv_commerce.checkouts
 
 
 --
+-- Name: creator_splits uq_creator_splits_source; Type: CONSTRAINT; Schema: kv_commerce; Owner: -
+--
+
+ALTER TABLE ONLY kv_commerce.creator_splits
+    ADD CONSTRAINT uq_creator_splits_source UNIQUE (source_key);
+
+
+--
+-- Name: membership_tiers uq_membership_tiers_rank; Type: CONSTRAINT; Schema: kv_commerce; Owner: -
+--
+
+ALTER TABLE ONLY kv_commerce.membership_tiers
+    ADD CONSTRAINT uq_membership_tiers_rank UNIQUE (channel_id, rank);
+
+
+--
 -- Name: payments uq_payments_checkout; Type: CONSTRAINT; Schema: kv_commerce; Owner: -
 --
 
@@ -3120,11 +4030,27 @@ ALTER TABLE ONLY kv_commerce.payments
 
 
 --
+-- Name: payout_accounts uq_payout_accounts_tenant; Type: CONSTRAINT; Schema: kv_commerce; Owner: -
+--
+
+ALTER TABLE ONLY kv_commerce.payout_accounts
+    ADD CONSTRAINT uq_payout_accounts_tenant UNIQUE (tenant_id);
+
+
+--
 -- Name: provider_events uq_provider_events; Type: CONSTRAINT; Schema: kv_commerce; Owner: -
 --
 
 ALTER TABLE ONLY kv_commerce.provider_events
     ADD CONSTRAINT uq_provider_events UNIQUE (rail, event_id);
+
+
+--
+-- Name: refunds uq_refunds_idem; Type: CONSTRAINT; Schema: kv_commerce; Owner: -
+--
+
+ALTER TABLE ONLY kv_commerce.refunds
+    ADD CONSTRAINT uq_refunds_idem UNIQUE (idempotency_key);
 
 
 --
@@ -3208,11 +4134,35 @@ ALTER TABLE ONLY kv_media.caption_tracks
 
 
 --
+-- Name: dub_tracks dub_tracks_pkey; Type: CONSTRAINT; Schema: kv_media; Owner: -
+--
+
+ALTER TABLE ONLY kv_media.dub_tracks
+    ADD CONSTRAINT dub_tracks_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: product_links product_links_pkey; Type: CONSTRAINT; Schema: kv_media; Owner: -
+--
+
+ALTER TABLE ONLY kv_media.product_links
+    ADD CONSTRAINT product_links_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: caption_tracks uq_caption_tracks; Type: CONSTRAINT; Schema: kv_media; Owner: -
 --
 
 ALTER TABLE ONLY kv_media.caption_tracks
     ADD CONSTRAINT uq_caption_tracks UNIQUE (video_id, language, source);
+
+
+--
+-- Name: dub_tracks uq_dub_tracks; Type: CONSTRAINT; Schema: kv_media; Owner: -
+--
+
+ALTER TABLE ONLY kv_media.dub_tracks
+    ADD CONSTRAINT uq_dub_tracks UNIQUE (video_id, language);
 
 
 --
@@ -3237,6 +4187,14 @@ ALTER TABLE ONLY kv_media.videos
 
 ALTER TABLE ONLY kv_media.videos
     ADD CONSTRAINT videos_public_id_key UNIQUE (public_id);
+
+
+--
+-- Name: channel_moderators channel_moderators_pkey; Type: CONSTRAINT; Schema: kv_social; Owner: -
+--
+
+ALTER TABLE ONLY kv_social.channel_moderators
+    ADD CONSTRAINT channel_moderators_pkey PRIMARY KEY (id);
 
 
 --
@@ -3312,6 +4270,14 @@ ALTER TABLE ONLY kv_social.likes
 
 
 --
+-- Name: notes notes_pkey; Type: CONSTRAINT; Schema: kv_social; Owner: -
+--
+
+ALTER TABLE ONLY kv_social.notes
+    ADD CONSTRAINT notes_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: playlist_items playlist_items_pkey; Type: CONSTRAINT; Schema: kv_social; Owner: -
 --
 
@@ -3328,11 +4294,51 @@ ALTER TABLE ONLY kv_social.playlists
 
 
 --
+-- Name: poll_options poll_options_pkey; Type: CONSTRAINT; Schema: kv_social; Owner: -
+--
+
+ALTER TABLE ONLY kv_social.poll_options
+    ADD CONSTRAINT poll_options_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: poll_votes poll_votes_pkey; Type: CONSTRAINT; Schema: kv_social; Owner: -
+--
+
+ALTER TABLE ONLY kv_social.poll_votes
+    ADD CONSTRAINT poll_votes_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: posts posts_pkey; Type: CONSTRAINT; Schema: kv_social; Owner: -
+--
+
+ALTER TABLE ONLY kv_social.posts
+    ADD CONSTRAINT posts_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: profiles profiles_pkey; Type: CONSTRAINT; Schema: kv_social; Owner: -
 --
 
 ALTER TABLE ONLY kv_social.profiles
     ADD CONSTRAINT profiles_pkey PRIMARY KEY (user_id);
+
+
+--
+-- Name: quiz_attempts quiz_attempts_pkey; Type: CONSTRAINT; Schema: kv_social; Owner: -
+--
+
+ALTER TABLE ONLY kv_social.quiz_attempts
+    ADD CONSTRAINT quiz_attempts_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: channel_moderators uq_channel_moderators; Type: CONSTRAINT; Schema: kv_social; Owner: -
+--
+
+ALTER TABLE ONLY kv_social.channel_moderators
+    ADD CONSTRAINT uq_channel_moderators UNIQUE (channel_id, user_id);
 
 
 --
@@ -3376,6 +4382,14 @@ ALTER TABLE ONLY kv_social.playlist_items
 
 
 --
+-- Name: poll_votes uq_poll_votes; Type: CONSTRAINT; Schema: kv_social; Owner: -
+--
+
+ALTER TABLE ONLY kv_social.poll_votes
+    ADD CONSTRAINT uq_poll_votes UNIQUE (post_id, user_id);
+
+
+--
 -- Name: view_daily uq_view_daily; Type: CONSTRAINT; Schema: kv_social; Owner: -
 --
 
@@ -3413,6 +4427,30 @@ ALTER TABLE ONLY kv_social.watch_progress
 
 ALTER TABLE ONLY kv_studio.clips
     ADD CONSTRAINT clips_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: music_tracks music_tracks_pkey; Type: CONSTRAINT; Schema: kv_studio; Owner: -
+--
+
+ALTER TABLE ONLY kv_studio.music_tracks
+    ADD CONSTRAINT music_tracks_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: publish_targets publish_targets_pkey; Type: CONSTRAINT; Schema: kv_studio; Owner: -
+--
+
+ALTER TABLE ONLY kv_studio.publish_targets
+    ADD CONSTRAINT publish_targets_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: publish_targets uq_publish_targets; Type: CONSTRAINT; Schema: kv_studio; Owner: -
+--
+
+ALTER TABLE ONLY kv_studio.publish_targets
+    ADD CONSTRAINT uq_publish_targets UNIQUE (clip_id, platform);
 
 
 --
@@ -3762,6 +4800,13 @@ CREATE INDEX ix_kv_ai_segments_transcript_id ON kv_ai.segments USING btree (tran
 
 
 --
+-- Name: ix_kv_ai_study_sets_tenant_id; Type: INDEX; Schema: kv_ai; Owner: -
+--
+
+CREATE INDEX ix_kv_ai_study_sets_tenant_id ON kv_ai.study_sets USING btree (tenant_id);
+
+
+--
 -- Name: ix_kv_ai_transcripts_tenant_id; Type: INDEX; Schema: kv_ai; Owner: -
 --
 
@@ -3790,10 +4835,24 @@ CREATE INDEX idx_subscriptions_user ON kv_commerce.subscriptions USING btree (us
 
 
 --
+-- Name: ix_creator_splits_tenant_paid; Type: INDEX; Schema: kv_commerce; Owner: -
+--
+
+CREATE INDEX ix_creator_splits_tenant_paid ON kv_commerce.creator_splits USING btree (tenant_id, paid_at);
+
+
+--
 -- Name: ix_kv_commerce_checkouts_tenant_id; Type: INDEX; Schema: kv_commerce; Owner: -
 --
 
 CREATE INDEX ix_kv_commerce_checkouts_tenant_id ON kv_commerce.checkouts USING btree (tenant_id);
+
+
+--
+-- Name: ix_kv_commerce_creator_splits_tenant_id; Type: INDEX; Schema: kv_commerce; Owner: -
+--
+
+CREATE INDEX ix_kv_commerce_creator_splits_tenant_id ON kv_commerce.creator_splits USING btree (tenant_id);
 
 
 --
@@ -3804,6 +4863,13 @@ CREATE INDEX ix_kv_commerce_entitlements_tenant_id ON kv_commerce.entitlements U
 
 
 --
+-- Name: ix_kv_commerce_membership_tiers_tenant_id; Type: INDEX; Schema: kv_commerce; Owner: -
+--
+
+CREATE INDEX ix_kv_commerce_membership_tiers_tenant_id ON kv_commerce.membership_tiers USING btree (tenant_id);
+
+
+--
 -- Name: ix_kv_commerce_payments_tenant_id; Type: INDEX; Schema: kv_commerce; Owner: -
 --
 
@@ -3811,10 +4877,31 @@ CREATE INDEX ix_kv_commerce_payments_tenant_id ON kv_commerce.payments USING btr
 
 
 --
+-- Name: ix_kv_commerce_payout_accounts_tenant_id; Type: INDEX; Schema: kv_commerce; Owner: -
+--
+
+CREATE INDEX ix_kv_commerce_payout_accounts_tenant_id ON kv_commerce.payout_accounts USING btree (tenant_id);
+
+
+--
 -- Name: ix_kv_commerce_provider_events_tenant_id; Type: INDEX; Schema: kv_commerce; Owner: -
 --
 
 CREATE INDEX ix_kv_commerce_provider_events_tenant_id ON kv_commerce.provider_events USING btree (tenant_id);
+
+
+--
+-- Name: ix_kv_commerce_refunds_tenant_id; Type: INDEX; Schema: kv_commerce; Owner: -
+--
+
+CREATE INDEX ix_kv_commerce_refunds_tenant_id ON kv_commerce.refunds USING btree (tenant_id);
+
+
+--
+-- Name: ix_kv_commerce_route_transfers_tenant_id; Type: INDEX; Schema: kv_commerce; Owner: -
+--
+
+CREATE INDEX ix_kv_commerce_route_transfers_tenant_id ON kv_commerce.route_transfers USING btree (tenant_id);
 
 
 --
@@ -3829,6 +4916,20 @@ CREATE INDEX ix_kv_commerce_subscriptions_tenant_id ON kv_commerce.subscriptions
 --
 
 CREATE INDEX ix_kv_commerce_usage_counters_tenant_id ON kv_commerce.usage_counters USING btree (tenant_id);
+
+
+--
+-- Name: ix_route_transfers_release; Type: INDEX; Schema: kv_commerce; Owner: -
+--
+
+CREATE INDEX ix_route_transfers_release ON kv_commerce.route_transfers USING btree (status, hold_until);
+
+
+--
+-- Name: uq_route_transfers_split_kind; Type: INDEX; Schema: kv_commerce; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_route_transfers_split_kind ON kv_commerce.route_transfers USING btree (split_id, kind) WHERE ((kind)::text = ANY ((ARRAY['sale'::character varying, 'reserve'::character varying])::text[]));
 
 
 --
@@ -3888,6 +4989,13 @@ CREATE UNIQUE INDEX uq_accounts_role ON kv_ledger.accounts USING btree (tenant_i
 
 
 --
+-- Name: idx_product_links_video; Type: INDEX; Schema: kv_media; Owner: -
+--
+
+CREATE INDEX idx_product_links_video ON kv_media.product_links USING btree (video_id, "position");
+
+
+--
 -- Name: idx_videos_channel; Type: INDEX; Schema: kv_media; Owner: -
 --
 
@@ -3923,6 +5031,20 @@ CREATE INDEX ix_kv_media_caption_tracks_video_id ON kv_media.caption_tracks USIN
 
 
 --
+-- Name: ix_kv_media_dub_tracks_tenant_id; Type: INDEX; Schema: kv_media; Owner: -
+--
+
+CREATE INDEX ix_kv_media_dub_tracks_tenant_id ON kv_media.dub_tracks USING btree (tenant_id);
+
+
+--
+-- Name: ix_kv_media_product_links_tenant_id; Type: INDEX; Schema: kv_media; Owner: -
+--
+
+CREATE INDEX ix_kv_media_product_links_tenant_id ON kv_media.product_links USING btree (tenant_id);
+
+
+--
 -- Name: ix_kv_media_videos_tenant_id; Type: INDEX; Schema: kv_media; Owner: -
 --
 
@@ -3941,6 +5063,41 @@ CREATE INDEX idx_comments_video ON kv_social.comments USING btree (video_id, cre
 --
 
 CREATE INDEX idx_danmaku_video_t ON kv_social.danmaku USING btree (video_id, t_ms);
+
+
+--
+-- Name: idx_notes_user_video; Type: INDEX; Schema: kv_social; Owner: -
+--
+
+CREATE INDEX idx_notes_user_video ON kv_social.notes USING btree (user_id, video_id, t_ms);
+
+
+--
+-- Name: idx_posts_channel; Type: INDEX; Schema: kv_social; Owner: -
+--
+
+CREATE INDEX idx_posts_channel ON kv_social.posts USING btree (channel_id, created_at);
+
+
+--
+-- Name: idx_quiz_attempts_user; Type: INDEX; Schema: kv_social; Owner: -
+--
+
+CREATE INDEX idx_quiz_attempts_user ON kv_social.quiz_attempts USING btree (user_id, video_id);
+
+
+--
+-- Name: ix_kv_social_channel_moderators_tenant_id; Type: INDEX; Schema: kv_social; Owner: -
+--
+
+CREATE INDEX ix_kv_social_channel_moderators_tenant_id ON kv_social.channel_moderators USING btree (tenant_id);
+
+
+--
+-- Name: ix_kv_social_channel_moderators_user_id; Type: INDEX; Schema: kv_social; Owner: -
+--
+
+CREATE INDEX ix_kv_social_channel_moderators_user_id ON kv_social.channel_moderators USING btree (user_id);
 
 
 --
@@ -4021,6 +5178,13 @@ CREATE INDEX ix_kv_social_likes_video_id ON kv_social.likes USING btree (video_i
 
 
 --
+-- Name: ix_kv_social_notes_tenant_id; Type: INDEX; Schema: kv_social; Owner: -
+--
+
+CREATE INDEX ix_kv_social_notes_tenant_id ON kv_social.notes USING btree (tenant_id);
+
+
+--
 -- Name: ix_kv_social_playlist_items_tenant_id; Type: INDEX; Schema: kv_social; Owner: -
 --
 
@@ -4035,10 +5199,45 @@ CREATE INDEX ix_kv_social_playlists_tenant_id ON kv_social.playlists USING btree
 
 
 --
+-- Name: ix_kv_social_poll_options_post_id; Type: INDEX; Schema: kv_social; Owner: -
+--
+
+CREATE INDEX ix_kv_social_poll_options_post_id ON kv_social.poll_options USING btree (post_id);
+
+
+--
+-- Name: ix_kv_social_poll_options_tenant_id; Type: INDEX; Schema: kv_social; Owner: -
+--
+
+CREATE INDEX ix_kv_social_poll_options_tenant_id ON kv_social.poll_options USING btree (tenant_id);
+
+
+--
+-- Name: ix_kv_social_poll_votes_tenant_id; Type: INDEX; Schema: kv_social; Owner: -
+--
+
+CREATE INDEX ix_kv_social_poll_votes_tenant_id ON kv_social.poll_votes USING btree (tenant_id);
+
+
+--
+-- Name: ix_kv_social_posts_tenant_id; Type: INDEX; Schema: kv_social; Owner: -
+--
+
+CREATE INDEX ix_kv_social_posts_tenant_id ON kv_social.posts USING btree (tenant_id);
+
+
+--
 -- Name: ix_kv_social_profiles_tenant_id; Type: INDEX; Schema: kv_social; Owner: -
 --
 
 CREATE INDEX ix_kv_social_profiles_tenant_id ON kv_social.profiles USING btree (tenant_id);
+
+
+--
+-- Name: ix_kv_social_quiz_attempts_tenant_id; Type: INDEX; Schema: kv_social; Owner: -
+--
+
+CREATE INDEX ix_kv_social_quiz_attempts_tenant_id ON kv_social.quiz_attempts USING btree (tenant_id);
 
 
 --
@@ -4074,6 +5273,13 @@ CREATE INDEX ix_kv_studio_clips_source_video_id ON kv_studio.clips USING btree (
 --
 
 CREATE INDEX ix_kv_studio_clips_tenant_id ON kv_studio.clips USING btree (tenant_id);
+
+
+--
+-- Name: ix_kv_studio_publish_targets_tenant_id; Type: INDEX; Schema: kv_studio; Owner: -
+--
+
+CREATE INDEX ix_kv_studio_publish_targets_tenant_id ON kv_studio.publish_targets USING btree (tenant_id);
 
 
 --
@@ -4391,6 +5597,22 @@ ALTER TABLE ONLY kv_ai.segments
 
 
 --
+-- Name: study_sets study_sets_tenant_id_fkey; Type: FK CONSTRAINT; Schema: kv_ai; Owner: -
+--
+
+ALTER TABLE ONLY kv_ai.study_sets
+    ADD CONSTRAINT study_sets_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES kv_admin.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: study_sets study_sets_video_id_fkey; Type: FK CONSTRAINT; Schema: kv_ai; Owner: -
+--
+
+ALTER TABLE ONLY kv_ai.study_sets
+    ADD CONSTRAINT study_sets_video_id_fkey FOREIGN KEY (video_id) REFERENCES kv_media.videos(id) ON DELETE CASCADE;
+
+
+--
 -- Name: transcripts transcripts_tenant_id_fkey; Type: FK CONSTRAINT; Schema: kv_ai; Owner: -
 --
 
@@ -4407,6 +5629,14 @@ ALTER TABLE ONLY kv_ai.transcripts
 
 
 --
+-- Name: video_vectors video_vectors_video_id_fkey; Type: FK CONSTRAINT; Schema: kv_ai; Owner: -
+--
+
+ALTER TABLE ONLY kv_ai.video_vectors
+    ADD CONSTRAINT video_vectors_video_id_fkey FOREIGN KEY (video_id) REFERENCES kv_media.videos(id) ON DELETE CASCADE;
+
+
+--
 -- Name: checkouts checkouts_tenant_id_fkey; Type: FK CONSTRAINT; Schema: kv_commerce; Owner: -
 --
 
@@ -4415,11 +5645,35 @@ ALTER TABLE ONLY kv_commerce.checkouts
 
 
 --
+-- Name: creator_splits creator_splits_tenant_id_fkey; Type: FK CONSTRAINT; Schema: kv_commerce; Owner: -
+--
+
+ALTER TABLE ONLY kv_commerce.creator_splits
+    ADD CONSTRAINT creator_splits_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES kv_admin.tenants(id) ON DELETE CASCADE;
+
+
+--
 -- Name: entitlements entitlements_tenant_id_fkey; Type: FK CONSTRAINT; Schema: kv_commerce; Owner: -
 --
 
 ALTER TABLE ONLY kv_commerce.entitlements
     ADD CONSTRAINT entitlements_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES kv_admin.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: membership_tiers membership_tiers_channel_id_fkey; Type: FK CONSTRAINT; Schema: kv_commerce; Owner: -
+--
+
+ALTER TABLE ONLY kv_commerce.membership_tiers
+    ADD CONSTRAINT membership_tiers_channel_id_fkey FOREIGN KEY (channel_id) REFERENCES kv_social.channels(id) ON DELETE CASCADE;
+
+
+--
+-- Name: membership_tiers membership_tiers_tenant_id_fkey; Type: FK CONSTRAINT; Schema: kv_commerce; Owner: -
+--
+
+ALTER TABLE ONLY kv_commerce.membership_tiers
+    ADD CONSTRAINT membership_tiers_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES kv_admin.tenants(id) ON DELETE CASCADE;
 
 
 --
@@ -4436,6 +5690,54 @@ ALTER TABLE ONLY kv_commerce.payments
 
 ALTER TABLE ONLY kv_commerce.payments
     ADD CONSTRAINT payments_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES kv_admin.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: payout_accounts payout_accounts_tenant_id_fkey; Type: FK CONSTRAINT; Schema: kv_commerce; Owner: -
+--
+
+ALTER TABLE ONLY kv_commerce.payout_accounts
+    ADD CONSTRAINT payout_accounts_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES kv_admin.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: refunds refunds_payment_id_fkey; Type: FK CONSTRAINT; Schema: kv_commerce; Owner: -
+--
+
+ALTER TABLE ONLY kv_commerce.refunds
+    ADD CONSTRAINT refunds_payment_id_fkey FOREIGN KEY (payment_id) REFERENCES kv_commerce.payments(id);
+
+
+--
+-- Name: refunds refunds_tenant_id_fkey; Type: FK CONSTRAINT; Schema: kv_commerce; Owner: -
+--
+
+ALTER TABLE ONLY kv_commerce.refunds
+    ADD CONSTRAINT refunds_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES kv_admin.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: route_transfers route_transfers_payout_account_id_fkey; Type: FK CONSTRAINT; Schema: kv_commerce; Owner: -
+--
+
+ALTER TABLE ONLY kv_commerce.route_transfers
+    ADD CONSTRAINT route_transfers_payout_account_id_fkey FOREIGN KEY (payout_account_id) REFERENCES kv_commerce.payout_accounts(id);
+
+
+--
+-- Name: route_transfers route_transfers_split_id_fkey; Type: FK CONSTRAINT; Schema: kv_commerce; Owner: -
+--
+
+ALTER TABLE ONLY kv_commerce.route_transfers
+    ADD CONSTRAINT route_transfers_split_id_fkey FOREIGN KEY (split_id) REFERENCES kv_commerce.creator_splits(id);
+
+
+--
+-- Name: route_transfers route_transfers_tenant_id_fkey; Type: FK CONSTRAINT; Schema: kv_commerce; Owner: -
+--
+
+ALTER TABLE ONLY kv_commerce.route_transfers
+    ADD CONSTRAINT route_transfers_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES kv_admin.tenants(id) ON DELETE CASCADE;
 
 
 --
@@ -4527,6 +5829,38 @@ ALTER TABLE ONLY kv_media.caption_tracks
 
 
 --
+-- Name: dub_tracks dub_tracks_tenant_id_fkey; Type: FK CONSTRAINT; Schema: kv_media; Owner: -
+--
+
+ALTER TABLE ONLY kv_media.dub_tracks
+    ADD CONSTRAINT dub_tracks_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES kv_admin.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: dub_tracks dub_tracks_video_id_fkey; Type: FK CONSTRAINT; Schema: kv_media; Owner: -
+--
+
+ALTER TABLE ONLY kv_media.dub_tracks
+    ADD CONSTRAINT dub_tracks_video_id_fkey FOREIGN KEY (video_id) REFERENCES kv_media.videos(id) ON DELETE CASCADE;
+
+
+--
+-- Name: product_links product_links_tenant_id_fkey; Type: FK CONSTRAINT; Schema: kv_media; Owner: -
+--
+
+ALTER TABLE ONLY kv_media.product_links
+    ADD CONSTRAINT product_links_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES kv_admin.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: product_links product_links_video_id_fkey; Type: FK CONSTRAINT; Schema: kv_media; Owner: -
+--
+
+ALTER TABLE ONLY kv_media.product_links
+    ADD CONSTRAINT product_links_video_id_fkey FOREIGN KEY (video_id) REFERENCES kv_media.videos(id) ON DELETE CASCADE;
+
+
+--
 -- Name: videos videos_channel_id_fkey; Type: FK CONSTRAINT; Schema: kv_media; Owner: -
 --
 
@@ -4540,6 +5874,22 @@ ALTER TABLE ONLY kv_media.videos
 
 ALTER TABLE ONLY kv_media.videos
     ADD CONSTRAINT videos_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES kv_admin.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: channel_moderators channel_moderators_channel_id_fkey; Type: FK CONSTRAINT; Schema: kv_social; Owner: -
+--
+
+ALTER TABLE ONLY kv_social.channel_moderators
+    ADD CONSTRAINT channel_moderators_channel_id_fkey FOREIGN KEY (channel_id) REFERENCES kv_social.channels(id) ON DELETE CASCADE;
+
+
+--
+-- Name: channel_moderators channel_moderators_tenant_id_fkey; Type: FK CONSTRAINT; Schema: kv_social; Owner: -
+--
+
+ALTER TABLE ONLY kv_social.channel_moderators
+    ADD CONSTRAINT channel_moderators_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES kv_admin.tenants(id) ON DELETE CASCADE;
 
 
 --
@@ -4655,6 +6005,22 @@ ALTER TABLE ONLY kv_social.likes
 
 
 --
+-- Name: notes notes_tenant_id_fkey; Type: FK CONSTRAINT; Schema: kv_social; Owner: -
+--
+
+ALTER TABLE ONLY kv_social.notes
+    ADD CONSTRAINT notes_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES kv_admin.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: notes notes_video_id_fkey; Type: FK CONSTRAINT; Schema: kv_social; Owner: -
+--
+
+ALTER TABLE ONLY kv_social.notes
+    ADD CONSTRAINT notes_video_id_fkey FOREIGN KEY (video_id) REFERENCES kv_media.videos(id) ON DELETE CASCADE;
+
+
+--
 -- Name: playlist_items playlist_items_playlist_id_fkey; Type: FK CONSTRAINT; Schema: kv_social; Owner: -
 --
 
@@ -4695,6 +6061,62 @@ ALTER TABLE ONLY kv_social.playlists
 
 
 --
+-- Name: poll_options poll_options_post_id_fkey; Type: FK CONSTRAINT; Schema: kv_social; Owner: -
+--
+
+ALTER TABLE ONLY kv_social.poll_options
+    ADD CONSTRAINT poll_options_post_id_fkey FOREIGN KEY (post_id) REFERENCES kv_social.posts(id) ON DELETE CASCADE;
+
+
+--
+-- Name: poll_options poll_options_tenant_id_fkey; Type: FK CONSTRAINT; Schema: kv_social; Owner: -
+--
+
+ALTER TABLE ONLY kv_social.poll_options
+    ADD CONSTRAINT poll_options_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES kv_admin.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: poll_votes poll_votes_option_id_fkey; Type: FK CONSTRAINT; Schema: kv_social; Owner: -
+--
+
+ALTER TABLE ONLY kv_social.poll_votes
+    ADD CONSTRAINT poll_votes_option_id_fkey FOREIGN KEY (option_id) REFERENCES kv_social.poll_options(id) ON DELETE CASCADE;
+
+
+--
+-- Name: poll_votes poll_votes_post_id_fkey; Type: FK CONSTRAINT; Schema: kv_social; Owner: -
+--
+
+ALTER TABLE ONLY kv_social.poll_votes
+    ADD CONSTRAINT poll_votes_post_id_fkey FOREIGN KEY (post_id) REFERENCES kv_social.posts(id) ON DELETE CASCADE;
+
+
+--
+-- Name: poll_votes poll_votes_tenant_id_fkey; Type: FK CONSTRAINT; Schema: kv_social; Owner: -
+--
+
+ALTER TABLE ONLY kv_social.poll_votes
+    ADD CONSTRAINT poll_votes_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES kv_admin.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: posts posts_channel_id_fkey; Type: FK CONSTRAINT; Schema: kv_social; Owner: -
+--
+
+ALTER TABLE ONLY kv_social.posts
+    ADD CONSTRAINT posts_channel_id_fkey FOREIGN KEY (channel_id) REFERENCES kv_social.channels(id) ON DELETE CASCADE;
+
+
+--
+-- Name: posts posts_tenant_id_fkey; Type: FK CONSTRAINT; Schema: kv_social; Owner: -
+--
+
+ALTER TABLE ONLY kv_social.posts
+    ADD CONSTRAINT posts_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES kv_admin.tenants(id) ON DELETE CASCADE;
+
+
+--
 -- Name: profiles profiles_tenant_id_fkey; Type: FK CONSTRAINT; Schema: kv_social; Owner: -
 --
 
@@ -4708,6 +6130,22 @@ ALTER TABLE ONLY kv_social.profiles
 
 ALTER TABLE ONLY kv_social.profiles
     ADD CONSTRAINT profiles_user_id_fkey FOREIGN KEY (user_id) REFERENCES kv_admin.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: quiz_attempts quiz_attempts_tenant_id_fkey; Type: FK CONSTRAINT; Schema: kv_social; Owner: -
+--
+
+ALTER TABLE ONLY kv_social.quiz_attempts
+    ADD CONSTRAINT quiz_attempts_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES kv_admin.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: quiz_attempts quiz_attempts_video_id_fkey; Type: FK CONSTRAINT; Schema: kv_social; Owner: -
+--
+
+ALTER TABLE ONLY kv_social.quiz_attempts
+    ADD CONSTRAINT quiz_attempts_video_id_fkey FOREIGN KEY (video_id) REFERENCES kv_media.videos(id) ON DELETE CASCADE;
 
 
 --
@@ -4756,6 +6194,22 @@ ALTER TABLE ONLY kv_studio.clips
 
 ALTER TABLE ONLY kv_studio.clips
     ADD CONSTRAINT clips_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES kv_admin.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: publish_targets publish_targets_clip_id_fkey; Type: FK CONSTRAINT; Schema: kv_studio; Owner: -
+--
+
+ALTER TABLE ONLY kv_studio.publish_targets
+    ADD CONSTRAINT publish_targets_clip_id_fkey FOREIGN KEY (clip_id) REFERENCES kv_studio.clips(id) ON DELETE CASCADE;
+
+
+--
+-- Name: publish_targets publish_targets_tenant_id_fkey; Type: FK CONSTRAINT; Schema: kv_studio; Owner: -
+--
+
+ALTER TABLE ONLY kv_studio.publish_targets
+    ADD CONSTRAINT publish_targets_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES kv_admin.tenants(id) ON DELETE CASCADE;
 
 
 --
@@ -4895,6 +6349,13 @@ CREATE POLICY public_read ON kv_ai.segments FOR SELECT USING (kv_media.video_rea
 
 
 --
+-- Name: study_sets public_read; Type: POLICY; Schema: kv_ai; Owner: -
+--
+
+CREATE POLICY public_read ON kv_ai.study_sets FOR SELECT USING (kv_media.video_readable(video_id));
+
+
+--
 -- Name: transcripts public_read; Type: POLICY; Schema: kv_ai; Owner: -
 --
 
@@ -4906,6 +6367,12 @@ CREATE POLICY public_read ON kv_ai.transcripts FOR SELECT USING ((is_current AND
 --
 
 ALTER TABLE kv_ai.segments ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: study_sets; Type: ROW SECURITY; Schema: kv_ai; Owner: -
+--
+
+ALTER TABLE kv_ai.study_sets ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: ai_jobs tenant_isolation; Type: POLICY; Schema: kv_ai; Owner: -
@@ -4943,6 +6410,13 @@ CREATE POLICY tenant_isolation ON kv_ai.segments USING (((tenant_id = kv_admin.c
 
 
 --
+-- Name: study_sets tenant_isolation; Type: POLICY; Schema: kv_ai; Owner: -
+--
+
+CREATE POLICY tenant_isolation ON kv_ai.study_sets USING (((tenant_id = kv_admin.current_tenant()) OR kv_admin.is_platform())) WITH CHECK (((tenant_id = kv_admin.current_tenant()) OR kv_admin.is_platform()));
+
+
+--
 -- Name: transcripts tenant_isolation; Type: POLICY; Schema: kv_ai; Owner: -
 --
 
@@ -4962,16 +6436,46 @@ ALTER TABLE kv_ai.transcripts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE kv_commerce.checkouts ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: creator_splits; Type: ROW SECURITY; Schema: kv_commerce; Owner: -
+--
+
+ALTER TABLE kv_commerce.creator_splits ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: entitlements; Type: ROW SECURITY; Schema: kv_commerce; Owner: -
 --
 
 ALTER TABLE kv_commerce.entitlements ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: membership_tiers; Type: ROW SECURITY; Schema: kv_commerce; Owner: -
+--
+
+ALTER TABLE kv_commerce.membership_tiers ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: payments; Type: ROW SECURITY; Schema: kv_commerce; Owner: -
 --
 
 ALTER TABLE kv_commerce.payments ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: payout_accounts; Type: ROW SECURITY; Schema: kv_commerce; Owner: -
+--
+
+ALTER TABLE kv_commerce.payout_accounts ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: refunds; Type: ROW SECURITY; Schema: kv_commerce; Owner: -
+--
+
+ALTER TABLE kv_commerce.refunds ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: route_transfers; Type: ROW SECURITY; Schema: kv_commerce; Owner: -
+--
+
+ALTER TABLE kv_commerce.route_transfers ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: subscriptions; Type: ROW SECURITY; Schema: kv_commerce; Owner: -
@@ -4987,6 +6491,13 @@ CREATE POLICY tenant_isolation ON kv_commerce.checkouts USING (((tenant_id = kv_
 
 
 --
+-- Name: creator_splits tenant_isolation; Type: POLICY; Schema: kv_commerce; Owner: -
+--
+
+CREATE POLICY tenant_isolation ON kv_commerce.creator_splits USING (((tenant_id = kv_admin.current_tenant()) OR kv_admin.is_platform())) WITH CHECK (((tenant_id = kv_admin.current_tenant()) OR kv_admin.is_platform()));
+
+
+--
 -- Name: entitlements tenant_isolation; Type: POLICY; Schema: kv_commerce; Owner: -
 --
 
@@ -4994,10 +6505,38 @@ CREATE POLICY tenant_isolation ON kv_commerce.entitlements USING (((tenant_id = 
 
 
 --
+-- Name: membership_tiers tenant_isolation; Type: POLICY; Schema: kv_commerce; Owner: -
+--
+
+CREATE POLICY tenant_isolation ON kv_commerce.membership_tiers USING (((tenant_id = kv_admin.current_tenant()) OR kv_admin.is_platform())) WITH CHECK (((tenant_id = kv_admin.current_tenant()) OR kv_admin.is_platform()));
+
+
+--
 -- Name: payments tenant_isolation; Type: POLICY; Schema: kv_commerce; Owner: -
 --
 
 CREATE POLICY tenant_isolation ON kv_commerce.payments USING (((tenant_id = kv_admin.current_tenant()) OR kv_admin.is_platform())) WITH CHECK (((tenant_id = kv_admin.current_tenant()) OR kv_admin.is_platform()));
+
+
+--
+-- Name: payout_accounts tenant_isolation; Type: POLICY; Schema: kv_commerce; Owner: -
+--
+
+CREATE POLICY tenant_isolation ON kv_commerce.payout_accounts USING (((tenant_id = kv_admin.current_tenant()) OR kv_admin.is_platform())) WITH CHECK (((tenant_id = kv_admin.current_tenant()) OR kv_admin.is_platform()));
+
+
+--
+-- Name: refunds tenant_isolation; Type: POLICY; Schema: kv_commerce; Owner: -
+--
+
+CREATE POLICY tenant_isolation ON kv_commerce.refunds USING (((tenant_id = kv_admin.current_tenant()) OR kv_admin.is_platform())) WITH CHECK (((tenant_id = kv_admin.current_tenant()) OR kv_admin.is_platform()));
+
+
+--
+-- Name: route_transfers tenant_isolation; Type: POLICY; Schema: kv_commerce; Owner: -
+--
+
+CREATE POLICY tenant_isolation ON kv_commerce.route_transfers USING (((tenant_id = kv_admin.current_tenant()) OR kv_admin.is_platform())) WITH CHECK (((tenant_id = kv_admin.current_tenant()) OR kv_admin.is_platform()));
 
 
 --
@@ -5079,10 +6618,36 @@ CREATE POLICY tenant_isolation ON kv_ledger.periods USING (((tenant_id = kv_admi
 ALTER TABLE kv_media.caption_tracks ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: dub_tracks; Type: ROW SECURITY; Schema: kv_media; Owner: -
+--
+
+ALTER TABLE kv_media.dub_tracks ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: product_links; Type: ROW SECURITY; Schema: kv_media; Owner: -
+--
+
+ALTER TABLE kv_media.product_links ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: caption_tracks public_read; Type: POLICY; Schema: kv_media; Owner: -
 --
 
 CREATE POLICY public_read ON kv_media.caption_tracks FOR SELECT USING (kv_media.video_readable(video_id));
+
+
+--
+-- Name: dub_tracks public_read; Type: POLICY; Schema: kv_media; Owner: -
+--
+
+CREATE POLICY public_read ON kv_media.dub_tracks FOR SELECT USING (kv_media.video_readable(video_id));
+
+
+--
+-- Name: product_links public_read; Type: POLICY; Schema: kv_media; Owner: -
+--
+
+CREATE POLICY public_read ON kv_media.product_links FOR SELECT USING (kv_media.video_readable(video_id));
 
 
 --
@@ -5100,6 +6665,20 @@ CREATE POLICY tenant_isolation ON kv_media.caption_tracks USING (((tenant_id = k
 
 
 --
+-- Name: dub_tracks tenant_isolation; Type: POLICY; Schema: kv_media; Owner: -
+--
+
+CREATE POLICY tenant_isolation ON kv_media.dub_tracks USING (((tenant_id = kv_admin.current_tenant()) OR kv_admin.is_platform())) WITH CHECK (((tenant_id = kv_admin.current_tenant()) OR kv_admin.is_platform()));
+
+
+--
+-- Name: product_links tenant_isolation; Type: POLICY; Schema: kv_media; Owner: -
+--
+
+CREATE POLICY tenant_isolation ON kv_media.product_links USING (((tenant_id = kv_admin.current_tenant()) OR kv_admin.is_platform())) WITH CHECK (((tenant_id = kv_admin.current_tenant()) OR kv_admin.is_platform()));
+
+
+--
 -- Name: videos tenant_isolation; Type: POLICY; Schema: kv_media; Owner: -
 --
 
@@ -5111,6 +6690,12 @@ CREATE POLICY tenant_isolation ON kv_media.videos USING (((tenant_id = kv_admin.
 --
 
 ALTER TABLE kv_media.videos ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: channel_moderators; Type: ROW SECURITY; Schema: kv_social; Owner: -
+--
+
+ALTER TABLE kv_social.channel_moderators ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: channels; Type: ROW SECURITY; Schema: kv_social; Owner: -
@@ -5155,6 +6740,12 @@ ALTER TABLE kv_social.follows ENABLE ROW LEVEL SECURITY;
 ALTER TABLE kv_social.likes ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: notes; Type: ROW SECURITY; Schema: kv_social; Owner: -
+--
+
+ALTER TABLE kv_social.notes ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: playlist_items; Type: ROW SECURITY; Schema: kv_social; Owner: -
 --
 
@@ -5165,6 +6756,24 @@ ALTER TABLE kv_social.playlist_items ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE kv_social.playlists ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: poll_options; Type: ROW SECURITY; Schema: kv_social; Owner: -
+--
+
+ALTER TABLE kv_social.poll_options ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: poll_votes; Type: ROW SECURITY; Schema: kv_social; Owner: -
+--
+
+ALTER TABLE kv_social.poll_votes ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: posts; Type: ROW SECURITY; Schema: kv_social; Owner: -
+--
+
+ALTER TABLE kv_social.posts ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: profiles; Type: ROW SECURITY; Schema: kv_social; Owner: -
@@ -5205,6 +6814,33 @@ CREATE POLICY public_read ON kv_social.playlist_items FOR SELECT USING (true);
 --
 
 CREATE POLICY public_read ON kv_social.playlists FOR SELECT USING (((visibility)::text = 'public'::text));
+
+
+--
+-- Name: poll_options public_read; Type: POLICY; Schema: kv_social; Owner: -
+--
+
+CREATE POLICY public_read ON kv_social.poll_options FOR SELECT USING (true);
+
+
+--
+-- Name: posts public_read; Type: POLICY; Schema: kv_social; Owner: -
+--
+
+CREATE POLICY public_read ON kv_social.posts FOR SELECT USING (((status)::text = 'visible'::text));
+
+
+--
+-- Name: quiz_attempts; Type: ROW SECURITY; Schema: kv_social; Owner: -
+--
+
+ALTER TABLE kv_social.quiz_attempts ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: channel_moderators tenant_isolation; Type: POLICY; Schema: kv_social; Owner: -
+--
+
+CREATE POLICY tenant_isolation ON kv_social.channel_moderators USING (((tenant_id = kv_admin.current_tenant()) OR kv_admin.is_platform())) WITH CHECK (((tenant_id = kv_admin.current_tenant()) OR kv_admin.is_platform()));
 
 
 --
@@ -5257,6 +6893,13 @@ CREATE POLICY tenant_isolation ON kv_social.likes USING (((tenant_id = kv_admin.
 
 
 --
+-- Name: notes tenant_isolation; Type: POLICY; Schema: kv_social; Owner: -
+--
+
+CREATE POLICY tenant_isolation ON kv_social.notes USING (((tenant_id = kv_admin.current_tenant()) OR kv_admin.is_platform())) WITH CHECK (((tenant_id = kv_admin.current_tenant()) OR kv_admin.is_platform()));
+
+
+--
 -- Name: playlist_items tenant_isolation; Type: POLICY; Schema: kv_social; Owner: -
 --
 
@@ -5271,10 +6914,38 @@ CREATE POLICY tenant_isolation ON kv_social.playlists USING (((tenant_id = kv_ad
 
 
 --
+-- Name: poll_options tenant_isolation; Type: POLICY; Schema: kv_social; Owner: -
+--
+
+CREATE POLICY tenant_isolation ON kv_social.poll_options USING (((tenant_id = kv_admin.current_tenant()) OR kv_admin.is_platform())) WITH CHECK (((tenant_id = kv_admin.current_tenant()) OR kv_admin.is_platform()));
+
+
+--
+-- Name: poll_votes tenant_isolation; Type: POLICY; Schema: kv_social; Owner: -
+--
+
+CREATE POLICY tenant_isolation ON kv_social.poll_votes USING (((tenant_id = kv_admin.current_tenant()) OR kv_admin.is_platform())) WITH CHECK (((tenant_id = kv_admin.current_tenant()) OR kv_admin.is_platform()));
+
+
+--
+-- Name: posts tenant_isolation; Type: POLICY; Schema: kv_social; Owner: -
+--
+
+CREATE POLICY tenant_isolation ON kv_social.posts USING (((tenant_id = kv_admin.current_tenant()) OR kv_admin.is_platform())) WITH CHECK (((tenant_id = kv_admin.current_tenant()) OR kv_admin.is_platform()));
+
+
+--
 -- Name: profiles tenant_isolation; Type: POLICY; Schema: kv_social; Owner: -
 --
 
 CREATE POLICY tenant_isolation ON kv_social.profiles USING (((tenant_id = kv_admin.current_tenant()) OR kv_admin.is_platform())) WITH CHECK (((tenant_id = kv_admin.current_tenant()) OR kv_admin.is_platform()));
+
+
+--
+-- Name: quiz_attempts tenant_isolation; Type: POLICY; Schema: kv_social; Owner: -
+--
+
+CREATE POLICY tenant_isolation ON kv_social.quiz_attempts USING (((tenant_id = kv_admin.current_tenant()) OR kv_admin.is_platform())) WITH CHECK (((tenant_id = kv_admin.current_tenant()) OR kv_admin.is_platform()));
 
 
 --
@@ -5310,10 +6981,23 @@ ALTER TABLE kv_social.watch_progress ENABLE ROW LEVEL SECURITY;
 ALTER TABLE kv_studio.clips ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: publish_targets; Type: ROW SECURITY; Schema: kv_studio; Owner: -
+--
+
+ALTER TABLE kv_studio.publish_targets ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: clips tenant_isolation; Type: POLICY; Schema: kv_studio; Owner: -
 --
 
 CREATE POLICY tenant_isolation ON kv_studio.clips USING (((tenant_id = kv_admin.current_tenant()) OR kv_admin.is_platform())) WITH CHECK (((tenant_id = kv_admin.current_tenant()) OR kv_admin.is_platform()));
+
+
+--
+-- Name: publish_targets tenant_isolation; Type: POLICY; Schema: kv_studio; Owner: -
+--
+
+CREATE POLICY tenant_isolation ON kv_studio.publish_targets USING (((tenant_id = kv_admin.current_tenant()) OR kv_admin.is_platform())) WITH CHECK (((tenant_id = kv_admin.current_tenant()) OR kv_admin.is_platform()));
 
 
 --
@@ -5785,6 +7469,34 @@ GRANT SELECT,USAGE ON SEQUENCE kv_ai.segments_id_seq TO klygenix_video_app;
 
 
 --
+-- Name: TABLE study_sets; Type: ACL; Schema: kv_ai; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE kv_ai.study_sets TO klygenix_video_app;
+
+
+--
+-- Name: SEQUENCE study_sets_id_seq; Type: ACL; Schema: kv_ai; Owner: -
+--
+
+GRANT SELECT,USAGE ON SEQUENCE kv_ai.study_sets_id_seq TO klygenix_video_app;
+
+
+--
+-- Name: TABLE text_translations; Type: ACL; Schema: kv_ai; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE kv_ai.text_translations TO klygenix_video_app;
+
+
+--
+-- Name: SEQUENCE text_translations_id_seq; Type: ACL; Schema: kv_ai; Owner: -
+--
+
+GRANT SELECT,USAGE ON SEQUENCE kv_ai.text_translations_id_seq TO klygenix_video_app;
+
+
+--
 -- Name: TABLE transcripts; Type: ACL; Schema: kv_ai; Owner: -
 --
 
@@ -5796,6 +7508,13 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE kv_ai.transcripts TO klygenix_video_a
 --
 
 GRANT SELECT,USAGE ON SEQUENCE kv_ai.transcripts_id_seq TO klygenix_video_app;
+
+
+--
+-- Name: TABLE video_vectors; Type: ACL; Schema: kv_ai; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE kv_ai.video_vectors TO klygenix_video_app;
 
 
 --
@@ -5813,6 +7532,20 @@ GRANT SELECT,USAGE ON SEQUENCE kv_commerce.checkouts_id_seq TO klygenix_video_ap
 
 
 --
+-- Name: TABLE creator_splits; Type: ACL; Schema: kv_commerce; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE kv_commerce.creator_splits TO klygenix_video_app;
+
+
+--
+-- Name: SEQUENCE creator_splits_id_seq; Type: ACL; Schema: kv_commerce; Owner: -
+--
+
+GRANT SELECT,USAGE ON SEQUENCE kv_commerce.creator_splits_id_seq TO klygenix_video_app;
+
+
+--
 -- Name: TABLE entitlements; Type: ACL; Schema: kv_commerce; Owner: -
 --
 
@@ -5827,6 +7560,20 @@ GRANT SELECT,USAGE ON SEQUENCE kv_commerce.entitlements_id_seq TO klygenix_video
 
 
 --
+-- Name: TABLE membership_tiers; Type: ACL; Schema: kv_commerce; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE kv_commerce.membership_tiers TO klygenix_video_app;
+
+
+--
+-- Name: SEQUENCE membership_tiers_id_seq; Type: ACL; Schema: kv_commerce; Owner: -
+--
+
+GRANT SELECT,USAGE ON SEQUENCE kv_commerce.membership_tiers_id_seq TO klygenix_video_app;
+
+
+--
 -- Name: TABLE payments; Type: ACL; Schema: kv_commerce; Owner: -
 --
 
@@ -5838,6 +7585,20 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE kv_commerce.payments TO klygenix_vide
 --
 
 GRANT SELECT,USAGE ON SEQUENCE kv_commerce.payments_id_seq TO klygenix_video_app;
+
+
+--
+-- Name: TABLE payout_accounts; Type: ACL; Schema: kv_commerce; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE kv_commerce.payout_accounts TO klygenix_video_app;
+
+
+--
+-- Name: SEQUENCE payout_accounts_id_seq; Type: ACL; Schema: kv_commerce; Owner: -
+--
+
+GRANT SELECT,USAGE ON SEQUENCE kv_commerce.payout_accounts_id_seq TO klygenix_video_app;
 
 
 --
@@ -5866,6 +7627,34 @@ GRANT SELECT,INSERT,UPDATE ON TABLE kv_commerce.provider_events TO klygenix_vide
 --
 
 GRANT SELECT,USAGE ON SEQUENCE kv_commerce.provider_events_id_seq TO klygenix_video_app;
+
+
+--
+-- Name: TABLE refunds; Type: ACL; Schema: kv_commerce; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE kv_commerce.refunds TO klygenix_video_app;
+
+
+--
+-- Name: SEQUENCE refunds_id_seq; Type: ACL; Schema: kv_commerce; Owner: -
+--
+
+GRANT SELECT,USAGE ON SEQUENCE kv_commerce.refunds_id_seq TO klygenix_video_app;
+
+
+--
+-- Name: TABLE route_transfers; Type: ACL; Schema: kv_commerce; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE kv_commerce.route_transfers TO klygenix_video_app;
+
+
+--
+-- Name: SEQUENCE route_transfers_id_seq; Type: ACL; Schema: kv_commerce; Owner: -
+--
+
+GRANT SELECT,USAGE ON SEQUENCE kv_commerce.route_transfers_id_seq TO klygenix_video_app;
 
 
 --
@@ -5967,6 +7756,34 @@ GRANT SELECT,USAGE ON SEQUENCE kv_media.caption_tracks_id_seq TO klygenix_video_
 
 
 --
+-- Name: TABLE dub_tracks; Type: ACL; Schema: kv_media; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE kv_media.dub_tracks TO klygenix_video_app;
+
+
+--
+-- Name: SEQUENCE dub_tracks_id_seq; Type: ACL; Schema: kv_media; Owner: -
+--
+
+GRANT SELECT,USAGE ON SEQUENCE kv_media.dub_tracks_id_seq TO klygenix_video_app;
+
+
+--
+-- Name: TABLE product_links; Type: ACL; Schema: kv_media; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE kv_media.product_links TO klygenix_video_app;
+
+
+--
+-- Name: SEQUENCE product_links_id_seq; Type: ACL; Schema: kv_media; Owner: -
+--
+
+GRANT SELECT,USAGE ON SEQUENCE kv_media.product_links_id_seq TO klygenix_video_app;
+
+
+--
 -- Name: TABLE videos; Type: ACL; Schema: kv_media; Owner: -
 --
 
@@ -5978,6 +7795,20 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE kv_media.videos TO klygenix_video_app
 --
 
 GRANT SELECT,USAGE ON SEQUENCE kv_media.videos_id_seq TO klygenix_video_app;
+
+
+--
+-- Name: TABLE channel_moderators; Type: ACL; Schema: kv_social; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE kv_social.channel_moderators TO klygenix_video_app;
+
+
+--
+-- Name: SEQUENCE channel_moderators_id_seq; Type: ACL; Schema: kv_social; Owner: -
+--
+
+GRANT SELECT,USAGE ON SEQUENCE kv_social.channel_moderators_id_seq TO klygenix_video_app;
 
 
 --
@@ -6079,6 +7910,20 @@ GRANT SELECT,USAGE ON SEQUENCE kv_social.likes_id_seq TO klygenix_video_app;
 
 
 --
+-- Name: TABLE notes; Type: ACL; Schema: kv_social; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE kv_social.notes TO klygenix_video_app;
+
+
+--
+-- Name: SEQUENCE notes_id_seq; Type: ACL; Schema: kv_social; Owner: -
+--
+
+GRANT SELECT,USAGE ON SEQUENCE kv_social.notes_id_seq TO klygenix_video_app;
+
+
+--
 -- Name: TABLE playlist_items; Type: ACL; Schema: kv_social; Owner: -
 --
 
@@ -6107,10 +7952,66 @@ GRANT SELECT,USAGE ON SEQUENCE kv_social.playlists_id_seq TO klygenix_video_app;
 
 
 --
+-- Name: TABLE poll_options; Type: ACL; Schema: kv_social; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE kv_social.poll_options TO klygenix_video_app;
+
+
+--
+-- Name: SEQUENCE poll_options_id_seq; Type: ACL; Schema: kv_social; Owner: -
+--
+
+GRANT SELECT,USAGE ON SEQUENCE kv_social.poll_options_id_seq TO klygenix_video_app;
+
+
+--
+-- Name: TABLE poll_votes; Type: ACL; Schema: kv_social; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE kv_social.poll_votes TO klygenix_video_app;
+
+
+--
+-- Name: SEQUENCE poll_votes_id_seq; Type: ACL; Schema: kv_social; Owner: -
+--
+
+GRANT SELECT,USAGE ON SEQUENCE kv_social.poll_votes_id_seq TO klygenix_video_app;
+
+
+--
+-- Name: TABLE posts; Type: ACL; Schema: kv_social; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE kv_social.posts TO klygenix_video_app;
+
+
+--
+-- Name: SEQUENCE posts_id_seq; Type: ACL; Schema: kv_social; Owner: -
+--
+
+GRANT SELECT,USAGE ON SEQUENCE kv_social.posts_id_seq TO klygenix_video_app;
+
+
+--
 -- Name: TABLE profiles; Type: ACL; Schema: kv_social; Owner: -
 --
 
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE kv_social.profiles TO klygenix_video_app;
+
+
+--
+-- Name: TABLE quiz_attempts; Type: ACL; Schema: kv_social; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE kv_social.quiz_attempts TO klygenix_video_app;
+
+
+--
+-- Name: SEQUENCE quiz_attempts_id_seq; Type: ACL; Schema: kv_social; Owner: -
+--
+
+GRANT SELECT,USAGE ON SEQUENCE kv_social.quiz_attempts_id_seq TO klygenix_video_app;
 
 
 --
@@ -6153,6 +8054,34 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE kv_studio.clips TO klygenix_video_app
 --
 
 GRANT SELECT,USAGE ON SEQUENCE kv_studio.clips_id_seq TO klygenix_video_app;
+
+
+--
+-- Name: TABLE music_tracks; Type: ACL; Schema: kv_studio; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE kv_studio.music_tracks TO klygenix_video_app;
+
+
+--
+-- Name: SEQUENCE music_tracks_id_seq; Type: ACL; Schema: kv_studio; Owner: -
+--
+
+GRANT SELECT,USAGE ON SEQUENCE kv_studio.music_tracks_id_seq TO klygenix_video_app;
+
+
+--
+-- Name: TABLE publish_targets; Type: ACL; Schema: kv_studio; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE kv_studio.publish_targets TO klygenix_video_app;
+
+
+--
+-- Name: SEQUENCE publish_targets_id_seq; Type: ACL; Schema: kv_studio; Owner: -
+--
+
+GRANT SELECT,USAGE ON SEQUENCE kv_studio.publish_targets_id_seq TO klygenix_video_app;
 
 
 --

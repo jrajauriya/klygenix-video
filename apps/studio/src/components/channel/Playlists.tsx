@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { ArrowDown, ArrowUp, ExternalLink, ListVideo, Plus, Search, X } from "lucide-react"
 import { api } from "@klygenixvideo/auth"
+import { fromMinor, useHasFeature, useHasPermission } from "@klygenixvideo/client"
 import {
   Badge, Button, Card, Drawer, DrawerFooter, EmptyState, Field, Input, Select, Spinner, Textarea, useConfirm,
 } from "@klygenixvideo/ui"
@@ -10,6 +11,7 @@ import { STUDIO } from "../../lib/hooks"
 import { WEB_URL, detail, when } from "../../lib/format"
 import type { Playlist, PlaylistDetail, PlaylistKind, PlaylistVisibility, StudioVideo, Visibility } from "../../lib/types"
 import { VisibilityField } from "../VisibilityField"
+import { inr, parseRupees, priceProblem, useEarnings } from "../earnings/shared"
 
 const KIND_OPTIONS = [
   { value: "playlist", label: "Playlist", hint: "Any videos, in any order" },
@@ -68,6 +70,7 @@ export function Playlists() {
                     <p className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
                       <Badge color={p.kind === "series" ? "brand" : "slate"}>{p.kind === "series" ? "Series" : "Playlist"}</Badge>
                       <Badge color={p.visibility === "public" ? "green" : p.visibility === "unlisted" ? "blue" : "amber"}>{VISIBILITY_LABEL[p.visibility]}</Badge>
+                      {p.kind === "series" && p.price_minor ? <Badge color="purple">{inr(p.price_minor)}</Badge> : null}
                       <span>{p.video_count} {p.video_count === 1 ? "video" : "videos"}</span>
                       <span>· created {when(p.created_at)}</span>
                     </p>
@@ -173,6 +176,7 @@ function PlaylistDrawer({ initial, onClose }: { initial: Playlist | null; onClos
           <VisibilityField schedule={false} value={visibility as Visibility} publishAt="" onPublishAt={() => undefined}
             onChange={(v) => setVisibility(v as PlaylistVisibility)} />
         </Field>
+        {current && current.kind === "series" && <SeriesPrice playlist={current} onSaved={(price_minor) => setCurrent({ ...current, price_minor })} />}
         {current && <Items playlistId={current.id} />}
       </div>
     </Drawer>
@@ -291,6 +295,54 @@ function Items({ playlistId }: { playlistId: number }) {
           </ul>
         )}
       </div>
+    </div>
+  )
+}
+
+function SeriesPrice({ playlist, onSaved }: { playlist: Playlist; onSaved: (price: number | null) => void }) {
+  const featureOn = useHasFeature("video.earnings")
+  const canView = useHasPermission("video.earnings")
+  const canEdit = useHasPermission("video.earnings", "full")
+  const qc = useQueryClient()
+  const { data: earnings } = useEarnings(featureOn && canView)
+  const [price, setPrice] = useState(playlist.price_minor ? fromMinor(playlist.price_minor) : "")
+  const [busy, setBusy] = useState(false)
+  if (!featureOn || !canView) return null
+
+  const canSell = Boolean(earnings?.can_take_money)
+  const minor = price.trim() ? parseRupees(price) : null
+  const error = price.trim() ? priceProblem(minor) ?? undefined : undefined
+  const dirty = (minor ?? null) !== (playlist.price_minor ?? null)
+
+  async function save() {
+    setBusy(true)
+    try {
+      const { data } = await api.put<{ id: number; price_minor: number | null }>(`${STUDIO}/playlists/${playlist.id}/price`, { price_minor: minor })
+      onSaved(data.price_minor)
+      toast.success(data.price_minor ? `Series priced at ${inr(data.price_minor)}` : "The series is free again")
+      qc.invalidateQueries({ queryKey: ["studio-playlists"] })
+    } catch (err) {
+      toast.error(detail(err, "Could not save the price"))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="space-y-2 rounded-lg border border-slate-200 p-3">
+      <div className="flex flex-wrap items-end gap-2">
+        <Field label="Price for the whole series (₹)" error={error} hint="Leave empty to keep it free. Between ₹10 and ₹50,000." className="min-w-0 flex-1">
+          <Input value={price} inputMode="decimal" onChange={(e) => setPrice(e.target.value)} disabled={!canEdit || (!canSell && !playlist.price_minor)} />
+        </Field>
+        {canEdit && (
+          <Button variant="outline" onClick={save} disabled={busy || !dirty || Boolean(error) || (minor !== null && !canSell)} className="mb-5">
+            {busy ? "Saving…" : "Save price"}
+          </Button>
+        )}
+      </div>
+      {!canSell && (
+        <p className="text-xs text-amber-800">Selling a series is off until your payouts are active. Set them up under Earnings.</p>
+      )}
     </div>
   )
 }

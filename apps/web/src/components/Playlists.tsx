@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query"
 import { CheckCircle2, ListVideo, Play } from "lucide-react"
 import { cn } from "@klygenixvideo/ui"
 import { errStatus, getJson, useSignedIn } from "../lib/api"
+import { rupees } from "../lib/format"
 import type { PlaylistDetail, PlaylistSummary, SeriesProgress } from "../lib/types"
 import { Thumb } from "./VideoCards"
 
@@ -71,7 +72,7 @@ export function PlaylistTile({ playlist }: { playlist: PlaylistSummary }) {
         </div>
       </Link>
       <Link to={`/playlist/${playlist.id}`} className="mt-3 line-clamp-2 text-[15px] font-semibold leading-snug text-ink hover:text-white">{playlist.title}</Link>
-      <p className="mt-1 text-[13px] text-muted">{playlist.kind === "series" ? "Series" : "Playlist"} · {playlist.video_count} {playlist.video_count === 1 ? "video" : "videos"}</p>
+      <p className="mt-1 text-[13px] text-muted">{playlist.kind === "series" ? "Series" : "Playlist"}{playlist.kind === "series" && playlist.price_minor ? ` · ${rupees(playlist.price_minor)}` : ""} · {playlist.video_count} {playlist.video_count === 1 ? "video" : "videos"}</p>
     </article>
   )
 }

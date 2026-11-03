@@ -5,9 +5,19 @@ import { useVideoPlayer, VideoView } from "expo-video"
 
 import { sendProgress } from "../lib/progress"
 
-export function ReelPlayer({ publicId, url, muted, track }: { publicId: string; url: string; muted: boolean; track: boolean }) {
+interface Props {
+  publicId: string
+  url: string
+  muted: boolean
+  track: boolean
+  limitSeconds?: number
+  onDone?: () => void
+}
+
+export function ReelPlayer({ publicId, url, muted, track, limitSeconds, onDone }: Props) {
+  const preview = Boolean(onDone)
   const player = useVideoPlayer(url, (p) => {
-    p.loop = true
+    p.loop = !preview
     p.muted = muted
     p.timeUpdateEventInterval = 1
     p.play()
@@ -30,6 +40,11 @@ export function ReelPlayer({ publicId, url, muted, track }: { publicId: string; 
   }, [publicId, track])
 
   useEventListener(player, "timeUpdate", ({ currentTime }) => {
+    if (preview && limitSeconds && currentTime >= limitSeconds) {
+      player.pause()
+      onDone?.()
+      return
+    }
     const step = currentTime - last.current
     if (step > 0 && step < 2) watched.current += step
     if (track && !completed.current && step < 0 && last.current > 1) {
@@ -40,6 +55,7 @@ export function ReelPlayer({ publicId, url, muted, track }: { publicId: string; 
   })
 
   useEventListener(player, "playToEnd", () => {
+    onDone?.()
     if (!track || completed.current) return
     completed.current = true
     sendProgress(publicId, { position_ms: last.current * 1000, watched_ms: watched.current * 1000, completed: true })

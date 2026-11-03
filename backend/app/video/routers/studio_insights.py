@@ -39,6 +39,53 @@ def series(db, start: date, end: date, *where) -> list[dict]:
     return out
 
 
+def mix(db, start: date, end: date, *where) -> tuple[list[int], dict]:
+    curve = [0] * counters.BUCKETS
+    sources: dict[str, int] = {}
+    for ret, src in db.execute(select(ViewDaily.retention, ViewDaily.sources)
+                               .where(ViewDaily.day >= start, ViewDaily.day <= end, *where)).all():
+        for i, n in enumerate((ret or [])[:counters.BUCKETS]):
+            curve[i] += int(n)
+        for k, n in (src or {}).items():
+            sources[k] = sources.get(k, 0) + int(n)
+    return curve, sources
+
+
+def retention_pct(curve: list[int]) -> list[float]:
+    top = max(curve[:3] or [0]) or max(curve or [0])
+    return [round(min(1.0, n / top), 4) if top else 0.0 for n in curve]
+
+
+def source_rows(sources: dict) -> dict:
+    main = sorted(((k, n) for k, n in sources.items() if not k.startswith("x:")), key=lambda x: -x[1])
+    ext = sorted(((k[2:], n) for k, n in sources.items() if k.startswith("x:")), key=lambda x: -x[1])[:10]
+    return {"sources": [{"source": k, "views": n} for k, n in main], "external": [{"host": k, "views": n} for k, n in ext]}
+
+
+def revenue(db, tenant_id: int, start: date, end: date) -> dict:
+    from datetime import datetime, timezone
+
+    from app.video.models.payouts import CreatorSplit
+
+    lo = datetime.combine(start, datetime.min.time(), timezone.utc) - timedelta(hours=5, minutes=30)
+    hi = datetime.combine(end + timedelta(days=1), datetime.min.time(), timezone.utc) - timedelta(hours=5, minutes=30)
+    rows = db.execute(select(CreatorSplit).where(CreatorSplit.tenant_id == tenant_id, CreatorSplit.paid_at >= lo,
+                                                 CreatorSplit.paid_at < hi)).scalars().all()
+    by_purpose: dict[str, dict] = {}
+    by_day: dict[str, int] = {}
+    for s in rows:
+        p = by_purpose.setdefault(s.purpose, {"purpose": s.purpose, "sales": 0, "gross_minor": 0, "net_minor": 0})
+        p["sales"] += 1
+        p["gross_minor"] += s.gross_minor - s.refunded_minor
+        p["net_minor"] += s.creator_net_minor
+        day = (s.paid_at + timedelta(hours=5, minutes=30)).date().isoformat()
+        by_day[day] = by_day.get(day, 0) + s.gross_minor - s.refunded_minor
+    return {"currency": "INR", "by_purpose": sorted(by_purpose.values(), key=lambda x: -x["gross_minor"]),
+            "by_day": [{"day": d, "gross_minor": n} for d, n in sorted(by_day.items())],
+            "gross_minor": sum(p["gross_minor"] for p in by_purpose.values()),
+            "net_minor": sum(p["net_minor"] for p in by_purpose.values())}
+
+
 @router.get("/analytics")
 def channel_analytics(start: date | None = Query(None, alias="from"), end: date | None = Query(None, alias="to"),
                       ctx: StudioCtx = Depends(studio("video.analytics"))):
@@ -68,6 +115,8 @@ def channel_analytics(start: date | None = Query(None, alias="from"), end: date 
                    "completions": sum(d["completions"] for d in days), "likes": sum(d["likes"] for d in days),
                    "followers_gained": followers_gained},
         "days": days,
+        **source_rows(mix(db, start, end, ViewDaily.tenant_id == ctx.tenant_id)[1]),
+        "revenue": revenue(db, ctx.tenant_id, start, end),
         "top": [{"id": v.id, "public_id": v.public_id, "title": v.title, "kind": v.kind,
                  "views": v.view_count + (pend.get(v.id) or {}).get("view_count", 0),
                  "watch_ms": v.watch_ms + (pend.get(v.id) or {}).get("watch_ms", 0)} for v in top],
@@ -82,6 +131,7 @@ def video_analytics(video_id: int, start: date | None = Query(None, alias="from"
         raise err(404, "video_not_found")
     start, end = window(start, end)
     days = series(ctx.db, start, end, ViewDaily.video_id == v.id)
+    curve, sources = mix(ctx.db, start, end, ViewDaily.video_id == v.id)
     p = counters.pending("video", [v.id]).get(v.id) or {}
     views = v.view_count + p.get("view_count", 0)
     done = v.completions + p.get("completions", 0)
@@ -94,6 +144,9 @@ def video_analytics(video_id: int, start: date | None = Query(None, alias="from"
                    "completion_rate": round(done / views, 4) if views else 0.0,
                    "avg_view_ms": watch // views if views else 0},
         "days": days,
+        "retention": [{"at_pct": round((i + 0.5) * 100 / counters.BUCKETS, 1), "audience": pct}
+                      for i, pct in enumerate(retention_pct(curve))] if any(curve) else [],
+        **source_rows(sources),
     }
 
 
@@ -122,9 +175,10 @@ def comment_inbox(response: Response, status: str | None = None, video_id: int |
                     "video_public_id": public_id, "video_title": title, "status": row.status,
                     "report_count": getattr(row, "report_count", 0), "created_at": iso(row.created_at)}
             if kind == "danmaku":
-                item.update(body=row.text, author=names.get(row.user_id, ""), t_ms=row.t_ms, mode=row.mode, color=row.color)
+                item.update(body=row.text, author=names.get(row.user_id, ""), t_ms=row.t_ms, mode=row.mode, color=row.color,
+                            boost_tier=row.boost_tier, paid_minor=row.paid_minor)
             else:
-                item.update(body=row.body, author=row.author_name, parent_id=row.parent_id)
+                item.update(body=row.body, author=row.author_name, parent_id=row.parent_id, paid_minor=row.paid_minor)
             out.append(item)
         return out
 

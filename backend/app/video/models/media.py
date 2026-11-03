@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from sqlalchemy import (
-    BigInteger, Boolean, CheckConstraint, Computed, DateTime, ForeignKey, Index, Integer, String,
+    BigInteger, Boolean, CheckConstraint, Computed, DateTime, ForeignKey, Index, Integer, SmallInteger, String,
     Text, UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR
@@ -28,6 +28,8 @@ class Video(Base):
             name="ck_videos_status",
         ),
         CheckConstraint("visibility IN ('public','unlisted','private','scheduled')", name="ck_videos_visibility"),
+        CheckConstraint("access IN ('free','members','paid')", name="ck_videos_access"),
+        CheckConstraint("access <> 'paid' OR price_inr_minor > 0", name="ck_videos_paid_price"),
         Index("idx_videos_feed", "status", "visibility", "published_at"),
         Index("idx_videos_channel", "channel_id", "published_at"),
         Index("idx_videos_search", "search", postgresql_using="gin"),
@@ -58,6 +60,11 @@ class Video(Base):
     source_key: Mapped[str | None] = mapped_column(String(300))
     thumbnail_key: Mapped[str | None] = mapped_column(String(300))
     thumbnail_ideas: Mapped[list] = mapped_column(JSONB, nullable=False, default=list, server_default="[]")
+    access: Mapped[str] = mapped_column(String(8), nullable=False, default="free", server_default="free")
+    price_inr_minor: Mapped[int | None] = mapped_column(Integer)
+    members_rank: Mapped[int | None] = mapped_column(SmallInteger)
+    preview_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=60, server_default="60")
+    dubbing_allowed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
     tags: Mapped[list] = mapped_column(JSONB, nullable=False, default=list, server_default="[]")
     ai_generated: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
     rights_declared: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
@@ -97,5 +104,40 @@ class CaptionTrack(Base):
     language: Mapped[str] = mapped_column(String(8), nullable=False)
     source: Mapped[str] = mapped_column(String(12), nullable=False)
     vtt: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = created()
+    updated_at: Mapped[datetime] = updated()
+
+
+class ProductLink(Base):
+    __tablename__ = "product_links"
+    __table_args__ = (Index("idx_product_links_video", "video_id", "position"), {"schema": SCHEMA})
+
+    id: Mapped[int] = pk()
+    tenant_id: Mapped[int] = tenant_fk()
+    video_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("kv_media.videos.id", ondelete="CASCADE"), nullable=False)
+    title: Mapped[str] = mapped_column(String(120), nullable=False)
+    url: Mapped[str] = mapped_column(String(500), nullable=False)
+    price_text: Mapped[str] = mapped_column(String(40), nullable=False, default="", server_default="")
+    position: Mapped[int] = mapped_column(SmallInteger, nullable=False, default=0)
+    clicks: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0, server_default="0")
+    created_at: Mapped[datetime] = created()
+
+
+class DubTrack(Base):
+    __tablename__ = "dub_tracks"
+    __table_args__ = (
+        CheckConstraint("status IN ('queued','ready','failed')", name="ck_dub_tracks_status"),
+        UniqueConstraint("video_id", "language", name="uq_dub_tracks"),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[int] = pk()
+    tenant_id: Mapped[int] = tenant_fk()
+    video_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("kv_media.videos.id", ondelete="CASCADE"), nullable=False)
+    language: Mapped[str] = mapped_column(String(8), nullable=False)
+    status: Mapped[str] = mapped_column(String(8), nullable=False, default="queued")
+    voice: Mapped[str] = mapped_column(String(60), nullable=False, default="", server_default="")
+    model: Mapped[str] = mapped_column(String(60), nullable=False, default="", server_default="")
+    error: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = created()
     updated_at: Mapped[datetime] = updated()

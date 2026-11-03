@@ -159,6 +159,9 @@ def analyse(db, video: Video, cues: list[Cue]) -> None:
         for s, vec in zip(segs, vectors):
             s.embedding = vec
         _record(db, video, "embed", "done", provider=embedder.provider_name(), units=len(segs), units_kind="segments")
+        from app.video.social import reco
+
+        reco.refresh_vector(db, video)
     if video.duration_ms >= 30_000 and video.source != "embed":
         db.execute(ClipSuggestion.__table__.delete().where(ClipSuggestion.video_id == video.id))
         for c in intel.find_clips(cues, video.title, video.duration_ms):

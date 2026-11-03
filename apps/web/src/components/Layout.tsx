@@ -5,6 +5,7 @@ import { useAuthStore, useSession } from "@klygenixvideo/auth"
 import { cn } from "@klygenixvideo/ui"
 import { STUDIO_URL, useMe, useSignedIn } from "../lib/api"
 import { hue, initials } from "../lib/format"
+import { useNavTrail } from "../lib/traffic"
 
 export function Logo({ compact = false }: { compact?: boolean }) {
   return (
@@ -244,6 +245,7 @@ export function Footer() {
 
 export function Layout() {
   useSession()
+  useNavTrail()
   const location = useLocation()
   const immersive = location.pathname.startsWith("/reels")
 

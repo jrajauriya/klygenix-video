@@ -7,6 +7,8 @@ import type { ChannelAnalytics } from "../lib/types"
 import { KindBadge } from "../components/StatusChips"
 import { averageView } from "../components/video/AnalyticsTab"
 import { DailyChart, RangePicker } from "../components/DailyChart"
+import { RevenueByStream, TrafficSources } from "../components/AudienceCharts"
+import { useHasFeature, useHasPermission } from "@klygenixvideo/client"
 
 type Top = ChannelAnalytics["top"][number]
 
@@ -19,6 +21,8 @@ export default function Analytics() {
   const p = data?.period
   const top = data?.top ?? []
   const most = Math.max(1, ...top.map((v) => v.views))
+  const moneyOn = useHasFeature("video.earnings")
+  const moneyAllowed = useHasPermission("video.earnings")
 
   const columns: DataTableColumn<Top>[] = [
     {
@@ -68,6 +72,12 @@ export default function Analytics() {
         <p className="mb-3 text-xs text-slate-500">India time. Days fill in as views are counted, every few minutes.</p>
         {data ? <DailyChart days={data.days} /> : <div className="h-[180px] animate-pulse rounded-lg bg-slate-100" />}
       </Card>
+      {data && (
+        <div className="mb-4 space-y-4">
+          <TrafficSources sources={data.sources ?? []} external={data.external ?? []} />
+          {data.revenue && moneyOn && moneyAllowed && <RevenueByStream revenue={data.revenue} days={range} />}
+        </div>
+      )}
       <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">All time</h2>
       <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         <StatCard size="sm" label="Views" value={t ? compact(t.views) : "—"} icon={<Eye size={16} />} accent="brand" />

@@ -1,7 +1,7 @@
 import os
 import re
 
-from harness import check, creator, finish, ok, signup, sql, wait_for
+from harness import PAYOUT_ACCOUNT, check, creator, finish, ok, signup, sql, wait_for
 
 ROOT = os.path.join(os.path.dirname(__file__), "..", "backend", "app", "video", "channels")
 print("\n== No adapter can download someone else's media (rule V02)")
@@ -33,6 +33,15 @@ ok("AI runs from the creator's own captions",
    wait_for(lambda: c.get(f"/api/video/studio/videos/{e['id']}").json()["ai_status"] == "ready", 60))
 a = viewer.post(f"/api/video/videos/{e['public_id']}/ask", json={"question": "How should I fold the dumpling edges?"}).json()
 check("Ask now answers from the captions", a["status"], "answered")
+
+print("\n== No money on someone else's player (rule V04, §06)")
+c.put("/api/video/studio/earnings/account", json=PAYOUT_ACCOUNT)
+c.post("/api/video/studio/earnings/account/submit")
+check("an embed cannot be priced", c.put(f"/api/video/studio/videos/{e['id']}/access", json={"access": "paid", "price_minor": 9900}).status_code, 400)
+check("nor made members-only", c.put(f"/api/video/studio/videos/{e['id']}/access", json={"access": "members"}).status_code, 400)
+check("no tips on an embed", viewer.post("/api/video/support/checkout", json={"purpose": "tip", "amount_minor": 10000, "video_id": e["public_id"]}).status_code, 409)
+check("no boosts on an embed", viewer.post(f"/api/video/videos/{e['public_id']}/boost/check", json={"text": "hello"}).status_code, 409)
+check("an embed never shows a paywall", viewer.get(f"/api/video/videos/{e['public_id']}").json()["locked"], None)
 
 print("\n== Connected YouTube channel (sandbox)")
 start = c.get("/api/video/studio/connected/youtube/start").json()

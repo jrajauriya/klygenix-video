@@ -260,7 +260,86 @@ def journey(client: httpx.Client, args: argparse.Namespace, base: str, api: str)
     check("Creator Pro granted by the payments worker", plan == "creator_pro", f"plan {plan!r} after {args.paid_timeout}s")
     r = client.get(f"{api}/api/video/me/invoices", headers=auth)
     check("invoice issued", r.status_code == 200 and len(r.json()) >= 1, f"HTTP {r.status_code} {r.text[:160]}")
+    section("creator money (sandbox rail)")
+    money(client, args, api, auth, video_id, public_id)
     client.delete(f"{api}/api/video/studio/videos/{video_id}", headers=auth)
+
+
+def _paid(client: httpx.Client, api: str, auth: dict, checkout_id: int, timeout: float) -> bool:
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if client.get(f"{api}/api/video/checkout/{checkout_id}", headers=auth).json().get("status") == "paid":
+            return True
+        time.sleep(0.5)
+    return False
+
+
+def money(client: httpx.Client, args: argparse.Namespace, api: str, auth: dict, video_id: int, public_id: str) -> None:
+    account = {"business_type": "individual", "legal_name": "Smoke Creator", "contact_name": "Smoke Creator",
+               "email": "smoke.payouts@example.com", "phone": "9876543210", "pan": "ABCDE1234F",
+               "address": {"street1": "1 Test Road", "city": "Bengaluru", "state": "Karnataka", "postal_code": "560001"},
+               "beneficiary_name": "Smoke Creator", "ifsc": "HDFC0001234", "account_number": "123456789012"}
+    client.put(f"{api}/api/video/studio/earnings/account", headers=auth, json=account)
+    r = client.post(f"{api}/api/video/studio/earnings/account/submit", headers=auth)
+    if not check("payout account activated (sandbox Route)", r.status_code == 200 and r.json()["account"]["status"] == "activated",
+                 f"HTTP {r.status_code} {r.text[:160]}"):
+        return
+    r = client.post(f"{api}/api/auth/signup", json={"name": "Smoke Fan", "email": f"smoke-fan-{uuid.uuid4().hex[:10]}@example.com",
+                                                   "password": "Smoke@123456", "birth_date": "1990-01-01", "country": "IN",
+                                                   "language": "en"})
+    fan = {"Authorization": f"Bearer {r.json()['access_token']}"}
+    r = client.post(f"{api}/api/video/support/checkout", headers=fan, json={"purpose": "tip", "amount_minor": 10000, "video_id": public_id,
+                                                                         "message": "Smoke tip"})
+    if not check("tip checkout created", r.status_code == 201, f"HTTP {r.status_code} {r.text[:160]}"):
+        return
+    tip = r.json()
+    client.post(f"{api}/api/video/sandbox/pay/{tip['id']}", headers=fan)
+    check("tip paid through the payments worker", _paid(client, api, fan, tip["id"], args.paid_timeout))
+    sales: list = []
+    deadline = time.time() + args.paid_timeout
+    while time.time() < deadline and not sales:
+        sales = client.get(f"{api}/api/video/studio/earnings/sales", headers=auth).json()
+        time.sleep(0.5)
+    check("the tip is split for the creator", bool(sales) and sales[0]["gross_minor"] == 10000 and sales[0]["net_minor"] > 0,
+          str(sales[:1]))
+    held: list = []
+    deadline = time.time() + args.paid_timeout
+    while time.time() < deadline and len(held) < 2:
+        held = [t for t in client.get(f"{api}/api/video/studio/earnings/transfers", headers=auth).json() if t["status"] == "held"]
+        time.sleep(0.5)
+    check("Route transfers held for the refund window", len(held) == 2, str(held))
+    r = client.get(f"{api}/api/video/studio/earnings/statement?format=csv", headers=auth)
+    check("monthly statement downloads", r.status_code == 200 and r.text.startswith("paid_at"), f"HTTP {r.status_code}")
+    r = client.post(f"{api}/api/video/studio/memberships/tiers", headers=auth, json={"name": "Smoke club", "rank": 1, "price_minor": 4900})
+    if not check("membership tier created", r.status_code == 201, f"HTTP {r.status_code} {r.text[:160]}"):
+        return
+    tier = r.json()
+    client.put(f"{api}/api/video/studio/videos/{video_id}/access", headers=auth, json={"access": "members", "members_rank": 1})
+    d = client.get(f"{api}/api/video/videos/{public_id}", headers=fan).json()
+    check("a members-only video is locked for a fan", (d.get("locked") or {}).get("access") == "members", str(d.get("locked"))[:160])
+    r = client.post(f"{api}/api/video/support/checkout", headers=fan, json={"purpose": "membership", "tier_id": tier["id"]})
+    client.post(f"{api}/api/video/sandbox/pay/{r.json()['id']}", headers=fan)
+    _paid(client, api, fan, r.json()["id"], args.paid_timeout)
+    d = client.get(f"{api}/api/video/videos/{public_id}", headers=fan).json()
+    pb = d.get("playback") or {}
+    check("joining opens the full stream", d.get("locked") is None and "hls-preview" not in (pb.get("url") or ""), str(d.get("locked"))[:160])
+    client.put(f"{api}/api/video/studio/videos/{video_id}/access", headers=auth, json={"access": "free"})
+    if not (args.admin_email and args.admin_password):
+        record("SKIP", "refund unwinds the split", "no admin credentials given")
+        return
+    r = client.post(f"{api}/api/auth/login", json={"email": args.admin_email, "password": args.admin_password})
+    if not check("admin sign-in", r.status_code == 200 and "access_token" in r.text, f"HTTP {r.status_code}"):
+        return
+    adm = {"Authorization": f"Bearer {r.json()['access_token']}"}
+    pays = client.get(f"{api}/api/video/admin/payments?purpose=tip", headers=adm).json()
+    pay = next((p for p in pays if p["checkout_id"] == tip["id"]), None)
+    if not check("the tip payment is listed for the admin", pay is not None):
+        return
+    r = client.post(f"{api}/api/video/admin/payments/{pay['id']}/refund", headers=adm, json={"reason": "Smoke test refund"})
+    check("admin refund processed", r.status_code == 201 and r.json()["payment"]["refundable_minor"] == 0, f"HTTP {r.status_code} {r.text[:160]}")
+    tip_split = next((x["id"] for x in client.get(f"{api}/api/video/studio/earnings/sales?purpose=tip", headers=auth).json()), None)
+    tr = [t for t in client.get(f"{api}/api/video/studio/earnings/transfers", headers=auth).json() if t["split_id"] == tip_split]
+    check("the tip's held transfers are reversed", bool(tr) and all(t["status"] == "reversed" for t in tr), str(tr))
 
 
 def main() -> int:
@@ -280,6 +359,8 @@ def main() -> int:
     ap.add_argument("--skip-purchase", action="store_true")
     ap.add_argument("--timeout", type=float, default=30.0)
     ap.add_argument("--paid-timeout", type=float, default=60.0)
+    ap.add_argument("--admin-email", default=os.environ.get("KV_ADMIN_EMAIL", ""))
+    ap.add_argument("--admin-password", default=os.environ.get("KV_ADMIN_PASSWORD", ""))
     args = ap.parse_args()
     if args.insecure:
         import warnings

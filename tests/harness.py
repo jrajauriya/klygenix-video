@@ -146,3 +146,22 @@ def flush_counters() -> None:
 
     with platform_session() as db:
         counters.flush(db)
+
+
+PAYOUT_ACCOUNT = {
+    "business_type": "individual", "legal_name": "Asha Verma", "contact_name": "Asha Verma",
+    "email": "asha.payouts@example.com", "phone": "9876543210", "pan": "ABCDE1234F",
+    "address": {"street1": "12 MG Road", "city": "Bengaluru", "state": "Karnataka", "postal_code": "560001"},
+    "beneficiary_name": "Asha Verma", "ifsc": "HDFC0001234", "account_number": "123456789012",
+}
+
+
+def support_pay(c: httpx.Client, body: dict) -> dict:
+    r = c.post("/api/video/support/checkout", json=body)
+    assert r.status_code == 201, r.text
+    chk = r.json()
+    paid = c.post(f"/api/video/sandbox/pay/{chk['id']}")
+    assert paid.status_code == 200, paid.text
+    wait_for(lambda: c.get(f"/api/video/checkout/{chk['id']}").json()["status"] == "paid", 30, 0.2)
+    return chk
+

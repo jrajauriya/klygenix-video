@@ -79,6 +79,9 @@ class BunnyProvider:
         token = base64.urlsafe_b64encode(raw).decode().rstrip("=")
         return f"https://{self.cdn}/bcdn_token={token}&expires={exp}&token_path={quote(token_path, safe='')}{path}"
 
+    def preview(self, video, ttl: int, seconds: int) -> dict | None:
+        return None
+
     def playback(self, video, ttl: int) -> dict:
         guid = video.provider_video_id
         if not settings.BUNNY_TOKEN_KEY:

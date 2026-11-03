@@ -1,5 +1,6 @@
 import axios from "axios"
 import Constants from "expo-constants"
+import { Linking } from "react-native"
 
 import { session } from "./session"
 
@@ -8,6 +9,10 @@ export const API_URL =
 
 export const WEB_URL =
   (Constants.expoConfig?.extra as { webUrl?: string } | undefined)?.webUrl ?? "http://localhost:5300"
+
+export function openWeb(path: string): void {
+  Linking.openURL(`${WEB_URL}${path}`).catch(() => null)
+}
 
 export const api = axios.create({ baseURL: API_URL, timeout: 20000 })
 

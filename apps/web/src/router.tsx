@@ -1,4 +1,9 @@
-import { createBrowserRouter, useRouteError } from "react-router-dom"
+import { createBrowserRouter, useRouteError, type LoaderFunctionArgs } from "react-router-dom"
+import { useAuthStore } from "@klygenixvideo/auth"
+import { getJson } from "./lib/api"
+import { reelsKey, reelsPage } from "./lib/reelsFeed"
+import { queryClient } from "./lib/queryClient"
+import { preloadHls, warmHls } from "@klygenixvideo/player/src/preload"
 import { Layout } from "./components/Layout"
 import HomePage from "./pages/Home"
 import NotFound from "./pages/NotFound"
@@ -15,6 +20,44 @@ function RouteError() {
   )
 }
 
+function prefetchVideo({ params }: LoaderFunctionArgs) {
+  preloadHls()
+  const signedIn = signedInNow()
+  if (params.id) {
+    const key = ["video", params.id, signedIn]
+    void queryClient.prefetchQuery({ queryKey: key, queryFn: () => getJson(`/api/video/videos/${params.id}`) }).then(() => {
+      const v = queryClient.getQueryData<{ playback?: { type?: string; url?: string } | null }>(key)
+      if (v?.playback?.type === "hls") warmHls(v.playback.url)
+    })
+  }
+  return null
+}
+
+function signedInNow() {
+  const { token, user } = useAuthStore.getState()
+  return Boolean(token && user)
+}
+
+function prefetchReels({ params, request }: LoaderFunctionArgs) {
+  preloadHls()
+  const signedIn = signedInNow()
+  const start = params.id ?? new URL(request.url).searchParams.get("start")
+  void queryClient.prefetchInfiniteQuery({ queryKey: reelsKey(signedIn), queryFn: reelsPage, initialPageParam: 0 }).then(() => {
+    if (start) return
+    const first = queryClient.getQueryData<{ pages: { rows: { playback?: { type?: string; url?: string } | null }[] }[] }>(reelsKey(signedIn))
+    const pb = first?.pages[0]?.rows[0]?.playback
+    if (pb?.type === "hls") warmHls(pb.url)
+  })
+  if (start) {
+    const key = ["video", start, signedIn]
+    void queryClient.prefetchQuery({ queryKey: key, queryFn: () => getJson(`/api/video/videos/${start}`) }).then(() => {
+      const v = queryClient.getQueryData<{ playback?: { type?: string; url?: string } | null }>(key)
+      if (v?.playback?.type === "hls") warmHls(v.playback.url)
+    })
+  }
+  return null
+}
+
 const page = (load: () => Promise<{ default: React.ComponentType }>) => async () => ({ Component: (await load()).default })
 
 export const router = createBrowserRouter([
@@ -23,9 +66,9 @@ export const router = createBrowserRouter([
     errorElement: <RouteError />,
     children: [
       { path: "/", element: <HomePage /> },
-      { path: "/reels", lazy: page(() => import("./pages/Reels")) },
-      { path: "/reels/:id", lazy: page(() => import("./pages/Reels")) },
-      { path: "/watch/:id", lazy: page(() => import("./pages/watch/WatchPage")) },
+      { path: "/reels", loader: prefetchReels, lazy: page(() => import("./pages/Reels")) },
+      { path: "/reels/:id", loader: prefetchReels, lazy: page(() => import("./pages/Reels")) },
+      { path: "/watch/:id", loader: prefetchVideo, lazy: page(() => import("./pages/watch/WatchPage")) },
       { path: "/party/:code", lazy: page(() => import("./pages/PartyJoin")) },
       { path: "/playlist/:id", lazy: page(() => import("./pages/Playlist")) },
       { path: "/search", lazy: page(() => import("./pages/Search")) },

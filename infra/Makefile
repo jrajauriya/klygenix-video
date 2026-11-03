@@ -39,7 +39,7 @@ seed:
 test:
 	cd ../tests && for t in test_accounts test_tenancy test_upload_flow test_ai_pipeline test_search test_ask_citations \
 	  test_quota test_social test_clips test_plans_billing test_moderation test_embed_policy test_security \
-	  test_viewer_extras test_playlists test_parties test_thumbnails test_readiness test_graph_mail test_error_tracking test_native_imports test_migration_parity; do \
+	  test_viewer_extras test_playlists test_parties test_thumbnails test_payouts test_monetisation test_refunds test_analytics_reco test_publishing test_community test_learning test_dubbing test_readiness test_graph_mail test_error_tracking test_native_imports test_migration_parity; do \
 	  echo "### $$t"; ../backend/venv/bin/python $$t.py || exit 1; done
 
 dev: db-up

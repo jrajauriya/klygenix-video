@@ -7,6 +7,7 @@ import { STUDIO, rangeDates, type RangeDays } from "../../lib/hooks"
 import { clock, compact, watchTime } from "../../lib/format"
 import type { StudioVideo, VideoAnalytics } from "../../lib/types"
 import { DailyChart, RangePicker } from "../DailyChart"
+import { RetentionChart, TrafficSources } from "../AudienceCharts"
 
 export function averageView(v: Pick<StudioVideo, "watch_ms" | "views">): number {
   return v.views > 0 ? Math.round(v.watch_ms / v.views) : 0
@@ -47,6 +48,12 @@ export function AnalyticsTab({ video }: { video: StudioVideo }) {
         </div>
         {data ? <DailyChart days={data.days} /> : <div className="h-[180px] animate-pulse rounded-lg bg-slate-100" />}
       </Card>
+      <Card className="p-5">
+        <h3 className="text-sm font-bold text-navy">Audience retention</h3>
+        <p className="mb-3 text-xs text-slate-500">How many viewers are still watching at each point, last {range} days.</p>
+        {data ? <RetentionChart points={data.retention ?? []} lengthLabel={video.duration_ms ? clock(video.duration_ms) : undefined} /> : <div className="h-[200px] animate-pulse rounded-lg bg-slate-100" />}
+      </Card>
+      {data && <TrafficSources sources={data.sources ?? []} external={data.external ?? []} />}
       <p className="text-xs text-slate-500">Totals are all time and update every few minutes. Average view is total watch time divided by views.</p>
     </div>
   )

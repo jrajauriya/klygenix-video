@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query"
 import { toast } from "sonner"
@@ -10,14 +10,21 @@ import { apiUrl, errText, getJson, loginPath, useSignedIn } from "../lib/api"
 import { compactNumber } from "../lib/format"
 import { useProgressReporter } from "../lib/progress"
 import { useTitle } from "../lib/title"
+import { REELS_PAGE, reelsKey, reelsPage } from "../lib/reelsFeed"
 import type { VideoCard, VideoDetail } from "../lib/types"
 import { AiBadge, ChannelAvatar, Empty, Skel } from "../components/bits"
 import { Comments } from "../components/Comments"
 import { FollowButton } from "../components/FollowButton"
 import { ReportDialog, type ReportTarget } from "../components/ReportDialog"
 import { Sheet } from "../components/Sheet"
+import { AccessBadge } from "../components/VideoCards"
+import { PreviewBadge } from "./watch/lockBits"
 
-const PAGE = 10
+
+const LockedOverlay = lazy(() => import("./watch/Paywall").then((m) => ({ default: m.LockedOverlay })))
+
+const reelSource = () => ({ src: "reels" })
+
 const HEIGHT = "h-[calc(100dvh-7rem)] md:h-[calc(100dvh-3.5rem)]"
 
 function SideAction({ label, onClick, children, active }: { label: string; onClick: () => void; children: ReactNode; active?: boolean }) {
@@ -31,7 +38,7 @@ function SideAction({ label, onClick, children, active }: { label: string; onCli
 }
 
 function Reel({
-  reel, active, near, muted, following, onMuted, onFollow, onComments, onReport,
+  reel, active, near, muted, following, onMuted, onFollow, onComments, onReport, onStarted,
 }: {
   reel: VideoCard
   active: boolean
@@ -42,6 +49,7 @@ function Reel({
   onFollow: (handle: string, on: boolean) => void
   onComments: () => void
   onReport: () => void
+  onStarted: () => void
 }) {
   const signedIn = useSignedIn()
   const navigate = useNavigate()
@@ -51,9 +59,27 @@ function Reel({
   const [captionsOn, setCaptionsOn] = useState(false)
   const [like, setLike] = useState<{ on: boolean; count: number } | null>(null)
   const lastMs = useRef(0)
-  const progress = useProgressReporter(near ? reel.id : undefined)
+  const progress = useProgressReporter(near ? reel.id : undefined, reelSource)
   const liked = like ?? { on: reel.liked ?? false, count: reel.likes }
-  const captionLang = reel.captions?.available?.[0] ?? null
+  const gated = Boolean(reel.access && reel.access !== "free")
+  const needDetail = gated && reel.locked !== false
+  const detail = useQuery({
+    queryKey: ["video", reel.id, signedIn],
+    enabled: near && needDetail,
+    queryFn: () => getJson<VideoDetail>(`/api/video/videos/${reel.id}`),
+  })
+  const lock = needDetail ? detail.data?.locked ?? null : null
+  const [previewOver, setPreviewOver] = useState(false)
+  async function onUnlocked() {
+    for (let i = 0; i < 6; i++) {
+      const r = await detail.refetch()
+      if (!r.data?.locked) break
+      await new Promise((res) => setTimeout(res, 1200))
+    }
+    setPreviewOver(false)
+  }
+  const playback = needDetail ? detail.data?.playback ?? null : reel.playback ?? null
+  const captionLang = lock ? null : reel.captions?.available?.[0] ?? null
 
   const activeRef = useRef(active)
   activeRef.current = active
@@ -62,6 +88,7 @@ function Reel({
     const v = videoRef.current
     if (!v) return
     if (!active) {
+      setPreviewOver(false)
       v.pause()
       if (v.currentTime > 0.5) v.currentTime = 0
       return
@@ -75,7 +102,7 @@ function Reel({
     }
     v.addEventListener("canplay", go, { once: true })
     return () => v.removeEventListener("canplay", go)
-  }, [active, near])
+  }, [active, near, playback?.type === "hls" ? playback.url : null])
 
   const onTime = useCallback((ms: number) => {
     const dur = reel.duration_ms || (videoRef.current?.duration ?? 0) * 1000
@@ -129,30 +156,45 @@ function Reel({
   const captions = captionLang
     ? [{ lang: captionLang, label: captionLang.toUpperCase(), src: apiUrl(`/api/video/videos/${reel.id}/captions/${captionLang}.vtt`) }]
     : undefined
-  const src = reel.playback?.type === "hls" ? reel.playback.url : null
+  const src = playback?.type === "hls" ? playback.url : null
+  const paywallUp = Boolean(lock && detail.data && (previewOver || !src))
+
+  function replay() {
+    setPreviewOver(false)
+    const v = videoRef.current
+    if (v) {
+      v.currentTime = 0
+      v.play().catch(() => undefined)
+    }
+  }
 
   return (
     <section data-reel={reel.id} className={cn("relative flex w-full snap-start snap-always items-center justify-center", HEIGHT)} aria-label={reel.title}>
       <div className="relative h-full w-full overflow-hidden bg-black md:aspect-[9/16] md:h-[calc(100%-2rem)] md:w-auto md:rounded-2xl">
         {near && src ? (
           <HlsPlayer
+            key={`${reel.id}-${lock ? "preview" : "full"}`}
             src={src}
             poster={reel.thumbnail ?? undefined}
             controls={false}
             hotkeys={false}
-            loop
+            loop={!lock}
             muted={muted}
             fit="cover"
             captions={captions}
             captionLang={captionsOn ? captionLang : null}
             videoRef={videoRef}
             onTime={onTime}
-            onPlay={progress.onPlay}
+            onPlay={() => {
+              progress.onPlay()
+              if (active) onStarted()
+            }}
             onPause={progress.onPause}
+            onEnded={() => { if (lock) setPreviewOver(true) }}
             className="absolute inset-0 h-full w-full"
           />
         ) : reel.thumbnail ? (
-          <img src={reel.thumbnail} alt="" className="absolute inset-0 h-full w-full object-cover" />
+          <img src={reel.thumbnail} alt="" fetchPriority={active ? "high" : "low"} className="absolute inset-0 h-full w-full object-cover" />
         ) : null}
 
         <button type="button" onClick={tap} aria-label={muted ? "Unmute" : paused ? "Play" : "Pause"} className="absolute inset-0 z-10 cursor-pointer" />
@@ -188,6 +230,13 @@ function Reel({
         <div className="absolute bottom-24 right-2 z-20 flex flex-col items-center gap-4 md:hidden">
           {actions()}
         </div>
+        {gated && !lock && !paywallUp && <AccessBadge video={reel} className="pointer-events-none absolute right-3 top-3 z-20" />}
+        {lock && !paywallUp && <PreviewBadge lock={lock} className="pointer-events-none absolute left-3 top-3 z-20" />}
+        {lock && paywallUp && detail.data && (
+          <Suspense fallback={null}>
+            <LockedOverlay video={detail.data} lock={lock} onUnlocked={onUnlocked} onReplay={src ? replay : undefined} className="z-40" />
+          </Suspense>
+        )}
       </div>
       <div className="ml-4 hidden flex-col items-center gap-5 self-end pb-8 md:flex">
         {actions()}
@@ -237,13 +286,10 @@ export default function ReelsPage() {
   const scrolledTo = useRef<string | null>(null)
 
   const q = useInfiniteQuery({
-    queryKey: ["feed", "reels", "infinite", signedIn],
+    queryKey: reelsKey(signedIn),
     initialPageParam: 0,
-    queryFn: async ({ pageParam }) => {
-      const res = await api.get<VideoCard[]>("/api/video/feed/reels", { params: { limit: PAGE, offset: pageParam } })
-      return { rows: res.data, offset: pageParam, total: Number(res.headers["x-total-count"] ?? 0) }
-    },
-    getNextPageParam: (last) => (last.rows.length === PAGE && last.offset + PAGE < (last.total || Infinity) ? last.offset + PAGE : undefined),
+    queryFn: reelsPage,
+    getNextPageParam: (last) => (last.rows.length === REELS_PAGE && last.offset + REELS_PAGE < (last.total || Infinity) ? last.offset + REELS_PAGE : undefined),
   })
   const start = useQuery({
     queryKey: ["video", startId, signedIn],
@@ -259,6 +305,12 @@ export default function ReelsPage() {
   }, [q.data, start.data])
 
   const activeIndex = Math.max(0, reels.findIndex((r) => r.id === activeId))
+  const [warmId, setWarmId] = useState<string | null>(null)
+  useEffect(() => {
+    if (!activeId || warmId === activeId) return
+    const t = window.setTimeout(() => setWarmId(activeId), 2500)
+    return () => window.clearTimeout(t)
+  }, [activeId, warmId])
 
   useEffect(() => {
     if (!reels.length) return
@@ -342,7 +394,8 @@ export default function ReelsPage() {
             key={r.id}
             reel={r}
             active={i === activeIndex}
-            near={i >= activeIndex - 1 && i <= activeIndex + 2}
+            near={i === activeIndex || (warmId === r.id) || (warmId === reels[activeIndex]?.id && i >= activeIndex - 1 && i <= activeIndex + 2)}
+            onStarted={() => setWarmId(r.id)}
             muted={muted}
             following={r.channel ? follows[r.channel.handle] ?? r.following ?? false : false}
             onMuted={setMuted}

@@ -8,11 +8,15 @@ export interface ChannelCard {
 }
 
 export type Playback =
-  | { type: "hls"; url: string; expires_at?: number }
+  | { type: "hls"; url: string; expires_at?: number; preview_seconds?: number }
   | { type: "youtube" | "bilibili"; url: string; source_url: string; credit: string; overlay_allowed: false }
+
+export type Access = "free" | "members" | "paid"
 
 export interface VideoCard {
   id: string
+  access?: Access
+  price_minor?: number | null
   title: string
   kind: "long" | "reel"
   source: string
@@ -29,7 +33,7 @@ export interface VideoCard {
   ai_generated: boolean
   embed_platform: string | null
   channel: ChannelCard
-  playback?: Playback
+  playback?: Playback | null
 }
 
 export interface Chapter {
@@ -37,10 +41,47 @@ export interface Chapter {
   title: string
 }
 
+export interface LockTier {
+  id: number
+  name: string
+  rank: number
+  price_minor: number
+  badge: string | null
+}
+
+export interface Lock {
+  access: Access
+  preview_seconds: number
+  signed_in: boolean
+  members_rank?: number
+  tiers?: LockTier[]
+  price_minor?: number | null
+  currency?: string
+  series?: { id: number; title: string; price_minor: number | null }[]
+}
+
+export interface ProductItem {
+  id: number
+  title: string
+  price_text: string
+  host: string
+}
+
+export interface Dub {
+  language: string
+  name: string
+  label: string
+  url: string
+}
+
 export interface VideoDetail extends VideoCard {
   description: string
   tags: string[]
-  playback: Playback
+  playback: Playback | null
+  access: Access
+  locked: Lock | null
+  products: { disclosure: string; items: ProductItem[] } | null
+  dubs: Dub[]
   insight: { summary: string; key_points: string[]; chapters: Chapter[]; tags: string[] } | null
   liked: boolean
   following: boolean
@@ -148,4 +189,66 @@ export interface Me {
   plans: { viewer: Plan | null; creator: Plan | null }
   subscriptions: { plan_key: string; status: string; current_period_end?: string | null }[]
   usage: { metric: string; label: string; used: number; limit: number | null; period: string }[]
+}
+
+export interface Note {
+  id: number
+  t_ms: number
+  label: string
+  body: string
+  created_at: string
+}
+
+export interface ChannelPage {
+  id: number
+  handle: string
+  name: string
+  avatar: string | null
+  banner: string | null
+  followers: number
+  verified: boolean
+  about: string | null
+  following: boolean
+}
+
+export interface Support {
+  channel: string
+  can_take_money: boolean
+  currency: string
+  tiers: (LockTier & { perks: string[] | null; is_active: boolean })[]
+  my_rank: number
+  is_owner: boolean
+}
+
+export interface PollOption {
+  id: number
+  label: string
+  votes: number
+}
+
+export interface Post {
+  id: number
+  kind: "text" | "poll" | "image"
+  body: string
+  image: string | null
+  members_rank: number | null
+  locked: boolean
+  created_at: string
+  poll: { total: number; my_vote: number | null; options: PollOption[] } | null
+}
+
+export interface Membership {
+  tier: (LockTier & { currency: string }) | null
+  channel: string | null
+  channel_name: string | null
+  status: string
+  current_period_end: string | null
+  cancel_at_period_end: boolean
+}
+
+export interface Purchase {
+  kind: "video" | "series"
+  id: string | number | null
+  title: string
+  bought_at: string | null
 }
