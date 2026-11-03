@@ -1,0 +1,32 @@
+{
+ "title": "The git mistake everyone makes",
+ "duration_s": 11.15,
+ "lines": [
+  "The biggest git mistake? Committing straight to main.",
+  "Always create a branch for each change.",
+  "Then open a pull request so someone can review it.",
+  "Your future self will thank you."
+ ],
+ "cues": [
+  [
+   0.0,
+   2.904,
+   "The biggest git mistake? Committing straight to main."
+  ],
+  [
+   3.254,
+   5.522,
+   "Always create a branch for each change."
+  ],
+  [
+   5.872,
+   8.67,
+   "Then open a pull request so someone can review it."
+  ],
+  [
+   9.02,
+   10.801,
+   "Your future self will thank you."
+  ]
+ ]
+}

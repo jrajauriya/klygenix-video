@@ -1,0 +1,68 @@
+10003	FAIL	(Vulnerable JS Library (Powered by Retire.js))
+10009	FAIL	(In Page Banner Information Leak)
+10010	FAIL	(Cookie No HttpOnly Flag)
+10011	FAIL	(Cookie Without Secure Flag)
+10015	IGNORE	(Re-examine Cache-control Directives) -- informational: no-store on the API, public max-age on the share shell by design
+10017	WARN	(Cross-Domain JavaScript Source File Inclusion) -- Razorpay/analytics scripts are allow-listed in script-src
+10019	FAIL	(Content-Type Header Missing)
+10020	FAIL	(Anti-clickjacking Header)
+10021	FAIL	(X-Content-Type-Options Header Missing)
+10023	FAIL	(Information Disclosure - Debug Error Messages)
+10024	WARN	(Information Disclosure - Sensitive Information in URL) -- one-use library sign-in links carry a token by design; single use, short lived
+10025	FAIL	(Information Disclosure - Sensitive Information in HTTP Referrer Header)
+10026	FAIL	(HTTP Parameter Override)
+10027	IGNORE	(Information Disclosure - Suspicious Comments) -- minified third-party bundles contain words like TODO/select; no comments ship in our code
+10028	FAIL	(Off-site Redirect)
+10029	FAIL	(Cookie Poisoning)
+10030	FAIL	(User Controllable Charset)
+10031	WARN	(User Controllable HTML Element Attribute (Potential XSS)) -- ?lang=en/hi matches the store's own hreflang/lang values; the attribute comes from the fixed language list, injected values are not reflected (docs/SECURITY.md)
+10032	FAIL	(Viewstate)
+10033	FAIL	(Directory Browsing)
+10034	FAIL	(Heartbleed OpenSSL Vulnerability (Indicative))
+10035	FAIL	(Strict-Transport-Security Header)
+10036	FAIL	(HTTP Server Response Header)
+10037	FAIL	(Server Leaks Information via "X-Powered-By" HTTP Response Header Field(s))
+10038	FAIL	(Content Security Policy (CSP) Header Not Set)
+10039	FAIL	(X-Backend-Server Header Information Leak)
+10040	FAIL	(Secure Pages Include Mixed Content)
+10041	FAIL	(HTTP to HTTPS Insecure Transition in Form Post)
+10042	FAIL	(HTTPS to HTTP Insecure Transition in Form Post)
+10043	FAIL	(User Controllable JavaScript Event (XSS))
+10044	FAIL	(Big Redirect Detected (Potential Sensitive Information Leak))
+10049	IGNORE	(Content Cacheability) -- cacheability is informational; API sends no-store, assets are immutable
+10050	FAIL	(Retrieved from Cache)
+10052	FAIL	(X-ChromeLogger-Data (XCOLD) Header Information Leak)
+10054	FAIL	(Cookie without SameSite Attribute)
+10055	WARN	(CSP) -- img/media/frame-src https: for creator media and embeds; style-src 'unsafe-inline' only on the storefront and studio, whose Razorpay/Lemon Squeezy widgets inject <style> (docs/SECURITY.md)
+10056	FAIL	(X-Debug-Token Information Leak)
+10057	FAIL	(Username Hash Found)
+10061	FAIL	(X-AspNet-Version Response Header)
+10062	FAIL	(PII Disclosure)
+10063	FAIL	(Permissions Policy Header Not Set)
+10096	IGNORE	(Timestamp Disclosure) -- hashed asset names and API timestamps
+10097	FAIL	(Hash Disclosure)
+10098	FAIL	(Cross-Domain Misconfiguration)
+10099	FAIL	(Source Code Disclosure)
+10105	FAIL	(Weak Authentication Method)
+10108	FAIL	(Reverse Tabnabbing)
+10109	IGNORE	(Modern Web Application) -- fingerprint only
+10110	WARN	(Dangerous JS Functions) -- React/Vite bundles; script-src 'self' blocks injected code
+10111	IGNORE	(Authentication Request Identified) -- identification only
+10112	IGNORE	(Session Management Response Identified) -- identification only
+10113	IGNORE	(Verification Request Identified) -- identification only
+10115	FAIL	(Script Served From Malicious Domain (polyfill))
+10116	IGNORE	(ZAP is Out of Date) -- scanner self-check
+10202	WARN	(Absence of Anti-CSRF Tokens) -- SPA with bearer tokens; no cookie session to forge
+2	FAIL	(Private IP Disclosure)
+3	FAIL	(Session ID in URL Rewrite)
+50001	FAIL	(Script Passive Scan Rules)
+90001	FAIL	(Insecure JSF ViewState)
+90002	FAIL	(Java Serialization Object)
+90003	FAIL	(Sub Resource Integrity Attribute Missing)
+90004	WARN	(Insufficient Site Isolation Against Spectre Vulnerability) -- COOP/COEP/CORP not adopted: pages embed Razorpay checkout and creators' https media (docs/SECURITY.md)
+90011	FAIL	(Charset Mismatch)
+90022	FAIL	(Application Error Disclosure)
+90030	FAIL	(WSDL File Detection)
+90033	FAIL	(Loosely Scoped Cookie)
+40026	IGNORE	(Cross Site Scripting (DOM Based)) -- JSON API scan; launches a browser that crashes the container; the SPAs are covered by the baseline scans
+10106	IGNORE	(HTTP Only Site) -- only the dev API scan is plain http on localhost; the stack scan runs over https

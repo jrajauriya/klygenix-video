@@ -1,0 +1,86 @@
+services:
+  postgres:
+    container_name: klygenix-video-staging-postgres
+    volumes: !override
+      - pgdata:/var/lib/postgresql/data
+      - walarchive:/wal-archive
+      - basebackups:/backups
+
+  redis:
+    container_name: klygenix-video-staging-redis
+
+  mailpit:
+    image: axllent/mailpit:v1.27
+    container_name: klygenix-video-staging-mailpit
+    restart: unless-stopped
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: "1"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "1"
+      MP_MAX_MESSAGES: "2000"
+    ports:
+      - "127.0.0.1:${STAGING_MAIL_UI_PORT:-18025}:8025"
+
+  backend:
+    image: klygenix-video-backend:staging
+    container_name: klygenix-video-staging-backend
+    env_file: !override [.env.staging]
+    environment:
+      SANDBOX_ENABLED: "true"
+      PAYMENT_RAIL: sandbox
+      JOBS_MODE: rq
+    volumes: !override
+      - ${KV_STAGING_DIR:-./build/staging}/secret.key:/app/.secret.key:ro
+      - ../apps/web/dist:/app/web:ro
+      - media:/app/private_uploads
+    depends_on:
+      mailpit: { condition: service_started }
+
+  worker-ai:
+    image: klygenix-video-backend:staging
+    container_name: klygenix-video-staging-worker-ai
+    env_file: !override [.env.staging]
+    environment:
+      SANDBOX_ENABLED: "true"
+      JOBS_MODE: rq
+    volumes: !override
+      - ${KV_STAGING_DIR:-./build/staging}/secret.key:/app/.secret.key:ro
+      - media:/app/private_uploads
+
+  worker-render:
+    image: klygenix-video-backend:staging
+    container_name: klygenix-video-staging-worker-render
+    env_file: !override [.env.staging]
+    environment:
+      SANDBOX_ENABLED: "true"
+      JOBS_MODE: rq
+    volumes: !override
+      - ${KV_STAGING_DIR:-./build/staging}/secret.key:/app/.secret.key:ro
+      - media:/app/private_uploads
+
+  scheduler:
+    image: klygenix-video-backend:staging
+    container_name: klygenix-video-staging-scheduler
+    env_file: !override [.env.staging]
+    environment:
+      SANDBOX_ENABLED: "true"
+      JOBS_MODE: rq
+    volumes: !override
+      - ${KV_STAGING_DIR:-./build/staging}/secret.key:/app/.secret.key:ro
+
+  nginx:
+    container_name: klygenix-video-staging-nginx
+    ports: !override
+      - "127.0.0.1:${STAGING_HTTP_PORT:-8080}:80"
+      - "127.0.0.1:${STAGING_HTTPS_PORT:-8443}:443"
+    volumes: !override
+      - ./nginx/render.sh:/etc/nginx/render.sh:ro
+      - ./nginx/prod.conf.template:/etc/nginx/prod.conf.template:ro
+      - ./nginx/snippets:/etc/nginx/snippet-templates:ro
+      - ${KV_STAGING_DIR:-./build/staging}/ssl:/etc/nginx/ssl:ro
+      - ../apps/web/dist:/var/www/web:ro
+      - ../apps/admin/dist:/var/www/admin:ro
+      - ../apps/studio/dist:/var/www/studio:ro
+
+volumes:
+  walarchive:
+  basebackups:

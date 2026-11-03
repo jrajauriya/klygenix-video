@@ -1,0 +1,14 @@
+@import "tailwindcss";
+@import "../../../packages/ui/src/theme.css";
+
+@source "../../../packages/ui/src";
+@source "../../../packages/auth/src";
+@source "../../../packages/client/src";
+
+@theme {
+  --color-brand: #a21caf;
+  --color-brand-hover: #c026d3;
+  --color-brand-dark: #86198f;
+  --color-brand-50: #fdf4ff;
+  --color-brand-100: #fae8ff;
+}

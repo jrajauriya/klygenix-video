@@ -1,0 +1,179 @@
+import { useMemo, useState } from "react"
+import { Link, Navigate, Outlet, useLocation } from "react-router-dom"
+import {
+  AppShell, ChangePasswordDialog, Header, KlygenixIcon, KlygenixWordmark, Sidebar, Spinner, ThemeSheet, isThemeKey,
+} from "@klygenixvideo/ui"
+import { api, useAuthStore, useLogout, useThemePreference } from "@klygenixvideo/auth"
+import { useHasFeature, usePermissions } from "@klygenixvideo/client"
+import { toast } from "sonner"
+import { Ban, ExternalLink, KeyRound, ShieldCheck, Upload } from "lucide-react"
+import type { NavItem, NavSection } from "@klygenixvideo/ui"
+import { sections, topLinks } from "./nav"
+import TwoStep from "../TwoStep"
+import { LanguagePicker } from "../LanguagePicker"
+import { useChannel } from "../../lib/hooks"
+import { channelUrl } from "../../lib/format"
+import { useHtmlLang, useT } from "../../i18n"
+
+const OPEN_WITHOUT_CHANNEL = ["/welcome", "/settings", "/billing", "/moderation"]
+
+export function StudioLayout() {
+  const { token, user } = useAuthStore()
+  const logout = useLogout()
+  const location = useLocation()
+  const perms = usePermissions()
+  const features = useHasFeature
+  const t = useT()
+  useHtmlLang()
+  const [changing, setChanging] = useState(false)
+  const [twoStep, setTwoStep] = useState(false)
+  const [theming, setTheming] = useState(false)
+  const [resending, setResending] = useState(false)
+  const theme = useThemePreference("studio")
+  const { data: channel, isLoading: channelLoading } = useChannel()
+
+  const localTop = useMemo(() => topLinks.map((i) => ({ ...i, label: t(i.label) })), [t])
+  const localSections = useMemo<NavSection[]>(
+    () => sections.map((s) => ({ ...s, label: t(s.label), items: s.items.map((i) => ({ ...i, label: t(i.label) })) })),
+    [t],
+  )
+
+  if (!token || !user) {
+    const returnUrl = encodeURIComponent(location.pathname + location.search)
+    return <Navigate to={`/login?returnUrl=${returnUrl}`} replace />
+  }
+
+  const needsChannel = channel === null && !OPEN_WITHOUT_CHANNEL.includes(location.pathname)
+  if (needsChannel) return <Navigate to="/welcome" replace />
+
+  const canSee = (item: NavItem) => {
+    if (item.featureKey && !features(item.featureKey)) return false
+    if (!item.permissionKey) return true
+    if (user.role === "owner" || user.role === "global_admin") return true
+    return (perms[item.permissionKey] ?? "none") !== "none"
+  }
+
+  const menuButton = "flex w-full items-center gap-2 border-b border-slate-100 px-4 py-2.5 text-left text-sm font-medium text-slate-600 hover:bg-slate-50"
+
+  return (
+    <AppShell
+      storageKey="kv-studio"
+      sidebar={(s) => (
+        <Sidebar
+          logo={<KlygenixWordmark />}
+          glyph={<KlygenixIcon />}
+          title={t("Studio")}
+          topLinks={localTop}
+          sections={localSections}
+          canSee={canSee}
+          storageKey="kv-studio"
+          {...s}
+        />
+      )}
+      header={({ onMenu }) => (
+        <Header
+          onMenu={onMenu}
+          title={t("Klygenix Play Studio")}
+          right={
+            channel ? (
+              <>
+                <a
+                  href={channelUrl(channel.handle)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hidden items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:border-brand hover:text-brand sm:flex"
+                >
+                  <ExternalLink size={15} /> {t("View channel")}
+                </a>
+                <Link
+                  to="/videos?upload=1"
+                  className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-sm font-semibold text-white hover:bg-brand-hover"
+                >
+                  <Upload size={15} /> <span className="hidden sm:inline">{t("Upload")}</span>
+                </Link>
+              </>
+            ) : undefined
+          }
+          user={{
+            name: user.name,
+            email: user.email,
+            roleLabel: user.role.replace(/_/g, " "),
+            onLogout: logout,
+            onTheme: () => setTheming(true),
+            extra: (
+              <>
+                <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-4 py-2.5">
+                  <span className="text-sm font-medium text-slate-600">{t("Language")}</span>
+                  <LanguagePicker compact onSaved={() => toast.success(t("Language saved"))} />
+                </div>
+                <button onClick={() => setChanging(true)} className={menuButton}>
+                  <KeyRound size={16} /> {t("Change password")}
+                </button>
+                <button onClick={() => setTwoStep(true)} className={menuButton}>
+                  <ShieldCheck size={16} /> {t("Two-step sign-in")} {user.totp_enabled ? t("(on)") : ""}
+                </button>
+              </>
+            ),
+          }}
+        />
+      )}
+    >
+      {channel?.is_suspended && (
+        <div className="mb-4 flex items-start gap-3 rounded-lg border border-red-300 bg-red-50 px-4 py-2.5 text-sm text-red-800">
+          <Ban size={18} className="mt-0.5 shrink-0 text-red-600" />
+          <p className="min-w-0 flex-1">
+            {t("Your channel is suspended. Your videos are hidden until the suspension is lifted. See moderation notices for details.")}{" "}
+            <Link to="/moderation" className="font-medium underline">{t("Moderation")}</Link>
+          </p>
+        </div>
+      )}
+      {user.email_verified === false && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm text-amber-900">
+          <span>{t("Confirm your email address. The link is in your inbox.")}</span>
+          <button
+            className="font-medium underline disabled:opacity-50"
+            disabled={resending}
+            onClick={async () => {
+              setResending(true)
+              try {
+                const { data } = await api.post("/api/auth/verify/resend")
+                toast.success(data.message ?? "Link sent")
+              } catch (err: any) {
+                toast.error(err?.response?.data?.detail ?? "The link could not be sent")
+              } finally {
+                setResending(false)
+              }
+            }}
+          >
+            {t("Send the link again")}
+          </button>
+        </div>
+      )}
+      {user.must_enrol_totp && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-red-300 bg-red-50 px-4 py-2.5 text-sm text-red-800">
+          <span>{t("Your organisation requires two-step sign-in. Set it up to carry on working.")}</span>
+          <button className="font-medium underline" onClick={() => setTwoStep(true)}>{t("Set it up now")}</button>
+        </div>
+      )}
+      {channelLoading ? <Spinner /> : <Outlet />}
+      <TwoStep open={twoStep} onClose={() => setTwoStep(false)} />
+      <ThemeSheet
+        open={theming}
+        onClose={() => setTheming(false)}
+        app="studio"
+        accent="#A21CAF"
+        value={isThemeKey(theme.current) ? theme.current : undefined}
+        saving={theme.saving}
+        onSelect={(key) => theme.save(key).catch(() => toast.error("Could not save the theme"))}
+      />
+      <ChangePasswordDialog
+        open={changing}
+        onOpenChange={setChanging}
+        onSubmit={async (currentPassword, newPassword) => {
+          await api.post("/api/auth/change-password", { current_password: currentPassword, new_password: newPassword })
+          toast.success(t("Password changed"))
+        }}
+      />
+    </AppShell>
+  )
+}

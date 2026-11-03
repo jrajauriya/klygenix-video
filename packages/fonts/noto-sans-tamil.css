@@ -1,0 +1,9 @@
+/* Noto Sans Tamil 5.3.0, wght axis, SIL Open Font License 1.1 (licenses/noto-sans-tamil.txt) */
+@font-face {
+  font-family: "Noto Sans Tamil";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url("./files/noto-sans-tamil-tamil-wght-normal.woff2") format("woff2");
+  unicode-range: U+0964-0965,U+0B82-0BFA,U+200C-200D,U+20B9,U+25CC;
+}

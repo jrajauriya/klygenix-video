@@ -1,0 +1,113 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "30 2 * * 1"
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [web, studio, admin]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - name: typecheck
+        working-directory: apps/${{ matrix.app }}
+        run: npx tsc --noEmit -p tsconfig.app.json
+      - name: build
+        working-directory: apps/${{ matrix.app }}
+        run: npm run build && test -f dist/index.html
+
+  mobile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - name: typecheck
+        working-directory: apps/mobile
+        run: npx tsc --noEmit
+      - name: one react-native
+        run: test "$(find node_modules apps/mobile/node_modules -path '*/react-native/package.json' -not -path '*/node_modules/*/node_modules/*' 2>/dev/null | wc -l)" -le 1
+      - name: native imports
+        run: python3 tests/test_native_imports.py
+      - name: bundle for iOS and Android
+        working-directory: apps/mobile
+        run: npx expo export --platform ios --platform android --output-dir /tmp/kv-export
+
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env: { POSTGRES_USER: klygenix_video, POSTGRES_PASSWORD: klygenix_video, POSTGRES_DB: klygenix_video }
+        ports: ["25436:5432"]
+        options: --health-cmd "pg_isready -U klygenix_video" --health-interval 5s --health-retries 20
+      redis:
+        image: redis:7.4-alpine
+        ports: ["16383:6379"]
+    env:
+      DATABASE_URL: postgresql://klygenix_video:klygenix_video@localhost:25436/klygenix_video
+      APP_DATABASE_URL: postgresql://klygenix_video_app:klygenix_video_app@localhost:25436/klygenix_video
+      REDIS_URL: redis://localhost:16383/0
+      JOBS_MODE: inline
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11", cache: pip }
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+      - run: pip install -r backend/requirements.txt
+      - name: migrations
+        working-directory: backend
+        run: alembic upgrade head && alembic check
+      - name: parity — Alembic and 01-schema.sql build the same database
+        run: python3 tests/test_migration_parity.py
+      - name: start the API
+        run: |
+          (cd backend && python scripts/manage_secrets.py init)
+          (cd backend && uvicorn app.main:app --port 9300 --log-level warning &)
+          for _ in $(seq 1 30); do curl -sf http://localhost:9300/health >/dev/null && break; sleep 1; done
+          curl -sf http://localhost:9300/health
+      - name: suites, twice
+        run: |
+          SUITES="test_accounts test_tenancy test_upload_flow test_ai_pipeline test_search test_ask_citations test_quota test_social test_clips test_plans_billing test_moderation test_embed_policy test_viewer_extras test_playlists test_parties test_thumbnails test_security test_readiness test_graph_mail test_error_tracking"
+          for pass in 1 2; do
+            for s in $SUITES; do echo "::group::$s (pass $pass)"; (cd tests && python3 "$s.py"); echo "::endgroup::"; done
+          done
+      - name: monitoring — promtool rules and config
+        run: bash infra/monitoring.sh check
+      - uses: actions/setup-node@v4
+        with: { node-version: "22", cache: npm }
+      - name: screens — the built bundles, clicked (tests/e2e)
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+          node tests/e2e/run.mjs
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: gitleaks — the tree and the history
+        run: bash infra/security/secrets-scan.sh
+      - name: pip-audit
+        run: pip install pip-audit==2.10.1 && pip-audit -r backend/requirements.txt
+      - name: npm audit — high and above, against the dated allowlist
+        run: npm ci --ignore-scripts && node infra/audit/npm-audit.mjs
+      - name: bandit — medium and above
+        run: pip install bandit==1.9.4 && bandit -q -r backend/app backend/scripts -ll
+      - name: semgrep — owasp-top-ten, python, react
+        run: bash infra/security/semgrep.sh

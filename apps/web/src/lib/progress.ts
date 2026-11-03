@@ -1,0 +1,78 @@
+import { useCallback, useEffect, useRef } from "react"
+import { api } from "@klygenixvideo/auth"
+
+export function useProgressReporter(videoId: string | undefined, intervalMs = 15_000) {
+  const started = useRef(false)
+  const completed = useRef(false)
+  const watched = useRef(0)
+  const lastTick = useRef<number | null>(null)
+  const position = useRef(0)
+  const playing = useRef(false)
+
+  const send = useCallback((extra: { started?: boolean; completed?: boolean } = {}) => {
+    if (!videoId) return
+    const watched_ms = Math.min(600_000, Math.round(watched.current))
+    watched.current = 0
+    if (!extra.started && !extra.completed && watched_ms === 0) return
+    api.post(`/api/video/videos/${videoId}/progress`, {
+      position_ms: Math.max(0, Math.round(position.current)),
+      watched_ms,
+      started: Boolean(extra.started),
+      completed: Boolean(extra.completed),
+    }).catch(() => undefined)
+  }, [videoId])
+
+  useEffect(() => {
+    started.current = false
+    completed.current = false
+    watched.current = 0
+    lastTick.current = null
+  }, [videoId])
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      if (playing.current) send()
+    }, intervalMs)
+    const flush = () => send()
+    window.addEventListener("pagehide", flush)
+    return () => {
+      window.clearInterval(timer)
+      window.removeEventListener("pagehide", flush)
+      send()
+    }
+  }, [send, intervalMs])
+
+  const onPlay = useCallback(() => {
+    playing.current = true
+    lastTick.current = performance.now()
+    if (!started.current) {
+      started.current = true
+      send({ started: true })
+    }
+  }, [send])
+
+  const onPause = useCallback(() => {
+    if (playing.current && lastTick.current !== null) watched.current += performance.now() - lastTick.current
+    playing.current = false
+    lastTick.current = null
+  }, [])
+
+  const onTime = useCallback((ms: number) => {
+    position.current = ms
+    if (playing.current && lastTick.current !== null) {
+      const now = performance.now()
+      const delta = now - lastTick.current
+      if (delta < 2000) watched.current += delta
+      lastTick.current = now
+    }
+  }, [])
+
+  const onEnded = useCallback(() => {
+    onPause()
+    if (completed.current) return
+    completed.current = true
+    send({ completed: true })
+  }, [onPause, send])
+
+  return { onPlay, onPause, onTime, onEnded, send }
+}

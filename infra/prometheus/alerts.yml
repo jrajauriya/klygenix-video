@@ -1,0 +1,272 @@
+groups:
+  - name: klygenix-video-api
+    rules:
+      - alert: KvApiDown
+        expr: up{job="klygenix-video-api"} == 0
+        for: 2m
+        labels: {severity: critical}
+        annotations:
+          summary: "The API is not answering /metrics on {{ $labels.instance }}"
+          runbook: "infra/METRICS.md#kvapidown"
+
+      - alert: KvApi5xxRate
+        expr: |
+          (
+            sum(rate(kv_http_requests_total{status=~"5.."}[5m]))
+            / sum(rate(kv_http_requests_total[5m]))
+          ) > 0.02
+          and sum(rate(kv_http_requests_total[5m])) > 0.05
+        for: 5m
+        labels: {severity: critical}
+        annotations:
+          summary: "{{ $value | humanizePercentage }} of API requests are failing with 5xx"
+          runbook: "infra/METRICS.md#kvapi5xxrate"
+
+      - alert: KvApiLatencyP95
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le) (rate(kv_http_request_duration_seconds_bucket{route!~"/metrics|/health|unmatched"}[5m]))
+          ) > 1.5
+        for: 10m
+        labels: {severity: warning}
+        annotations:
+          summary: "API p95 latency is {{ $value | humanizeDuration }}"
+          runbook: "infra/METRICS.md#kvapilatencyp95"
+
+      - alert: KvMetricsDbDown
+        expr: kv_metrics_db_up == 0
+        for: 2m
+        labels: {severity: critical}
+        annotations:
+          summary: "The API cannot read the database for its figures"
+          runbook: "infra/METRICS.md#kvmetricsdbdown"
+
+      - alert: KvRedisDown
+        expr: kv_redis_up == 0
+        for: 2m
+        labels: {severity: critical}
+        annotations:
+          summary: "The API cannot reach Redis (jobs, rate limits, idempotency)"
+          runbook: "infra/METRICS.md#kvredisdown"
+
+  - name: klygenix-video-jobs
+    rules:
+      - alert: KvJobFailuresRising
+        expr: sum by (job) (increase(kv_jobs_total{outcome="failed"}[15m])) >= 3
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: "Job {{ $labels.job }} failed {{ $value | humanize }} times in 15 minutes"
+          runbook: "infra/METRICS.md#kvjobfailuresrising"
+
+      - alert: KvJobFailuresSurge
+        expr: sum(increase(kv_jobs_total{outcome="failed"}[15m])) > 20
+        for: 5m
+        labels: {severity: critical}
+        annotations:
+          summary: "{{ $value | humanize }} background jobs failed in 15 minutes"
+          runbook: "infra/METRICS.md#kvjobfailuresrising"
+
+      - alert: KvWebhookInboundFailures
+        expr: sum by (rail, outcome) (increase(kv_webhook_deliveries_total{direction="in", outcome=~"failed|unverified"}[15m])) > 0
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: "{{ $labels.rail }} callbacks {{ $labels.outcome }}: {{ $value | humanize }} in 15 minutes"
+          runbook: "infra/METRICS.md#kvwebhookinboundfailures"
+
+      - alert: KvWebhookInboundBacklog
+        expr: |
+          sum by (rail) (kv_webhook_deliveries_total{direction="in", outcome="pending"})
+          - sum by (rail) (kv_webhook_deliveries_total{direction="in", outcome="pending"} offset 15m) > 3
+        for: 10m
+        labels: {severity: critical}
+        annotations:
+          summary: "{{ $labels.rail }} callbacks are recorded but not processed (backlog +{{ $value | humanize }})"
+          runbook: "infra/METRICS.md#kvwebhookinboundbacklog"
+
+      - alert: KvWebhookOutboundFailures
+        expr: sum(increase(kv_webhook_deliveries_total{direction="out", outcome=~"failed|abandoned"}[30m])) > 5
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: "{{ $value | humanize }} integrator webhook deliveries failed in 30 minutes"
+          runbook: "infra/METRICS.md#kvwebhookoutboundfailures"
+
+  - name: klygenix-video-business
+    rules:
+      - alert: KvNoPaymentsBusinessHours
+        expr: |
+          sum(increase(kv_payments_captured_total[2h])) == 0
+          and on() (hour() >= 4 and hour() < 16)
+        for: 10m
+        labels: {severity: warning}
+        annotations:
+          summary: "No payment captured in the last 2 hours of IST business hours"
+          runbook: "infra/METRICS.md#kvnopaymentsbusinesshours"
+
+      - alert: KvOpenCheckoutsSpike
+        expr: |
+          kv_open_checkouts > 50
+          and kv_open_checkouts > 3 * avg_over_time(kv_open_checkouts[1d] offset 1h)
+        for: 15m
+        labels: {severity: warning}
+        annotations:
+          summary: "{{ $value | humanize }} checkouts are open, over 3x the daily average"
+          runbook: "infra/METRICS.md#kvopencheckoutsspike"
+
+  - name: klygenix-video-pipeline
+    rules:
+      - alert: KvPipelineBacklog
+        expr: kv_pipeline_backlog > 5
+        for: 10m
+        labels: {severity: warning}
+        annotations:
+          summary: "{{ $value | humanize }} videos stuck in processing or scanning for over 10 minutes"
+          runbook: "infra/METRICS.md#kvpipelinebacklog"
+
+      - alert: KvRenderWaiting
+        expr: kv_render_waiting > 0
+        for: 10m
+        labels: {severity: warning}
+        annotations:
+          summary: "{{ $value | humanize }} clips waiting over 5 minutes for the render worker"
+          runbook: "infra/METRICS.md#kvrenderwaiting"
+
+      - alert: KvAiJobsFailing
+        expr: |
+          sum(kv_ai_jobs_recent{status="failed"}) > 5
+          and sum(kv_ai_jobs_recent{status="failed"}) > 0.2 * sum(kv_ai_jobs_recent)
+        for: 10m
+        labels: {severity: warning}
+        annotations:
+          summary: "Over a fifth of AI jobs in the last 15 minutes failed"
+          runbook: "infra/METRICS.md#kvaijobsfailing"
+
+      - alert: KvLlmBudgetHigh
+        expr: kv_llm_cost_month_minor > 400000
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: "Language-model spend this month is {{ $value | humanize }} paise, over 80% of the default budget"
+          runbook: "infra/METRICS.md#kvllmbudgethigh"
+
+      - alert: KvTakedownsOverdue
+        expr: kv_takedowns_overdue > 0
+        for: 5m
+        labels: {severity: critical}
+        annotations:
+          summary: "{{ $value | humanize }} takedown notices are past their legal deadline"
+          runbook: "infra/METRICS.md#kvtakedownsoverdue"
+
+  - name: klygenix-video-host
+    rules:
+      - alert: KvDiskSpaceLow
+        expr: |
+          node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs|nsfs|ramfs"}
+          / node_filesystem_size_bytes{fstype!~"tmpfs|overlay|squashfs|nsfs|ramfs"} < 0.15
+        for: 10m
+        labels: {severity: warning}
+        annotations:
+          summary: "{{ $labels.mountpoint }} has {{ $value | humanizePercentage }} free"
+          runbook: "infra/METRICS.md#kvdiskspacelow"
+
+      - alert: KvDiskSpaceCritical
+        expr: |
+          node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs|nsfs|ramfs"}
+          / node_filesystem_size_bytes{fstype!~"tmpfs|overlay|squashfs|nsfs|ramfs"} < 0.05
+        for: 5m
+        labels: {severity: critical}
+        annotations:
+          summary: "{{ $labels.mountpoint }} has {{ $value | humanizePercentage }} free"
+          runbook: "infra/METRICS.md#kvdiskspacelow"
+
+      - alert: KvDiskFillingFast
+        expr: predict_linear(node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs|nsfs|ramfs"}[6h], 24 * 3600) < 0
+        for: 30m
+        labels: {severity: warning}
+        annotations:
+          summary: "{{ $labels.mountpoint }} will be full within 24 hours at the current rate"
+          runbook: "infra/METRICS.md#kvdiskspacelow"
+
+      - alert: KvWalArchiveFailing
+        expr: kv_wal_archive_last_failed_timestamp_seconds > kv_wal_archive_last_archived_timestamp_seconds
+        for: 15m
+        labels: {severity: critical}
+        annotations:
+          summary: "PostgreSQL archive_command is failing; point-in-time recovery is not being kept"
+          runbook: "infra/METRICS.md#kvwalarchivefailing"
+
+      - alert: KvWalArchiveStale
+        expr: time() - kv_wal_archive_last_archived_timestamp_seconds > 2 * 3600
+        for: 15m
+        labels: {severity: warning}
+        annotations:
+          summary: "No WAL segment archived for {{ $value | humanizeDuration }}"
+          runbook: "infra/METRICS.md#kvwalarchivefailing"
+
+      - alert: KvWalArchiveMetricMissing
+        expr: absent(kv_wal_archive_last_archived_timestamp_seconds)
+        for: 1h
+        labels: {severity: warning}
+        annotations:
+          summary: "infra/archive-metrics.sh has not written its textfile metric"
+          runbook: "infra/METRICS.md#kvwalarchivefailing"
+
+      - alert: KvBackupStale
+        expr: time() - kv_backup_last_success_timestamp_seconds > 26 * 3600
+        for: 10m
+        labels: {severity: critical}
+        annotations:
+          summary: "The last good database backup is {{ $value | humanizeDuration }} old"
+          runbook: "infra/METRICS.md#kvbackupstale"
+
+      - alert: KvBackupMetricMissing
+        expr: absent(kv_backup_last_success_timestamp_seconds)
+        for: 26h
+        labels: {severity: warning}
+        annotations:
+          summary: "infra/backup.sh has never written its textfile metric on this host"
+          runbook: "infra/METRICS.md#kvbackupstale"
+
+      - alert: KvExporterDown
+        expr: up{job=~"node|blackbox-exporter"} == 0
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: "Monitoring exporter {{ $labels.job }} is down; host and uptime alerts are blind"
+          runbook: "infra/METRICS.md#kvexporterdown"
+
+  - name: klygenix-video-uptime
+    rules:
+      - alert: KvEndpointDown
+        expr: probe_success{job="blackbox"} == 0
+        for: 3m
+        labels: {severity: critical}
+        annotations:
+          summary: "{{ $labels.probe }} is down ({{ $labels.instance }})"
+          runbook: "infra/METRICS.md#kvendpointdown"
+
+      - alert: KvEndpointSlow
+        expr: avg_over_time(probe_duration_seconds{job="blackbox"}[10m]) > 3
+        for: 10m
+        labels: {severity: warning}
+        annotations:
+          summary: "{{ $labels.probe }} takes {{ $value | humanizeDuration }} to answer"
+          runbook: "infra/METRICS.md#kvendpointdown"
+
+      - alert: KvCertExpiringSoon
+        expr: probe_ssl_earliest_cert_expiry{job="blackbox"} - time() < 14 * 86400
+        for: 30m
+        labels: {severity: warning}
+        annotations:
+          summary: "The certificate for {{ $labels.instance }} expires in {{ $value | humanizeDuration }}"
+          runbook: "infra/METRICS.md#kvcertexpiringsoon"
+
+      - alert: KvCertExpiryCritical
+        expr: probe_ssl_earliest_cert_expiry{job="blackbox"} - time() < 3 * 86400
+        for: 10m
+        labels: {severity: critical}
+        annotations:
+          summary: "The certificate for {{ $labels.instance }} expires in {{ $value | humanizeDuration }}"
+          runbook: "infra/METRICS.md#kvcertexpiringsoon"

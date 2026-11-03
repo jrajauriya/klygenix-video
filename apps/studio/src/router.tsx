@@ -1,0 +1,52 @@
+import type { ReactNode } from "react"
+import { ForgotPage, InvitePage, ResetPage, SignupPage, VerifyPage } from "@klygenixvideo/auth"
+import { createBrowserRouter } from "react-router-dom"
+import { ProtectedRoute } from "@klygenixvideo/client"
+import { StudioLayout } from "./components/layout/StudioLayout"
+import Login from "./pages/Login"
+import Onboarding from "./pages/Onboarding"
+import Dashboard from "./pages/Dashboard"
+import Videos from "./pages/Videos"
+import VideoDetail from "./pages/VideoDetail"
+import Clips from "./pages/Clips"
+import ClipEditor from "./pages/ClipEditor"
+import ChannelPage from "./pages/Channel"
+import Comments from "./pages/Comments"
+import Analytics from "./pages/Analytics"
+import Billing from "./pages/Billing"
+import Moderation from "./pages/Moderation"
+import Settings from "./pages/Settings"
+import NotFound from "./pages/NotFound"
+
+const guard = (key: string, element: ReactNode) => (
+  <ProtectedRoute featureKey={key} permissionKey={key}>
+    {element}
+  </ProtectedRoute>
+)
+
+export const router = createBrowserRouter([
+  { path: "/login", element: <Login /> },
+  { path: "/signup", element: <SignupPage /> },
+  { path: "/verify", element: <VerifyPage /> },
+  { path: "/forgot", element: <ForgotPage /> },
+  { path: "/reset", element: <ResetPage /> },
+  { path: "/invite", element: <InvitePage /> },
+  {
+    element: <StudioLayout />,
+    children: [
+      { path: "/welcome", element: guard("video.channels", <Onboarding />) },
+      { path: "/", element: guard("video.dashboard", <Dashboard />) },
+      { path: "/videos", element: guard("video.uploads", <Videos />) },
+      { path: "/videos/:id", element: guard("video.uploads", <VideoDetail />) },
+      { path: "/clips", element: guard("video.clips", <Clips />) },
+      { path: "/clips/:id", element: guard("video.clips", <ClipEditor />) },
+      { path: "/channel", element: guard("video.channels", <ChannelPage />) },
+      { path: "/comments", element: guard("video.comments", <Comments />) },
+      { path: "/analytics", element: guard("video.analytics", <Analytics />) },
+      { path: "/billing", element: guard("video.billing", <Billing />) },
+      { path: "/moderation", element: guard("video.dashboard", <Moderation />) },
+      { path: "/settings", element: guard("video.settings", <Settings />) },
+      { path: "*", element: <NotFound /> },
+    ],
+  },
+])

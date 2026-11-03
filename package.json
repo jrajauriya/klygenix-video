@@ -1,0 +1,27 @@
+{
+  "name": "klygenix-play",
+  "private": true,
+  "packageManager": "npm@10.9.2",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:web": "npm run dev --workspace=apps/web",
+    "dev:studio": "npm run dev --workspace=apps/studio",
+    "dev:admin": "npm run dev --workspace=apps/admin",
+    "dev:mobile": "npm run start --workspace=apps/mobile",
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "screens": "node tests/e2e/run.mjs",
+    "clean": "turbo run clean"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "axe-core": "^4.13.0",
+    "playwright": "^1.63.0",
+    "turbo": "^2.4.0",
+    "typescript": "^5.7.0"
+  }
+}

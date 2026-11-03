@@ -1,0 +1,23 @@
+route:
+  receiver: default
+  group_by: [alertname, probe, job]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  routes:
+    - matchers: ['severity="critical"']
+      receiver: default
+      repeat_interval: 1h
+
+receivers:
+  - name: default
+
+inhibit_rules:
+  - source_matchers: ['alertname="KvApiDown"']
+    target_matchers: ['alertname=~"KvApi5xxRate|KvApiLatencyP95|KvMetricsDbDown|KvRedisDown|KvNoPaymentsBusinessHours"']
+  - source_matchers: ['alertname="KvDiskSpaceCritical"']
+    target_matchers: ['alertname="KvDiskSpaceLow"']
+    equal: [mountpoint]
+  - source_matchers: ['alertname="KvCertExpiryCritical"']
+    target_matchers: ['alertname="KvCertExpiringSoon"']
+    equal: [instance]

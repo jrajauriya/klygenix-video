@@ -1,0 +1,59 @@
+WEBVTT
+
+00:00:00.000 --> 00:00:04.624
+Welcome. Today we will learn how authentication works in Azure API Management.
+
+00:00:04.974 --> 00:00:08.965
+API Management sits in front of your backend services as a gateway.
+
+00:00:09.315 --> 00:00:14.182
+Why does authentication matter here? Because every request reaches the gateway first.
+
+00:00:14.532 --> 00:00:18.504
+The first option is a subscription key, sent in a header with every call.
+
+00:00:18.854 --> 00:00:23.084
+Subscription keys are simple, but they identify an app, not a user.
+
+00:00:23.434 --> 00:00:26.780
+The second option is OAuth two with Microsoft Entra ID.
+
+00:00:27.130 --> 00:00:31.486
+With OAuth, the client gets an access token and sends it as a bearer token.
+
+00:00:31.836 --> 00:00:36.091
+You validate that token in the gateway with the validate JWT policy.
+
+00:00:36.441 --> 00:00:41.133
+The validate JWT policy checks the issuer, the audience and the signature.
+
+00:00:41.483 --> 00:00:44.533
+A common mistake is forgetting to check the audience claim.
+
+00:00:44.883 --> 00:00:49.247
+If you skip the audience check, a token for another API could be accepted.
+
+00:00:49.597 --> 00:00:53.987
+The third option is client certificates, also called mutual TLS.
+
+00:00:54.337 --> 00:00:58.562
+Client certificates are useful for partner integrations between companies.
+
+00:00:58.912 --> 00:01:03.595
+You can combine methods, for example a subscription key plus a JWT.
+
+00:01:03.945 --> 00:01:08.348
+For managed identities, the gateway can call your backend without any secret.
+
+00:01:08.698 --> 00:01:12.209
+Let us recap. Use subscription keys for simple metering.
+
+00:01:12.559 --> 00:01:16.036
+Use OAuth with validate JWT for users and apps.
+
+00:01:16.386 --> 00:01:19.165
+Use client certificates for trusted partners.
+
+00:01:19.515 --> 00:01:23.314
+Thanks for watching, and see you in the next lesson about rate limiting.
+

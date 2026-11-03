@@ -1,0 +1,97 @@
+# Klygenix Play — security
+
+Scans and checks for the Play repo, run locally on 3 Nov 2026. Nothing was deployed and no live
+provider was called.
+
+## What runs where
+
+| Check | Command | CI job | Fails on |
+|---|---|---|---|
+| Secrets (tree + history) | `bash infra/security/secrets-scan.sh` (gitleaks v8.30.1 in Docker) | security | any leak; a secret file not gitignored |
+| Python dependencies | `pip-audit -r backend/requirements.txt` | security | any known vulnerability |
+| npm dependencies | `npm audit --omit=dev --audit-level=high` | security | high and above |
+| Static analysis, Python | `bandit -q -r backend/app backend/scripts -ll` | security | medium and above |
+| Static analysis, all | `bash infra/security/semgrep.sh` (owasp-top-ten, python, react, nginx, docker) | security | any finding |
+| Authorization sweep | `tests/test_security.py` | backend | a private route answering a stranger |
+| Tenancy (RLS) | `tests/test_tenancy.py` | backend | one tenant reading another's private rows |
+| Error-tracking scrubber | `tests/test_error_tracking.py` | backend | PII reaching the fake Sentry |
+| Headers and caching through nginx | `tests/smoke/post_deploy.py` | — (local stack, deploy) | missing HSTS/CSP/nosniff/frame options |
+
+The scanners were installed in a throwaway virtualenv for the local run. CI pins the same versions.
+
+## Results — 3 Nov 2026
+
+| Scan | First run | After fixes |
+|---|---|---|
+| gitleaks, files git would commit (19.7 MB) | 0 leaks; secret files ignored and untracked | — |
+| gitleaks, history | 0 commits (the tree is uncommitted) | rerun after the first commit |
+| bandit, medium+ | 0 (21 low: subprocess for ffmpeg/ffprobe with argument lists, asserts in scripts) | — |
+| semgrep | 0 findings, 262 rules, 501 files | — |
+| pip-audit | 57: Pillow 12.3.0 (40), pypdf 6.19.0 (17) | **0** — Pillow 13.0.0, pypdf 6.21.4; clips (caption frames), images and invoices suites green after |
+| npm audit, production, high+ | 5 high, all in the Expo toolchain (see below) | justified, not fixed |
+
+### npm findings left open (dated, review by 31 Dec 2026)
+All five high findings come from `apps/mobile`:
+- `@expo/cli`, `@expo/config-plugins` and `zod`: these run at build time on the developer's machine, not in the app.
+- `expo-router`, `query-string` and `decode-uri-component`: denial of service when parsing a crafted deep link, on the user's own phone.
+
+The only fix is Expo SDK 58 (`npm audit fix --force`), which is a breaking upgrade of the whole mobile app. Nothing ships to the stores until the Apple and Google accounts exist. **Upgrade to SDK 58 before the first store build** and re-run `npx expo export` and `test_native_imports.py`. None of these packages reach the web, studio or admin bundles.
+
+## Play-specific controls
+
+| Rule | Control | Proven by |
+|---|---|---|
+| V01 media is never public | Bunny token-auth HLS (sandbox: HMAC-signed `/sandbox/hls/{id}/{exp}/{sig}`), minutes-long expiry; private uploads volume | `test_upload_flow.py` (expired / forged signature refused) |
+| V02 no AI on media we do not host or own captions for | embeds run AI only on owner-imported captions; no adapter has a download path | `test_embed_policy.py` |
+| V03 Ask cites or declines | citation guard drops citations outside retrieved segments or the video's span | `test_ask_citations.py` |
+| V05 quota before work | reserve → commit / release around Ask, the pipeline and render | `test_quota.py`, `test_plans_billing.py` |
+| V08 nothing public before the scan | upload → scanning → published or in_review/blocked | `test_moderation.py` |
+| V13 age gate on the server | 18 India, 16 parts of the EU, 13 elsewhere; checked at sign-up | `test_accounts.py` |
+| Webhooks verify → record → enqueue | media and payment webhooks; unsigned ones stored as evidence, refused | `test_upload_flow.py`, `test_plans_billing.py` |
+| Grants only from a verified payment | entitlement written by the payments worker; `/sandbox/pay` exists only with `SANDBOX_ENABLED` | `test_plans_billing.py` |
+| Data rights (DPDP) | `POST /me/export`, `DELETE /me` (audited; invoices kept for tax) | `test_viewer_extras.py` |
+| Studio inbox / analytics across tenants | queries in a platform session always filter `Video.tenant_id == ctx.tenant_id` | `test_viewer_extras.py` (another creator sees nothing) |
+
+## Debug routes
+
+`/api/_debug/*` (deliberate failures for the error-tracking checks) is mounted only when
+`ERROR_TRACKING_DEBUG_ROUTES=true` **and** `SANDBOX_ENABLED=true`. `tests/test_security.py` asserts
+it is 404 to everyone otherwise.
+
+## Browser error reports
+
+Front-end errors go to Sentry only when `VITE_SENTRY_DSN` is set at build (`packages/observe`), and
+by default through our own `POST /api/observe/tunnel`, which forwards only to the configured DSN
+after the server-side scrubber has run (`tests/test_error_tracking.py`, 72 checks). No tracker
+origin is in any CSP.
+
+## Allowlists
+
+| File | Entry | Reason | Review |
+|---|---|---|---|
+| inline | `# nosec B608 nosemgrep` in `core/services/secrets.py`, `scripts/manage_secrets.py`; `# nosec B104` in `core/services/readiness.py` | identifiers come from a fixed table list / the bind check looks for 0.0.0.0 | — |
+| `infra/security/semgrep.sh` | nginx `request-host-used`, `dynamic-proxy-host` | `server_name`s are fixed by `${PUBLIC_DOMAIN}` at container start | when nginx gains a new `map` |
+| npm (this file) | five Expo-toolchain highs | see above | 31 Dec 2026 |
+
+Development defaults that look like secrets are fake and are blocked in production by
+`python -m app.readiness`: `SECRET_KEY=dev-secret-key-change-in-production`, `GLOBAL_ADMIN_PASSWORD=admin123`,
+the sandbox webhook secret, the `klygenix_video`/`klygenix_video_app` database passwords, `Welcome@12345`
+(demo seed only) and every `CHANGE_ME_*`.
+
+## Remaining risks
+
+1. **Signed media URLs can be shared while they live.** A playback URL works for anyone until it
+   expires (`PLAYBACK_TTL_SECONDS`). Fine for public videos; for paid or private content later, add
+   Bunny's IP/referrer binding.
+2. **The sandbox safety scanner is a keyword and hash list.** Real CSAM hash matching and a content
+   classifier are vendor accounts (docs/LAUNCH.md). Until then, **creator uploads should stay
+   closed or pre-moderated** (`SIGNUP_ENABLED=false`, or every upload to `in_review`).
+3. **Unsigned webhook bodies are stored as evidence** in `kv_commerce.provider_events`; nginx caps
+   the body size, but add a `limit_req` zone on `/api/video/webhooks/` before launch.
+4. **Tokens live in `localStorage`** (web, studio, admin). A strict `script-src` is the mitigation;
+   tokens are revocable by session epoch; account erasure bumps it.
+5. **YouTube OAuth tokens** are sealed (`enc:`) in `kv_social.connected_channels`; the key file is
+   the single point — back it up with the database (docs/ROTATION in infra).
+6. **The real edge was not scanned.** Cloudflare and the Hostinger host don't exist yet.
+7. **ZAP was not run** for Play tonight (`infra/security/zap.sh` still targets the old preview
+   layout); authenticated behaviour is covered by `test_security.py` and `test_tenancy.py`.

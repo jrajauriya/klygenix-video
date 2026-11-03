@@ -1,0 +1,15 @@
+__pycache__
+*.pyc
+*.pyo
+.env
+.env.prod
+.secret.key
+.secret.key.previous
+.vapid-dev.pem
+venv/
+.venv/
+uploads/
+# Tenant documents from local storage: never build them into an image.
+private_uploads/
+*.egg-info
+.git

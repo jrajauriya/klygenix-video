@@ -1,0 +1,38 @@
+{
+ "title": "Three tips to speak with confidence",
+ "duration_s": 14.32,
+ "lines": [
+  "Want to speak with confidence? Here are three quick tips.",
+  "One, slow down. Fast speech sounds nervous.",
+  "Two, pause after your main point.",
+  "Three, look at one person at a time.",
+  "Try it in your next meeting."
+ ],
+ "cues": [
+  [
+   0.0,
+   3.347,
+   "Want to speak with confidence? Here are three quick tips."
+  ],
+  [
+   3.697,
+   6.904,
+   "One, slow down. Fast speech sounds nervous."
+  ],
+  [
+   7.254,
+   9.397,
+   "Two, pause after your main point."
+  ],
+  [
+   9.747,
+   12.116,
+   "Three, look at one person at a time."
+  ],
+  [
+   12.466,
+   13.966,
+   "Try it in your next meeting."
+  ]
+ ]
+}

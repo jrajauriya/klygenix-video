@@ -1,0 +1,18 @@
+title = "Klygenix Play secret scan"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Studio developer docs: curl examples carry the placeholder key kv_live_... (docs/SECURITY.md, 2026-09-27)"
+condition = "AND"
+paths = ['''apps/studio/src/components/developer/Docs\.tsx''', '''(^|/)dist(-e2e)?/assets/.*\.js''', '''infra/build/staging/web/studio/assets/.*\.js''']
+regexTarget = "line"
+regexes = ['''X-API-Key: kv_live_\.\.\.''']
+
+[[allowlists]]
+description = "tests/live/test_offline.py: a section heading string, not a key (docs/SECURITY.md, 2026-09-27)"
+condition = "AND"
+paths = ['''tests/live/test_offline\.py''']
+regexTarget = "line"
+regexes = ['''web push: VAPID-signed, aes128gcm-encrypted delivery''']

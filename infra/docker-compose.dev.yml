@@ -1,0 +1,34 @@
+name: klygenix-video
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    container_name: klygenix-video-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: klygenix_video
+      POSTGRES_PASSWORD: klygenix_video
+      POSTGRES_DB: klygenix_video
+    ports:
+      - "25436:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U klygenix_video"]
+      interval: 5s
+      retries: 20
+
+  redis:
+    image: redis:7.4-alpine
+    container_name: klygenix-video-redis
+    restart: unless-stopped
+    ports:
+      - "16383:6379"
+    volumes:
+      - redisdata:/data
+
+volumes:
+  pgdata:
+    name: klygenix-video-pgdata
+  redisdata:
+    name: klygenix-video-redisdata

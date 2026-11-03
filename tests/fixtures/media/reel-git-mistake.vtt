@@ -1,0 +1,14 @@
+WEBVTT
+
+00:00:00.000 --> 00:00:02.904
+The biggest git mistake? Committing straight to main.
+
+00:00:03.254 --> 00:00:05.522
+Always create a branch for each change.
+
+00:00:05.872 --> 00:00:08.670
+Then open a pull request so someone can review it.
+
+00:00:09.020 --> 00:00:10.801
+Your future self will thank you.
+

@@ -1,0 +1,122 @@
+{
+ "title": "Azure API Management authentication explained",
+ "duration_s": 83.66,
+ "lines": [
+  "Welcome. Today we will learn how authentication works in Azure API Management.",
+  "API Management sits in front of your backend services as a gateway.",
+  "Why does authentication matter here? Because every request reaches the gateway first.",
+  "The first option is a subscription key, sent in a header with every call.",
+  "Subscription keys are simple, but they identify an app, not a user.",
+  "The second option is OAuth two with Microsoft Entra ID.",
+  "With OAuth, the client gets an access token and sends it as a bearer token.",
+  "You validate that token in the gateway with the validate JWT policy.",
+  "The validate JWT policy checks the issuer, the audience and the signature.",
+  "A common mistake is forgetting to check the audience claim.",
+  "If you skip the audience check, a token for another API could be accepted.",
+  "The third option is client certificates, also called mutual TLS.",
+  "Client certificates are useful for partner integrations between companies.",
+  "You can combine methods, for example a subscription key plus a JWT.",
+  "For managed identities, the gateway can call your backend without any secret.",
+  "Let us recap. Use subscription keys for simple metering.",
+  "Use OAuth with validate JWT for users and apps.",
+  "Use client certificates for trusted partners.",
+  "Thanks for watching, and see you in the next lesson about rate limiting."
+ ],
+ "cues": [
+  [
+   0.0,
+   4.624,
+   "Welcome. Today we will learn how authentication works in Azure API Management."
+  ],
+  [
+   4.974,
+   8.965,
+   "API Management sits in front of your backend services as a gateway."
+  ],
+  [
+   9.315,
+   14.182,
+   "Why does authentication matter here? Because every request reaches the gateway first."
+  ],
+  [
+   14.532,
+   18.504,
+   "The first option is a subscription key, sent in a header with every call."
+  ],
+  [
+   18.854,
+   23.084,
+   "Subscription keys are simple, but they identify an app, not a user."
+  ],
+  [
+   23.434,
+   26.78,
+   "The second option is OAuth two with Microsoft Entra ID."
+  ],
+  [
+   27.13,
+   31.486,
+   "With OAuth, the client gets an access token and sends it as a bearer token."
+  ],
+  [
+   31.836,
+   36.091,
+   "You validate that token in the gateway with the validate JWT policy."
+  ],
+  [
+   36.441,
+   41.133,
+   "The validate JWT policy checks the issuer, the audience and the signature."
+  ],
+  [
+   41.483,
+   44.533,
+   "A common mistake is forgetting to check the audience claim."
+  ],
+  [
+   44.883,
+   49.247,
+   "If you skip the audience check, a token for another API could be accepted."
+  ],
+  [
+   49.597,
+   53.987,
+   "The third option is client certificates, also called mutual TLS."
+  ],
+  [
+   54.337,
+   58.562,
+   "Client certificates are useful for partner integrations between companies."
+  ],
+  [
+   58.912,
+   63.595,
+   "You can combine methods, for example a subscription key plus a JWT."
+  ],
+  [
+   63.945,
+   68.348,
+   "For managed identities, the gateway can call your backend without any secret."
+  ],
+  [
+   68.698,
+   72.209,
+   "Let us recap. Use subscription keys for simple metering."
+  ],
+  [
+   72.559,
+   76.036,
+   "Use OAuth with validate JWT for users and apps."
+  ],
+  [
+   76.386,
+   79.165,
+   "Use client certificates for trusted partners."
+  ],
+  [
+   79.515,
+   83.314,
+   "Thanks for watching, and see you in the next lesson about rate limiting."
+  ]
+ ]
+}

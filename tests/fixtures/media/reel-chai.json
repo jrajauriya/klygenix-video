@@ -1,0 +1,38 @@
+{
+ "title": "Masala chai in sixty seconds",
+ "duration_s": 13.35,
+ "lines": [
+  "How do you make perfect masala chai?",
+  "Boil water with crushed ginger and cardamom.",
+  "Add tea leaves and let it bubble for a minute.",
+  "Pour in milk and sugar, then simmer until it rises.",
+  "Strain and serve. That is it."
+ ],
+ "cues": [
+  [
+   0.0,
+   2.343,
+   "How do you make perfect masala chai?"
+  ],
+  [
+   2.693,
+   5.009,
+   "Boil water with crushed ginger and cardamom."
+  ],
+  [
+   5.359,
+   7.539,
+   "Add tea leaves and let it bubble for a minute."
+  ],
+  [
+   7.889,
+   10.886,
+   "Pour in milk and sugar, then simmer until it rises."
+  ],
+  [
+   11.236,
+   13.004,
+   "Strain and serve. That is it."
+  ]
+ ]
+}

@@ -1,0 +1,4 @@
+{
+  "extends": "@klygenixvideo/config/tsconfig.base.json",
+  "include": ["src"]
+}

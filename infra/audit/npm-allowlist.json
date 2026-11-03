@@ -1,0 +1,36 @@
+{
+  "_why": "High or critical advisories accepted until review_by, pinned to the install paths npm flagged; anything else, or an expired date, fails the scan.",
+  "review_by": "2026-12-31",
+  "packages": {
+    "@expo/cli": {
+      "nodes": [
+        "node_modules/@expo/cli"
+      ],
+      "why": "Expo SDK 57 mobile toolchain; fix is the breaking SDK 58 upgrade, due before the first store build (docs/SECURITY.md)"
+    },
+    "decode-uri-component": {
+      "nodes": [
+        "node_modules/decode-uri-component"
+      ],
+      "why": "Expo SDK 57 mobile toolchain; fix is the breaking SDK 58 upgrade, due before the first store build (docs/SECURITY.md)"
+    },
+    "expo-router": {
+      "nodes": [
+        "node_modules/expo-router"
+      ],
+      "why": "Expo SDK 57 mobile toolchain; fix is the breaking SDK 58 upgrade, due before the first store build (docs/SECURITY.md)"
+    },
+    "query-string": {
+      "nodes": [
+        "node_modules/query-string"
+      ],
+      "why": "Expo SDK 57 mobile toolchain; fix is the breaking SDK 58 upgrade, due before the first store build (docs/SECURITY.md)"
+    },
+    "zod": {
+      "nodes": [
+        "node_modules/zod"
+      ],
+      "why": "Expo SDK 57 mobile toolchain; fix is the breaking SDK 58 upgrade, due before the first store build (docs/SECURITY.md)"
+    }
+  }
+}

@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512"><rect width="512" height="512" rx="112" fill="#ffffff"/><svg x="64" y="64" width="384" height="384" viewBox="99.98 94 312 312" fill="none">
+  <!-- Klygenix icon, light ground.
+       Letters: Royal Indigo ramp #1E1B4B to #632B4F to #B44A32, vertical,
+       dark at the foot, spanning the K's own ink box once.
+       Sparkle: #0E9BC4 to #7C3AED on the diagonal, in the corner the
+       removed arm opened up. Same pair on both grounds.
+       Each gradient is one masked rect, NOT a fill on the glyphs: a fill resolves
+       inside each glyph's own flipped transform and gives every letter its own
+       upside-down copy of the ramp.
+       Good down to 16px: the sparkle is a solid four-point star, not the
+       needle the earlier mark used, so nothing drops out when it is scaled.
+       K: outlined Poppins Bold (SIL OFL), matched to the reference by measurement.
+       ix: the x IS the sparkle, and its i stem is set to the sparkle 90%-ink height.
+       No text element anywhere: a standalone SVG cannot load a webfont.
+       -->
+  <g transform="translate(24.38 0)">
+    <defs><linearGradient id="kx-icon-light-ramp" gradientUnits="userSpaceOnUse" x1="100.0" y1="400.0" x2="100.0" y2="100.0"><stop offset="0" stop-color="#1E1B4B"/><stop offset="0.5" stop-color="#632B4F"/><stop offset="1" stop-color="#B44A32"/></linearGradient><mask id="kx-icon-light-kmask" maskUnits="userSpaceOnUse" x="94.0" y="94.0" width="275.2" height="312.0"><g fill="#FFFFFF"><g transform="translate(73.504 400) scale(0.427350 -0.427350)"><path d="M469.00 0.00 233.00 310.00V0.00H62.00V702.00H233.00V394.00L396.00 358.00L678.00 0.00Z"/></g></g></mask></defs><rect x="94.0" y="94.0" width="275.2" height="312.0" fill="url(#kx-icon-light-ramp)" mask="url(#kx-icon-light-kmask)"/>
+    <defs><linearGradient id="kx-icon-light-flare" gradientUnits="userSpaceOnUse" x1="269.4" y1="131.6" x2="331.6" y2="193.8"><stop offset="0" stop-color="#0E9BC4"/><stop offset="1" stop-color="#7C3AED"/></linearGradient><mask id="kx-icon-light-fmask" maskUnits="userSpaceOnUse" x="232.3" y="94.5" width="136.5" height="136.5"><g fill="#FFFFFF"><path d="M300.5 74.7 C300.5 134.5 328.7 162.7 388.5 162.7 C328.7 162.7 300.5 190.9 300.5 250.7 C300.5 190.9 272.3 162.7 212.5 162.7 C272.3 162.7 300.5 134.5 300.5 74.7 Z" transform="rotate(45 300.5 162.7)"/></g></mask></defs><rect x="232.3" y="94.5" width="136.5" height="136.5" fill="url(#kx-icon-light-flare)" mask="url(#kx-icon-light-fmask)"/>
+  </g>
+</svg></svg>

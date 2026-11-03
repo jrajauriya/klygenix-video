@@ -1,0 +1,152 @@
+server_tokens off;
+include /etc/nginx/snippets/csp-extra.conf;
+
+resolver 127.0.0.11 valid=10s ipv6=off;
+map $host $kv_backend { default backend:9300; }
+map $http_upgrade $kv_connection { default upgrade; '' close; }
+
+gzip on;
+gzip_vary on;
+gzip_proxied any;
+gzip_comp_level 5;
+gzip_min_length 256;
+gzip_types text/plain text/css text/xml text/vtt application/javascript application/json application/xml
+           application/manifest+json image/svg+xml font/ttf font/otf;
+
+proxy_cache_path /var/cache/nginx/kv_media levels=1:2 keys_zone=kv_media:20m max_size=2g inactive=30d use_temp_path=off;
+
+server {
+    listen 80;
+    server_name ${PUBLIC_DOMAIN} studio.${PUBLIC_DOMAIN} admin.${PUBLIC_DOMAIN} api.${PUBLIC_DOMAIN};
+    return 301 https://$host${PUBLIC_PORT}$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name api.${PUBLIC_DOMAIN};
+    ssl_certificate     /etc/nginx/ssl/origin.pem;
+    ssl_certificate_key /etc/nginx/ssl/origin-key.pem;
+    client_max_body_size 16M;
+    include /etc/nginx/snippets/headers-api.conf;
+
+    location / {
+        proxy_pass http://$kv_backend;
+        include /etc/nginx/snippets/proxy-backend.conf;
+        proxy_read_timeout 120s;
+    }
+
+    location /api/video/ws/ {
+        proxy_pass http://$kv_backend;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $kv_connection;
+        include /etc/nginx/snippets/proxy-backend.conf;
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+    }
+
+    location ~ ^/api/video/sandbox/upload/ {
+        client_max_body_size 4096M;
+        proxy_pass http://$kv_backend;
+        include /etc/nginx/snippets/proxy-backend.conf;
+        proxy_request_buffering off;
+        proxy_read_timeout 1800s;
+    }
+
+    location ~ ^/api/video/studio/(videos/[0-9]+/(thumbnail|captions)|channel/(avatar|banner))$ {
+        client_max_body_size 12M;
+        proxy_pass http://$kv_backend;
+        include /etc/nginx/snippets/proxy-backend.conf;
+    }
+
+    location /api/video/images/ { include /etc/nginx/snippets/media.conf; }
+
+    location /api/video/webhooks/ {
+        client_max_body_size 256k;
+        proxy_pass http://$kv_backend;
+        include /etc/nginx/snippets/proxy-backend.conf;
+    }
+
+    location = /metrics {
+        allow 127.0.0.1;
+        allow 10.0.0.0/8;
+        allow 172.16.0.0/12;
+        allow 192.168.0.0/16;
+        deny all;
+        proxy_pass http://$kv_backend;
+        include /etc/nginx/snippets/proxy-backend.conf;
+    }
+}
+
+server {
+    listen 443 ssl;
+    server_name admin.${PUBLIC_DOMAIN};
+    ssl_certificate     /etc/nginx/ssl/origin.pem;
+    ssl_certificate_key /etc/nginx/ssl/origin-key.pem;
+    root /var/www/admin;
+    index index.html;
+    client_max_body_size 1M;
+    include /etc/nginx/snippets/headers-admin.conf;
+
+    location /assets/ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        include /etc/nginx/snippets/headers-admin.conf;
+        try_files $uri =404;
+    }
+    location / { try_files $uri $uri/ /index.html; }
+}
+
+server {
+    listen 443 ssl;
+    server_name studio.${PUBLIC_DOMAIN};
+    ssl_certificate     /etc/nginx/ssl/origin.pem;
+    ssl_certificate_key /etc/nginx/ssl/origin-key.pem;
+    root /var/www/studio;
+    index index.html;
+    client_max_body_size 1M;
+    include /etc/nginx/snippets/headers-studio.conf;
+
+    location /assets/ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        include /etc/nginx/snippets/headers-studio.conf;
+        try_files $uri =404;
+    }
+    location / { try_files $uri $uri/ /index.html; }
+}
+
+server {
+    listen 443 ssl default_server;
+    server_name ${PUBLIC_DOMAIN};
+    ssl_certificate     /etc/nginx/ssl/origin.pem;
+    ssl_certificate_key /etc/nginx/ssl/origin-key.pem;
+    client_max_body_size 1M;
+    include /etc/nginx/snippets/headers-web.conf;
+
+    location /api/ {
+        client_max_body_size 2M;
+        proxy_pass http://$kv_backend;
+        include /etc/nginx/snippets/proxy-backend.conf;
+        include /etc/nginx/snippets/headers-api.conf;
+    }
+
+    location /api/video/images/ { include /etc/nginx/snippets/media.conf; }
+
+    location /assets/ {
+        root /var/www/web;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        include /etc/nginx/snippets/headers-web.conf;
+        try_files $uri =404;
+    }
+
+    location ~ ^/(favicon\.svg|manifest\.webmanifest|robots\.txt|icon.*\.(svg|png))$ { root /var/www/web; }
+
+    location / {
+        proxy_pass http://$kv_backend/api/video/render?path=$uri;
+        proxy_method GET;
+        include /etc/nginx/snippets/proxy-backend.conf;
+        include /etc/nginx/snippets/headers-web.conf;
+    }
+}

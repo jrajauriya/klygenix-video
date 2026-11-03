@@ -1,0 +1,68 @@
+modules:
+  http_app:
+    prober: http
+    timeout: 10s
+    http:
+      method: GET
+      valid_status_codes: [200]
+      follow_redirects: true
+      fail_if_not_ssl: true
+      preferred_ip_protocol: ip4
+      headers:
+        User-Agent: klygenix-video-uptime/1
+      tls_config:
+        insecure_skip_verify: false
+      fail_if_body_not_matches_regexp:
+        - '<div id="root"'
+
+  http_shell:
+    prober: http
+    timeout: 10s
+    http:
+      method: GET
+      valid_status_codes: [200]
+      follow_redirects: true
+      fail_if_not_ssl: true
+      preferred_ip_protocol: ip4
+      headers:
+        Accept: text/html
+        User-Agent: klygenix-video-uptime/1
+      tls_config:
+        insecure_skip_verify: false
+      fail_if_body_not_matches_regexp:
+        - '<title>[^<]+</title>'
+        - '<div id="root"'
+
+  http_product:
+    prober: http
+    timeout: 10s
+    http:
+      method: GET
+      valid_status_codes: [200]
+      follow_redirects: true
+      fail_if_not_ssl: true
+      preferred_ip_protocol: ip4
+      headers:
+        Accept: text/html
+        User-Agent: klygenix-video-uptime/1
+      tls_config:
+        insecure_skip_verify: false
+      fail_if_body_not_matches_regexp:
+        - '<title>[^<]+ — [^<]+</title>'
+        - '<div id="root"'
+
+  http_health:
+    prober: http
+    timeout: 10s
+    http:
+      method: GET
+      valid_status_codes: [200]
+      fail_if_not_ssl: true
+      preferred_ip_protocol: ip4
+      headers:
+        User-Agent: klygenix-video-uptime/1
+      tls_config:
+        insecure_skip_verify: false
+      fail_if_body_not_matches_regexp:
+        - '"status":\s*"ok"'
+        - '"redis":\s*"up"'

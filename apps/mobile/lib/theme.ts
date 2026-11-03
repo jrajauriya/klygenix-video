@@ -1,0 +1,97 @@
+import { StyleSheet } from "react-native"
+
+export const colour = {
+  brand: "#A21CAF",
+  brandHover: "#C026D3",
+  brandLight: "#FDF4FF",
+  night: "#0b0b12",
+  nightCard: "#16161f",
+  navy: "#0f172a",
+  slate500: "#64748b",
+  slate400: "#94a3b8",
+  slate300: "#cbd5e1",
+  slate200: "#e2e8f0",
+  slate50: "#f8fafc",
+  white: "#ffffff",
+  green700: "#15803d",
+  amber600: "#d97706",
+  red600: "#dc2626",
+}
+
+export const s = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: colour.slate50 },
+  sheet: { flex: 1, backgroundColor: colour.white },
+  body: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 40 },
+  centred: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
+
+  title: { fontSize: 24, fontWeight: "700", color: colour.navy },
+  heading: { marginTop: 24, fontSize: 18, fontWeight: "700", color: colour.navy },
+  subtitle: { marginTop: 4, fontSize: 14, color: colour.slate500 },
+  text: { fontSize: 15, color: colour.navy, lineHeight: 21 },
+  label: {
+    marginTop: 20,
+    fontSize: 12,
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+    color: colour.slate500,
+  },
+  note: { marginTop: 12, fontSize: 12, color: colour.slate400 },
+  error: { marginTop: 12, fontSize: 14, color: colour.red600 },
+  link: { color: colour.brand, fontWeight: "600" },
+
+  field: {
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: colour.slate200,
+    borderRadius: 12,
+    backgroundColor: colour.white,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: colour.navy,
+  },
+
+  button: {
+    marginTop: 20,
+    borderRadius: 12,
+    backgroundColor: colour.brand,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  buttonText: { textAlign: "center", fontSize: 16, fontWeight: "600", color: colour.white },
+  outline: {
+    marginTop: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colour.brand,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  outlineText: { textAlign: "center", fontSize: 15, fontWeight: "600", color: colour.brand },
+  disabled: { opacity: 0.5 },
+  quiet: { marginTop: 12, paddingHorizontal: 16, paddingVertical: 12 },
+  quietText: { textAlign: "center", fontSize: 14, color: colour.slate500 },
+
+  card: {
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: colour.slate200,
+    borderRadius: 16,
+    backgroundColor: colour.white,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  cardLabel: { fontSize: 12, textTransform: "uppercase", letterSpacing: 0.6, color: colour.slate500 },
+  cardValue: { marginTop: 4, fontSize: 18, fontWeight: "700", color: colour.navy },
+  cardHint: { marginTop: 2, fontSize: 12, color: colour.slate400 },
+
+  row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  chip: {
+    alignSelf: "flex-start",
+    borderRadius: 999,
+    backgroundColor: colour.brandLight,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  chipText: { fontSize: 12, fontWeight: "600", color: colour.brand },
+})

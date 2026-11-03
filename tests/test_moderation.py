@@ -1,0 +1,68 @@
+from harness import admin_login, check, creator, finish, ok, settled, signup, sql, upload
+
+admin = admin_login()
+print("\n== Safety scan before publish (rule V08)")
+c = creator()
+held = settled(c, upload(c, "reel-chai", "chai kv-test-review")["id"])
+check("flagged upload is held", held["status"], "in_review")
+viewer = signup("Mod Viewer")
+check("held video is not public", viewer.get(f"/api/video/videos/{held['public_id']}").status_code, 404)
+blocked = settled(c, upload(c, "reel-chai", "chai kv-test-block")["id"])
+check("hash-match upload is blocked", blocked["status"], "blocked")
+ok("an automatic action is recorded", sql("select count(*) from kv_trust.moderation_actions where target_id=:i and action='remove'", i=blocked["id"])[0][0] == 1)
+q = admin.get("/api/video/admin/queue").json()
+ok("held video is in the queue", any(i["target_type"] == "video" and i["target_id"] == held["id"] for i in q))
+r = admin.post("/api/video/admin/actions", json={"target_type": "video", "target_id": held["id"], "action": "approve", "reason": "Fine"})
+check("moderator approves", r.status_code, 201)
+check("approved video is public", viewer.get(f"/api/video/videos/{held['public_id']}").status_code, 200)
+
+print("\n== Reports, strikes, suspension, appeal")
+s = creator("Striker")
+vids = [settled(s, upload(s, "reel-git-mistake", f"git {i}")["id"]) for i in range(3)]
+handle = s.get("/api/video/studio/channel").json()["channel"]["handle"]
+r = viewer.post("/api/video/reports", json={"target_type": "video", "target_id": vids[0]["public_id"], "reason": "spam", "details": "x"})
+check("report filed", r.status_code, 201)
+check("same report twice refused", viewer.post("/api/video/reports", json={"target_type": "video", "target_id": vids[0]["public_id"], "reason": "spam"}).status_code, 409)
+check("bad reason refused", viewer.post("/api/video/reports", json={"target_type": "video", "target_id": vids[1]["public_id"], "reason": "meh"}).status_code, 400)
+q = admin.get("/api/video/admin/queue").json()
+ok("reported video in the queue", any(i["target_id"] == vids[0]["id"] and i["why"] == "reported" for i in q))
+for v in vids:
+    r = admin.post("/api/video/admin/actions", json={"target_type": "video", "target_id": v["id"], "action": "remove", "reason": "Spam", "strike": True})
+    check("removed with a strike", r.status_code, 201)
+check("removed video is gone", viewer.get(f"/api/video/videos/{vids[0]['public_id']}").status_code, 404)
+check("report closed as actioned", sql("select status from kv_trust.reports where target_id=:i", i=vids[0]["id"])[0][0], "actioned")
+check("three strikes suspend the channel", viewer.get(f"/api/video/channels/{handle}").status_code, 404)
+check("a suspended channel cannot upload", s.post("/api/video/studio/videos", json={"title": "x", "rights_declared": True}).status_code, 403)
+notices = s.get("/api/video/me/moderation").json()
+ok("creator sees the actions", len(notices["actions"]) >= 3 and len(notices["strikes"]) == 3)
+act_id = next(a["id"] for a in notices["actions"] if a["target_id"] == vids[2]["id"] and a["action"] == "remove")
+r = s.post("/api/video/appeals", json={"action_id": act_id, "text": "This was my own original video, please review."})
+check("appeal filed", r.status_code, 201)
+check("one appeal per decision", s.post("/api/video/appeals", json={"action_id": act_id, "text": "again please review this"}).status_code, 409)
+ap = admin.get("/api/video/admin/appeals").json()
+ap_id = next(a["id"] for a in ap if a["action"]["id"] == act_id)
+r = admin.post(f"/api/video/admin/appeals/{ap_id}", json={"decision": "overturned", "note": "Original content"})
+check("appeal overturned", r.json()["status"], "overturned")
+check("video restored", viewer.get(f"/api/video/videos/{vids[2]['public_id']}").status_code, 200)
+check("strike lifted", sql("select strike_count from kv_social.channels where handle=:h", h=handle)[0][0], 2)
+
+print("\n== Takedowns")
+t = viewer.post("/api/video/takedowns", json={"kind": "copyright", "complainant_name": "Rights Holder", "complainant_email": "rights@example.com",
+                                              "target_url": f"http://localhost:5300/watch/{vids[1]['public_id']}x", "details": "Not mine, testing unmatched link."})
+check("takedown accepted", t.status_code, 201)
+c2 = creator("Copy")
+cv = settled(c2, upload(c2, "dal-tadka", "copied dal")["id"])
+t = viewer.post("/api/video/takedowns", json={"kind": "intimate", "complainant_name": "Person", "complainant_email": "p@example.com",
+                                              "target_url": f"http://localhost:5300/watch/{cv['public_id']}", "details": "This shows me without consent."})
+ref = t.json()["reference"]
+check("intimate-imagery request holds the video at once", viewer.get(f"/api/video/videos/{cv['public_id']}").status_code, 404)
+tds = admin.get("/api/video/admin/takedowns").json()
+td = next(x for x in tds if x["reference"] == ref)
+ok("24-hour clocks set", td["ack_due_at"] and td["resolve_due_at"])
+r = admin.post(f"/api/video/admin/takedowns/{td['id']}", json={"status": "actioned", "note": "Removed"})
+check("takedown actioned", r.json()["status"], "actioned")
+check("video blocked after the takedown", sql("select status from kv_media.videos where id=:i", i=cv["id"])[0][0], "blocked")
+check("bad email refused", viewer.post("/api/video/takedowns", json={"kind": "other", "complainant_name": "X Y", "complainant_email": "nope",
+                                                                     "target_url": "http://x.example/watch/1", "details": "details here"}).status_code, 422)
+
+finish()

@@ -1,0 +1,68 @@
+name: klygenix-video-monitoring
+
+services:
+  prometheus:
+    image: prom/prometheus:v3.15.0
+    container_name: klygenix-video-prometheus
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=30d
+      - --web.enable-lifecycle
+    volumes:
+      - ${KV_MONITORING_CONFIG:-./prometheus}/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ${KV_MONITORING_CONFIG:-./prometheus}/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - ${KV_METRICS_TOKEN_FILE:-/opt/klygenix-video/monitoring/metrics-token}:/etc/prometheus/metrics-token:ro
+      - promdata:/prometheus
+    ports:
+      - "127.0.0.1:${KV_PROMETHEUS_PORT:-9190}:9090"
+    networks: [stack, monitoring]
+    depends_on: [alertmanager, blackbox-exporter, node-exporter]
+
+  alertmanager:
+    image: prom/alertmanager:v0.34.1
+    container_name: klygenix-video-alertmanager
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+    volumes:
+      - ${KV_MONITORING_CONFIG:-./prometheus}/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - amdata:/alertmanager
+    ports:
+      - "127.0.0.1:${KV_ALERTMANAGER_PORT:-9193}:9093"
+    networks: [monitoring]
+
+  blackbox-exporter:
+    image: prom/blackbox-exporter:v0.28.0
+    container_name: klygenix-video-blackbox
+    restart: unless-stopped
+    command: ["--config.file=/etc/blackbox/blackbox.yml"]
+    volumes:
+      - ${KV_MONITORING_CONFIG:-./prometheus}/blackbox.yml:/etc/blackbox/blackbox.yml:ro
+    networks: [stack, monitoring]
+
+  node-exporter:
+    image: prom/node-exporter:v1.12.1
+    container_name: klygenix-video-node-exporter
+    restart: unless-stopped
+    pid: host
+    command:
+      - --path.rootfs=/host
+      - --collector.textfile.directory=/textfile
+      - --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|run|var/lib/docker/.+)($|/)
+    volumes:
+      - /:/host:ro,rslave
+      - ${KV_TEXTFILE_DIR:-/var/lib/node_exporter/textfile_collector}:/textfile:ro
+    networks: [monitoring]
+
+networks:
+  stack:
+    external: true
+    name: ${KV_STACK_NETWORK:-infra_default}
+  monitoring: {}
+
+volumes:
+  promdata:
+  amdata:
