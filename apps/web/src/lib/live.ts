@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query"
 import { api } from "@klygenixvideo/auth"
 import { getJson } from "./api"
 import type { LiveMessage, LiveStreamCard } from "./types"
+import { tr } from "../i18n"
 
 export function useLiveNow() {
   return useQuery({
@@ -39,7 +40,7 @@ export function countdown(ms: number): string {
   const m = Math.floor((total % 3600) / 60)
   const s = total % 60
   const pad = (n: number) => String(n).padStart(2, "0")
-  if (d) return `${d}d ${pad(h)}:${pad(m)}:${pad(s)}`
+  if (d) return tr("{d}d {time}", { d, time: `${pad(h)}:${pad(m)}:${pad(s)}` })
   if (h) return `${h}:${pad(m)}:${pad(s)}`
   return `${pad(m)}:${pad(s)}`
 }

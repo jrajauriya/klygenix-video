@@ -176,3 +176,32 @@ def recommender() -> None:
         if local.hour == 2 and local.minute == 30:
             reco_model.train(db)
         db.commit()
+
+
+@sweep
+def digests() -> None:
+    from app.video.clock import IST
+    from app.video.services import inbox
+
+    local = datetime.now(timezone.utc).astimezone(IST)
+    if local.hour != 8 or local.minute != 0:
+        return
+    with platform_session() as db:
+        inbox.digest(db)
+        db.commit()
+
+
+@sweep
+def scheduled_targets() -> None:
+    from app.video.models.studio import PublishTarget
+    from app.video.studio.jobs import publish_target
+
+    due = []
+    with platform_session() as db:
+        for t in db.execute(select(PublishTarget).where(PublishTarget.status == "scheduled",
+                                                        PublishTarget.scheduled_at <= datetime.now(timezone.utc))).scalars():
+            t.status = "queued"
+            due.append(t.id)
+        db.commit()
+    for tid in due:
+        publish_target.enqueue(tid)

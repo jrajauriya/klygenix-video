@@ -17,7 +17,8 @@ import { Comments } from "../components/Comments"
 import { FollowButton } from "../components/FollowButton"
 import { ReportDialog, type ReportTarget } from "../components/ReportDialog"
 import { Sheet } from "../components/Sheet"
-import { AccessBadge } from "../components/VideoCards"
+import { AccessBadge, PaidPartnershipChip } from "../components/VideoCards"
+import { useT } from "../i18n"
 import { PreviewBadge } from "./watch/lockBits"
 
 
@@ -52,6 +53,7 @@ function Reel({
   onStarted: () => void
 }) {
   const signedIn = useSignedIn()
+  const t = useT("reels")
   const navigate = useNavigate()
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const [paused, setPaused] = useState(false)
@@ -139,7 +141,7 @@ function Reel({
       else await api.delete(`/api/video/videos/${reel.id}/like`)
     } catch (err) {
       setLike(liked)
-      toast.error(errText(err, "That did not work. Try again."))
+      toast.error(errText(err, t("That did not work. Try again.")))
     }
   }
 
@@ -147,7 +149,7 @@ function Reel({
     const url = `${window.location.origin}/reels/${reel.id}`
     try {
       await navigator.clipboard.writeText(url)
-      toast.success("Link copied")
+      toast.success(t("Link copied"))
     } catch {
       toast.message(url)
     }
@@ -191,17 +193,18 @@ function Reel({
             }}
             onPause={progress.onPause}
             onEnded={() => { if (lock) setPreviewOver(true) }}
+            t={t}
             className="absolute inset-0 h-full w-full"
           />
         ) : reel.thumbnail ? (
           <img src={reel.thumbnail} alt="" fetchPriority={active ? "high" : "low"} className="absolute inset-0 h-full w-full object-cover" />
         ) : null}
 
-        <button type="button" onClick={tap} aria-label={muted ? "Unmute" : paused ? "Play" : "Pause"} className="absolute inset-0 z-10 cursor-pointer" />
+        <button type="button" onClick={tap} aria-label={muted ? t("Unmute") : paused ? t("Play") : t("Pause")} className="absolute inset-0 z-10 cursor-pointer" />
 
         {active && muted && (
           <button type="button" onClick={tap} className="absolute left-1/2 top-4 z-20 inline-flex -translate-x-1/2 items-center gap-2 rounded-full bg-black/65 px-3.5 py-1.5 text-xs font-semibold text-white backdrop-blur">
-            <VolumeX size={14} /> Tap to unmute
+            <VolumeX size={14} aria-hidden="true" /> {t("Tap to unmute")}
           </button>
         )}
         {paused && active && !muted && (
@@ -221,7 +224,12 @@ function Reel({
             </div>
           )}
           <p className="line-clamp-2 text-sm font-medium text-white">{reel.title}</p>
-          {reel.ai_generated && <AiBadge className="mt-2" />}
+          {(reel.ai_generated || reel.paid_partnership) && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {reel.ai_generated && <AiBadge />}
+              <PaidPartnershipChip partnership={reel.paid_partnership} className="pointer-events-auto" />
+            </div>
+          )}
         </div>
         <div className="absolute inset-x-0 bottom-0 z-30 h-0.5 bg-white/20">
           <div className="h-full bg-brand-soft" style={{ width: `${progressPct}%` }} />
@@ -248,30 +256,31 @@ function Reel({
     return (
       <>
         <div className="flex flex-col items-center gap-1">
-          <SideAction label={liked.on ? "Unlike" : "Like"} onClick={toggleLike} active={liked.on}>
+          <SideAction label={liked.on ? t("Unlike") : t("Like")} onClick={toggleLike} active={liked.on}>
             <Heart size={21} fill={liked.on ? "currentColor" : "none"} />
           </SideAction>
           <span className="text-xs font-semibold text-white">{compactNumber(liked.count)}</span>
         </div>
         <div className="flex flex-col items-center gap-1">
-          <SideAction label="Comments" onClick={onComments}><MessageCircle size={21} /></SideAction>
+          <SideAction label={t("Comments")} onClick={onComments}><MessageCircle size={21} /></SideAction>
           <span className="text-xs font-semibold text-white">{reel.comments === undefined ? "" : compactNumber(reel.comments)}</span>
         </div>
-        <SideAction label="Share" onClick={share}><Share2 size={20} /></SideAction>
+        <SideAction label={t("Share")} onClick={share}><Share2 size={20} /></SideAction>
         {captionLang && (
-          <SideAction label={captionsOn ? "Hide captions" : "Show captions"} onClick={() => setCaptionsOn(!captionsOn)} active={captionsOn}>
+          <SideAction label={captionsOn ? t("Hide captions") : t("Show captions")} onClick={() => setCaptionsOn(!captionsOn)} active={captionsOn}>
             <Captions size={20} />
           </SideAction>
         )}
-        <SideAction label={muted ? "Unmute" : "Mute"} onClick={() => onMuted(!muted)}>{muted ? <VolumeX size={20} /> : <Volume2 size={20} />}</SideAction>
-        <SideAction label="Report" onClick={onReport}><Flag size={19} /></SideAction>
+        <SideAction label={muted ? t("Unmute") : t("Mute")} onClick={() => onMuted(!muted)}>{muted ? <VolumeX size={20} /> : <Volume2 size={20} />}</SideAction>
+        <SideAction label={t("Report")} onClick={onReport}><Flag size={19} /></SideAction>
       </>
     )
   }
 }
 
 export default function ReelsPage() {
-  useTitle("Reels")
+  const t = useT("reels")
+  useTitle(t("Reels"))
   const { id: routeId } = useParams()
   const [params] = useSearchParams()
   const startId = routeId ?? params.get("start")
@@ -381,7 +390,7 @@ export default function ReelsPage() {
   if (!reels.length) {
     return (
       <div className="mx-auto max-w-lg px-4 py-16">
-        <Empty icon={<Clapperboard size={32} />} title="No reels yet" body="Short vertical videos from creators will show up here." action={<Link to="/" className="text-sm font-semibold text-brand-soft hover:underline">Back to home</Link>} />
+        <Empty icon={<Clapperboard size={32} />} title={t("No reels yet")} body={t("Short vertical videos from creators will show up here.")} action={<Link to="/" className="text-sm font-semibold text-brand-soft hover:underline">{t("Back to home")}</Link>} />
       </div>
     )
   }
@@ -404,14 +413,14 @@ export default function ReelsPage() {
             onReport={() => (signedIn ? setReport({ type: "video", id: r.id, label: "reel" }) : navigate(loginPath(`/reels/${r.id}`)))}
           />
         ))}
-        {q.isFetchingNextPage && <div className="py-6 text-center text-sm text-muted">Loading more…</div>}
+        {q.isFetchingNextPage && <div className="py-6 text-center text-sm text-muted">{t("Loading more…")}</div>}
       </div>
-      <Sheet open={commentsFor !== null} onClose={() => setCommentsFor(null)} title="Comments" wide>
+      <Sheet open={commentsFor !== null} onClose={() => setCommentsFor(null)} title={t("Comments")} wide>
         {commentsFor && (
           <Comments
             videoId={commentsFor.id}
             heading={false}
-            onReport={(t) => (signedIn ? setReport(t) : navigate(loginPath(`/reels/${commentsFor.id}`)))}
+            onReport={(target) => (signedIn ? setReport(target) : navigate(loginPath(`/reels/${commentsFor.id}`)))}
           />
         )}
       </Sheet>

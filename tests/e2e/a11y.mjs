@@ -73,6 +73,31 @@ async function main() {
   for (const [label, path] of [["account", "/account"], ["watch", long ? `/watch/${long.id}` : "/"]]) await audit(page, `web ${label} (signed in)`, WEB + path)
   await ctx.close()
 
+  console.log("\n== a11y: web in Hindi, and run 5 screens")
+  ctx = await browser.newContext({ viewport: { width: 1280, height: 860 }, colorScheme: "dark", locale: "hi-IN" })
+  page = await ctx.newPage()
+  for (const [label, path] of [["home", "/"], ["reels", "/reels"], ["watch", long ? `/watch/${long.id}` : "/"], ["search", "/search?q=" + encodeURIComponent("चाय")],
+                               ["channel", `/@${handle}`], ["plans", "/plans"], ["login", "/login"], ["signup", "/signup"], ["grievance", "/legal/grievance"]]) {
+    await audit(page, `web ${label} (hi)`, WEB + path)
+  }
+  await ctx.close()
+  const hiViewer = await (await fetch(`${API}/api/auth/login`, { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email: "sara@demo.klygenix.com", password: DEMO_PASSWORD }) })).json()
+  const setLanguage = (language) => fetch(`${API}/api/video/me`, { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${hiViewer.access_token}` },
+    body: JSON.stringify({ language }) })
+  for (const lang of ["en", "hi"]) {
+    await setLanguage(lang)
+    ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, colorScheme: "dark", isMobile: true, hasTouch: true })
+    await ctx.addInitScript(([auth, l]) => localStorage.setItem("klygenix-video-auth", JSON.stringify({ state: { ...auth, user: { ...auth.user, settings: { ...(auth.user.settings ?? {}), language: l } } }, version: 0 })),
+      [{ token: hiViewer.access_token, user: hiViewer.user }, lang])
+    page = await ctx.newPage()
+    for (const [label, path] of [["notifications", "/notifications"], ["subscriptions", "/subscriptions"], ["account", "/account"], ["account digest", "/account?tab=notifications"], ["activate", "/activate"]]) {
+      await audit(page, `web ${label} (${lang}, signed in, 390px)`, WEB + path)
+    }
+    await ctx.close()
+  }
+  await setLanguage("en")
+
   for (const [name, origin, email, password, nav] of [
     ["studio", STUDIO, CREATOR, DEMO_PASSWORD, "../../apps/studio/src/components/layout/nav.ts"],
     ["admin", ADMIN, ADMIN_EMAIL, ADMIN_PASSWORD, "../../apps/admin/src/components/layout/nav.ts"],

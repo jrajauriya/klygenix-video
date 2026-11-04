@@ -89,6 +89,12 @@ class BunnyProvider:
         return {"type": "hls", "url": self._signed(f"/{guid}/playlist.m3u8", ttl, f"/{guid}/"),
                 "expires_at": int(time.time()) + ttl}
 
+    def download_url(self, video, ttl: int) -> str:
+        guid = video.provider_video_id
+        if not settings.BUNNY_TOKEN_KEY:
+            return f"https://{self.cdn}/{guid}/play_720p.mp4"
+        return self._signed(f"/{guid}/play_720p.mp4", ttl, f"/{guid}/")
+
     def thumbnail_url(self, video, ttl: int) -> str | None:
         guid = video.provider_video_id
         if not settings.BUNNY_TOKEN_KEY:

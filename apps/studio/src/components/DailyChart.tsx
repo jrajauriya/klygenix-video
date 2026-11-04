@@ -3,6 +3,7 @@ import { CHART_AXIS, CHART_LINE, CHART_RULE, cn } from "@klygenixvideo/ui"
 import { compact, watchTime } from "../lib/format"
 import { RANGES, type RangeDays } from "../lib/hooks"
 import type { DayRow } from "../lib/types"
+import { tr, useT } from "../i18n"
 
 export type Metric = "views" | "watch_ms" | "likes"
 
@@ -11,6 +12,12 @@ const METRICS: { key: Metric; label: string }[] = [
   { key: "watch_ms", label: "Watch time" },
   { key: "likes", label: "Likes" },
 ]
+
+const EMPTY: Record<Metric, string> = {
+  views: "No views in these days yet.",
+  watch_ms: "No watch time in these days yet.",
+  likes: "No likes in these days yet.",
+}
 
 const HEIGHT = 180
 const PAD = { top: 12, right: 8, bottom: 22, left: 44 }
@@ -31,9 +38,9 @@ function niceCount(n: number): number {
   return max % 2 ? max + unit : max
 }
 
-function axisLabel(metric: Metric, t: number, max: number): string {
-  if (metric === "watch_ms" && max < 240_000) return `${Math.round(t / 1000)} s`
-  return fmt(metric, t)
+function axisLabel(metric: Metric, v: number, max: number): string {
+  if (metric === "watch_ms" && max < 240_000) return tr("{n} s", { n: Math.round(v / 1000) })
+  return fmt(metric, v)
 }
 
 function niceMax(metric: Metric, n: number): number {
@@ -87,10 +94,12 @@ export function Segmented<T extends string | number>({ value, options, onChange,
 }
 
 export function RangePicker({ value, onChange }: { value: RangeDays; onChange: (v: RangeDays) => void }) {
-  return <Segmented label="Date range" value={value} onChange={onChange} options={RANGES.map((d) => ({ value: d, label: `${d} days` }))} />
+  const t = useT()
+  return <Segmented label={t("Date range")} value={value} onChange={onChange} options={RANGES.map((d) => ({ value: d, label: t("{n} days", { n: d }) }))} />
 }
 
 export function DailyChart({ days, metric: initial = "views", showMetricPicker = true }: { days: DayRow[]; metric?: Metric; showMetricPicker?: boolean }) {
+  const t = useT()
   const [metric, setMetric] = useState<Metric>(initial)
   const [hover, setHover] = useState<number | null>(null)
   const [box, width] = useWidth<HTMLDivElement>()
@@ -106,24 +115,24 @@ export function DailyChart({ days, metric: initial = "views", showMetricPicker =
   const ticks = [0, max / 2, max]
   const labelEvery = Math.max(1, Math.ceil(days.length / Math.max(1, Math.floor(plotW / 64))))
   const empty = values.every((v) => v === 0)
-  const label = METRICS.find((m) => m.key === metric)!.label
+  const label = t(METRICS.find((m) => m.key === metric)!.label)
   const h = hover !== null ? days[hover] : null
 
   return (
     <div>
       {showMetricPicker && (
         <div className="mb-3">
-          <Segmented label="Measure" value={metric} onChange={setMetric} options={METRICS.map((m) => ({ value: m.key, label: m.label }))} />
+          <Segmented label={t("Measure")} value={metric} onChange={setMetric} options={METRICS.map((m) => ({ value: m.key, label: t(m.label) }))} />
         </div>
       )}
       <div ref={box} className="relative w-full" style={{ height: HEIGHT }} onMouseLeave={() => setHover(null)}>
         {width > 0 && (
-          <svg width={width} height={HEIGHT} role="img" aria-label={`${label} per day, ${days.length} days`} className="block">
-            {ticks.map((t) => (
-              <g key={t}>
-                <line x1={PAD.left} x2={width - PAD.right} y1={y(t)} y2={y(t)} stroke={CHART_RULE} strokeWidth={1} />
-                <text x={PAD.left - 6} y={y(t)} dy="0.32em" textAnchor="end" fontSize={10} fill={CHART_AXIS} className="font-num">
-                  {axisLabel(metric, t, max)}
+          <svg width={width} height={HEIGHT} role="img" aria-label={t("{metric} per day, {n} days", { metric: label, n: days.length })} className="block">
+            {ticks.map((tick) => (
+              <g key={tick}>
+                <line x1={PAD.left} x2={width - PAD.right} y1={y(tick)} y2={y(tick)} stroke={CHART_RULE} strokeWidth={1} />
+                <text x={PAD.left - 6} y={y(tick)} dy="0.32em" textAnchor="end" fontSize={10} fill={CHART_AXIS} className="font-num">
+                  {axisLabel(metric, tick, max)}
                 </text>
               </g>
             ))}
@@ -144,7 +153,7 @@ export function DailyChart({ days, metric: initial = "views", showMetricPicker =
         )}
         {empty && (
           <p className="pointer-events-none absolute inset-x-0 top-1/3 text-center text-sm text-slate-500">
-            No {label.toLowerCase()} in these days yet.
+            {t(EMPTY[metric])}
           </p>
         )}
         {h && hover !== null && (
@@ -158,8 +167,8 @@ export function DailyChart({ days, metric: initial = "views", showMetricPicker =
         )}
       </div>
       <table className="sr-only">
-        <caption>{label} per day</caption>
-        <thead><tr><th>Day</th><th>{label}</th></tr></thead>
+        <caption>{t("{metric} per day", { metric: label })}</caption>
+        <thead><tr><th>{t("Day")}</th><th>{label}</th></tr></thead>
         <tbody>{days.map((d) => <tr key={d.day}><td>{d.day}</td><td>{fmt(metric, d[metric])}</td></tr>)}</tbody>
       </table>
     </div>

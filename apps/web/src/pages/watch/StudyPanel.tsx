@@ -9,6 +9,7 @@ import { errStatus, errText, getJson, loginPath, useSignedIn } from "../../lib/a
 import { clock, timeAgo } from "../../lib/format"
 import type { Flashcard, PersonalNote, QuizAttempt, QuizItem, QuizResult, StudyNote, StudySet } from "../../lib/types"
 import { Btn, Skel, TEXTAREA } from "../../components/bits"
+import { useT } from "../../i18n"
 
 type Kind = "notes" | "flashcards" | "quiz" | "mine"
 
@@ -40,15 +41,16 @@ function useStudy<T>(videoId: string, kind: "notes" | "flashcards" | "quiz") {
   })
 }
 
-function Problem({ error, what }: { error: unknown; what: string }) {
+function Problem({ error, what }: { error: unknown; what: "notes" | "flashcards" | "quizzes" }) {
+  const t = useT("watchx")
   const status = errStatus(error)
   if (status === 401) {
     return (
       <div className="flex flex-col items-center gap-3 py-8 text-center">
         <GraduationCap size={26} className="text-brand-soft" aria-hidden="true" />
-        <p className="text-sm font-semibold">Sign in to make study {what}</p>
-        <p className="max-w-xs text-xs text-muted">The first person to ask creates them from the transcript. After that they load for everyone.</p>
-        <Link to={loginPath()} className="rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-hover">Sign in</Link>
+        <p className="text-sm font-semibold">{t(`Sign in to make study ${what}`)}</p>
+        <p className="max-w-xs text-xs text-muted">{t("The first person to ask creates them from the transcript. After that they load for everyone.")}</p>
+        <Link to={loginPath()} className="rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-hover">{t("Sign in")}</Link>
       </div>
     )
   }
@@ -56,29 +58,31 @@ function Problem({ error, what }: { error: unknown; what: string }) {
     return (
       <div className="flex flex-col items-center gap-2 py-8 text-center">
         <Lock size={22} className="text-brand-soft" aria-hidden="true" />
-        <p className="max-w-xs text-sm font-semibold">{errText(error, "Unlock the video to study it.")}</p>
-        <Link to="/plans" className="text-xs font-semibold text-brand-soft hover:underline">See plans</Link>
+        <p className="max-w-xs text-sm font-semibold">{errText(error, t("Unlock the video to study it."))}</p>
+        <Link to="/plans" className="text-xs font-semibold text-brand-soft hover:underline">{t("See plans")}</Link>
       </div>
     )
   }
-  return <p className="py-8 text-center text-sm text-muted">{errText(error, `Study ${what} are not available for this video.`)}</p>
+  return <p className="py-8 text-center text-sm text-muted">{errText(error, t(`Study ${what} are not available for this video.`))}</p>
 }
 
 function Loading() {
+  const t = useT("watchx")
   return (
     <div className="space-y-2">
-      <p className="flex items-center gap-2 text-xs text-muted"><Loader2 size={13} className="animate-spin" aria-hidden="true" /> Preparing from the transcript…</p>
+      <p className="flex items-center gap-2 text-xs text-muted"><Loader2 size={13} className="animate-spin" aria-hidden="true" /> {t("Preparing from the transcript…")}</p>
       {Array.from({ length: 4 }, (_, i) => <Skel key={i} className="h-12 w-full" />)}
     </div>
   )
 }
 
 function Notes({ videoId, onSeek }: { videoId: string; onSeek: (ms: number) => void }) {
+  const t = useT("watchx")
   const q = useStudy<StudyNote>(videoId, "notes")
   if (q.isLoading) return <Loading />
   if (q.isError) return <Problem error={q.error} what="notes" />
   const items = q.data?.items ?? []
-  if (!items.length) return <p className="py-8 text-center text-sm text-muted">No study notes for this video.</p>
+  if (!items.length) return <p className="py-8 text-center text-sm text-muted">{t("No study notes for this video.")}</p>
   return (
     <div className="space-y-4">
       {items.map((n, i) => (
@@ -90,19 +94,20 @@ function Notes({ videoId, onSeek }: { videoId: string; onSeek: (ms: number) => v
           </p>
         </div>
       ))}
-      <p className="text-[11px] text-faint">Made by AI from the transcript. Tap a time to check it in the video.</p>
+      <p className="text-[11px] text-faint">{t("Made by AI from the transcript. Tap a time to check it in the video.")}</p>
     </div>
   )
 }
 
 function Flashcards({ videoId, onSeek }: { videoId: string; onSeek: (ms: number) => void }) {
+  const t = useT("watchx")
   const q = useStudy<Flashcard>(videoId, "flashcards")
   const [at, setAt] = useState(0)
   const [flipped, setFlipped] = useState(false)
   if (q.isLoading) return <Loading />
   if (q.isError) return <Problem error={q.error} what="flashcards" />
   const items = q.data?.items ?? []
-  if (!items.length) return <p className="py-8 text-center text-sm text-muted">No flashcards for this video.</p>
+  if (!items.length) return <p className="py-8 text-center text-sm text-muted">{t("No flashcards for this video.")}</p>
   const card = items[Math.min(at, items.length - 1)]
   const go = (n: number) => {
     setAt((n + items.length) % items.length)
@@ -118,21 +123,22 @@ function Flashcards({ videoId, onSeek }: { videoId: string; onSeek: (ms: number)
           flipped ? "border-brand/60 bg-brand/15" : "border-line bg-panel-2 hover:bg-white/[0.06]",
         )}
       >
-        <span className="text-xs font-semibold uppercase tracking-wide text-muted">{flipped ? "Answer" : "Question"}</span>
+        <span className="text-xs font-semibold uppercase tracking-wide text-muted">{flipped ? t("Answer") : t("Question")}</span>
         <span className="text-base font-semibold leading-snug">{flipped ? card.back : card.front}</span>
-        <span className="text-xs text-faint">{flipped ? "Tap to see the question" : "Tap to see the answer"}</span>
+        <span className="text-xs text-faint">{flipped ? t("Tap to see the question") : t("Tap to see the answer")}</span>
       </button>
       <div className="flex items-center gap-2">
-        <Btn tone="soft" size="sm" onClick={() => go(at - 1)} aria-label="Previous card"><ChevronLeft size={16} aria-hidden="true" /></Btn>
+        <Btn tone="soft" size="sm" onClick={() => go(at - 1)} aria-label={t("Previous card")}><ChevronLeft size={16} aria-hidden="true" /></Btn>
         <span className="flex-1 text-center text-xs tabular-nums text-muted">{at + 1} / {items.length}</span>
         <Stamp label={card.label} ms={card.t_ms} onSeek={onSeek} />
-        <Btn tone="soft" size="sm" onClick={() => go(at + 1)} aria-label="Next card"><ChevronRight size={16} aria-hidden="true" /></Btn>
+        <Btn tone="soft" size="sm" onClick={() => go(at + 1)} aria-label={t("Next card")}><ChevronRight size={16} aria-hidden="true" /></Btn>
       </div>
     </div>
   )
 }
 
 function Quiz({ videoId, onSeek }: { videoId: string; onSeek: (ms: number) => void }) {
+  const t = useT("watchx")
   const signedIn = useSignedIn()
   const qc = useQueryClient()
   const q = useStudy<QuizItem>(videoId, "quiz")
@@ -147,7 +153,7 @@ function Quiz({ videoId, onSeek }: { videoId: string; onSeek: (ms: number) => vo
   if (q.isLoading) return <Loading />
   if (q.isError) return <Problem error={q.error} what="quizzes" />
   const items = q.data?.items ?? []
-  if (!items.length) return <p className="py-8 text-center text-sm text-muted">No quiz for this video.</p>
+  if (!items.length) return <p className="py-8 text-center text-sm text-muted">{t("No quiz for this video.")}</p>
   const answered = Object.keys(answers).length
   const graded = new Map((result?.results ?? []).map((r) => [r.index, r]))
 
@@ -161,7 +167,7 @@ function Quiz({ videoId, onSeek }: { videoId: string; onSeek: (ms: number) => vo
       setResult(data)
       qc.invalidateQueries({ queryKey: ["quiz-attempts", videoId] })
     } catch (err) {
-      toast.error(errText(err, "Your answers could not be checked."))
+      toast.error(errText(err, t("Your answers could not be checked.")))
     } finally {
       setSending(false)
     }
@@ -171,21 +177,21 @@ function Quiz({ videoId, onSeek }: { videoId: string; onSeek: (ms: number) => vo
     <form onSubmit={check} className="space-y-4">
       {result && (
         <div role="status" className="flex items-center gap-3 rounded-xl border border-brand/50 bg-brand/15 px-3 py-2.5">
-          <p className="flex-1 text-sm font-bold">You scored {result.score} of {result.total}</p>
-          <Btn tone="soft" size="sm" onClick={() => { setResult(null); setAnswers({}) }}><RotateCcw size={14} aria-hidden="true" /> Try again</Btn>
+          <p className="flex-1 text-sm font-bold">{t("You scored {score} of {total}", { score: result.score, total: result.total })}</p>
+          <Btn tone="soft" size="sm" onClick={() => { setResult(null); setAnswers({}) }}><RotateCcw size={14} aria-hidden="true" /> {t("Try again")}</Btn>
         </div>
       )}
       {items.map((item, i) => {
         const g = graded.get(i)
         return (
           <fieldset key={i} className="rounded-xl bg-panel-2 p-3">
-            <legend className="sr-only">Question {i + 1}</legend>
+            <legend className="sr-only">{t("Question {n}", { n: i + 1 })}</legend>
             <p className="mb-2 flex gap-2 text-sm font-semibold">
               <span className="tabular-nums text-muted">{i + 1}.</span>
               <span className="flex-1">{item.question}</span>
               {g && (g.right
-                ? <span className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-emerald-400"><Check size={14} aria-hidden="true" /> Right</span>
-                : <span className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-[#fca5a5]"><X size={14} aria-hidden="true" /> Wrong</span>)}
+                ? <span className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-emerald-400"><Check size={14} aria-hidden="true" /> {t("Right")}</span>
+                : <span className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-[#fca5a5]"><X size={14} aria-hidden="true" /> {t("Wrong")}</span>)}
             </p>
             <div className="space-y-1.5">
               {item.options.map((opt, j) => {
@@ -215,7 +221,7 @@ function Quiz({ videoId, onSeek }: { videoId: string; onSeek: (ms: number) => vo
             </div>
             {g && (
               <p className="mt-2 flex items-center gap-2 text-xs text-muted">
-                {g.right ? "Nice." : "Watch this moment:"} <Stamp label={g.label} ms={g.t_ms} onSeek={onSeek} />
+                {g.right ? t("Nice.") : t("Watch this moment:")} <Stamp label={g.label} ms={g.t_ms} onSeek={onSeek} />
               </p>
             )}
           </fieldset>
@@ -225,15 +231,15 @@ function Quiz({ videoId, onSeek }: { videoId: string; onSeek: (ms: number) => vo
         signedIn ? (
           <Btn tone="brand" type="submit" className="w-full" disabled={sending || answered === 0}>
             {sending ? <Loader2 size={15} className="animate-spin" aria-hidden="true" /> : null}
-            Check answers ({answered}/{items.length})
+            {t("Check answers ({done}/{total})", { done: answered, total: items.length })}
           </Btn>
         ) : (
-          <Link to={loginPath()} className="flex h-9 items-center justify-center rounded-full bg-brand text-sm font-semibold text-white hover:bg-brand-hover">Sign in to check your answers</Link>
+          <Link to={loginPath()} className="flex h-9 items-center justify-center rounded-full bg-brand text-sm font-semibold text-white hover:bg-brand-hover">{t("Sign in to check your answers")}</Link>
         )
       )}
       {(past.data ?? []).length > 0 && (
         <div>
-          <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted">Your past scores</h3>
+          <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted">{t("Your past scores")}</h3>
           <ul className="flex flex-wrap gap-1.5">
             {(past.data ?? []).slice(0, 8).map((a) => (
               <li key={a.id} className="rounded-full bg-white/[0.07] px-2.5 py-1 text-xs">
@@ -248,6 +254,7 @@ function Quiz({ videoId, onSeek }: { videoId: string; onSeek: (ms: number) => vo
 }
 
 function MyNotes({ videoId, currentMs, onSeek }: { videoId: string; currentMs: number; onSeek: (ms: number) => void }) {
+  const t = useT("watchx")
   const signedIn = useSignedIn()
   const qc = useQueryClient()
   const [body, setBody] = useState("")
@@ -258,9 +265,9 @@ function MyNotes({ videoId, currentMs, onSeek }: { videoId: string; currentMs: n
   if (!signedIn) {
     return (
       <div className="flex flex-col items-center gap-3 py-8 text-center">
-        <p className="text-sm font-semibold">Keep your own notes on this video</p>
-        <p className="max-w-xs text-xs text-muted">Each note remembers the moment you wrote it. Only you can see them.</p>
-        <Link to={loginPath()} className="rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-hover">Sign in to take notes</Link>
+        <p className="text-sm font-semibold">{t("Keep your own notes on this video")}</p>
+        <p className="max-w-xs text-xs text-muted">{t("Each note remembers the moment you wrote it. Only you can see them.")}</p>
+        <Link to={loginPath()} className="rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-hover">{t("Sign in to take notes")}</Link>
       </div>
     )
   }
@@ -275,7 +282,7 @@ function MyNotes({ videoId, currentMs, onSeek }: { videoId: string; currentMs: n
       setBody("")
       await qc.invalidateQueries({ queryKey: key })
     } catch (err) {
-      toast.error(errText(err, "Your note could not be saved."))
+      toast.error(errText(err, t("Your note could not be saved.")))
     } finally {
       setSaving(false)
     }
@@ -286,7 +293,7 @@ function MyNotes({ videoId, currentMs, onSeek }: { videoId: string; currentMs: n
       await api.delete(`/api/video/notes/${n.id}`)
       qc.setQueryData<PersonalNote[]>(key, (old) => (old ?? []).filter((x) => x.id !== n.id))
     } catch (err) {
-      toast.error(errText(err, "The note could not be deleted."))
+      toast.error(errText(err, t("The note could not be deleted.")))
     }
   }
 
@@ -300,22 +307,22 @@ function MyNotes({ videoId, currentMs, onSeek }: { videoId: string; currentMs: n
           maxLength={2000}
           value={body}
           onChange={(e) => setBody(e.target.value)}
-          placeholder="Write a note…"
-          aria-label="Note"
+          placeholder={t("Write a note…")}
+          aria-label={t("Note")}
         />
-        <Btn tone="brand" size="sm" type="submit" disabled={!body.trim() || saving}>Add note at {clock(currentMs)}</Btn>
+        <Btn tone="brand" size="sm" type="submit" disabled={!body.trim() || saving}>{t("Add note at {time}", { time: clock(currentMs) })}</Btn>
       </form>
       {q.isLoading ? (
         <Skel className="h-12 w-full" />
       ) : notes.length === 0 ? (
-        <p className="py-4 text-center text-sm text-muted">No notes yet. Pause anywhere and write one.</p>
+        <p className="py-4 text-center text-sm text-muted">{t("No notes yet. Pause anywhere and write one.")}</p>
       ) : (
         <ul className="space-y-2">
           {notes.map((n) => (
             <li key={n.id} className="flex items-start gap-2 rounded-xl bg-panel-2 px-3 py-2">
               <Stamp label={n.label} ms={n.t_ms} onSeek={onSeek} className="mt-0.5 shrink-0" />
               <p className="min-w-0 flex-1 whitespace-pre-wrap break-words text-sm">{n.body}</p>
-              <button type="button" onClick={() => remove(n)} aria-label={`Delete note at ${n.label}`} className="shrink-0 rounded-full p-1 text-muted hover:bg-white/10 hover:text-ink">
+              <button type="button" onClick={() => remove(n)} aria-label={t("Delete note at {time}", { time: n.label })} className="shrink-0 rounded-full p-1 text-muted hover:bg-white/10 hover:text-ink">
                 <Trash2 size={14} aria-hidden="true" />
               </button>
             </li>
@@ -327,10 +334,11 @@ function MyNotes({ videoId, currentMs, onSeek }: { videoId: string; currentMs: n
 }
 
 export function StudyPanel({ videoId, currentMs, onSeek }: { videoId: string; currentMs: number; onSeek: (ms: number) => void }) {
+  const t = useT("watchx")
   const [kind, setKind] = useState<Kind>("notes")
   return (
     <div className="flex h-full flex-col gap-3">
-      <div role="tablist" aria-label="Study" className="flex shrink-0 gap-1 overflow-x-auto scrollbar-none">
+      <div role="tablist" aria-label={t("Study")} className="flex shrink-0 gap-1 overflow-x-auto scrollbar-none">
         {KINDS.map((k) => (
           <button
             key={k.key}
@@ -340,11 +348,11 @@ export function StudyPanel({ videoId, currentMs, onSeek }: { videoId: string; cu
             onClick={() => setKind(k.key)}
             className={cn("h-7 shrink-0 rounded-full px-3 text-xs font-semibold", kind === k.key ? "bg-snow text-black" : "bg-white/[0.08] text-ink hover:bg-white/15")}
           >
-            {k.label}
+            {t(k.label)}
           </button>
         ))}
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto pr-1" tabIndex={0} aria-label={KINDS.find((k) => k.key === kind)?.label}>
+      <div className="min-h-0 flex-1 overflow-y-auto pr-1" tabIndex={0} aria-label={t(KINDS.find((k) => k.key === kind)?.label ?? "")}>
         {kind === "notes" && <Notes videoId={videoId} onSeek={onSeek} />}
         {kind === "flashcards" && <Flashcards videoId={videoId} onSeek={onSeek} />}
         {kind === "quiz" && <Quiz videoId={videoId} onSeek={onSeek} />}

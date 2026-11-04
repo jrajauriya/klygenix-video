@@ -6,8 +6,10 @@ import { api } from "@klygenixvideo/auth"
 import { Button, Card, Field, Input, Select, Textarea, ToggleField } from "@klygenixvideo/ui"
 import { detail, toLocalInput } from "../../lib/format"
 import { LIVE_STUDIO, useTierOptions, type LiveStream } from "../../lib/live"
+import { useT } from "../../i18n"
 
 export function LiveSettings({ stream }: { stream: LiveStream }) {
+  const t = useT()
   const qc = useQueryClient()
   const [title, setTitle] = useState(stream.title)
   const [description, setDescription] = useState(stream.description)
@@ -37,9 +39,9 @@ export function LiveSettings({ stream }: { stream: LiveStream }) {
       const { data } = await api.patch<LiveStream>(`${LIVE_STUDIO}/${stream.id}`, body)
       qc.setQueryData(["studio-live", stream.id], data)
       qc.invalidateQueries({ queryKey: ["studio-live"] })
-      toast.success("Stream settings saved")
+      toast.success(t("Stream settings saved"))
     } catch (err) {
-      toast.error(detail(err, "Could not save the settings"))
+      toast.error(detail(err, t("Could not save the settings")))
     } finally {
       setSaving(false)
     }
@@ -47,27 +49,27 @@ export function LiveSettings({ stream }: { stream: LiveStream }) {
 
   return (
     <Card className="space-y-4 p-5">
-      <h2 className="text-sm font-bold text-navy">Stream settings</h2>
-      <Field label="Title" required>
+      <h2 className="text-sm font-bold text-navy">{t("Stream settings")}</h2>
+      <Field label={t("Title")} required>
         <Input value={title} maxLength={160} onChange={(e) => setTitle(e.target.value)} />
       </Field>
-      <Field label="Description">
+      <Field label={t("Description")}>
         <Textarea rows={3} value={description} maxLength={5000} onChange={(e) => setDescription(e.target.value)} />
       </Field>
-      <Field label="Slow mode (seconds)" hint="0 turns it off. Up to 600.">
+      <Field label={t("Slow mode (seconds)")} hint={t("0 turns it off. Up to 600.")}>
         <Input type="number" min={0} max={600} value={slow} onChange={(e) => setSlow(e.target.value)} />
       </Field>
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Who can watch" hint={stream.status === "live" ? "Changes apply to viewers who join from now on." : undefined}>
-          <Select value={rank} onChange={setRank} options={tiers} disabled={closed} aria-label="Who can watch" />
+        <Field label={t("Who can watch")} hint={stream.status === "live" ? t("Changes apply to viewers who join from now on.") : undefined}>
+          <Select value={rank} onChange={setRank} options={tiers} disabled={closed} aria-label={t("Who can watch")} />
         </Field>
-        <Field label="Planned start" hint={scheduled ? "Leave empty for no planned time." : "Only a scheduled stream can be moved."}>
+        <Field label={t("Planned start")} hint={scheduled ? t("Leave empty for no planned time.") : t("Only a scheduled stream can be moved.")}>
           <Input type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} disabled={!scheduled} />
         </Field>
       </div>
-      <ToggleField label="Keep a replay" hint="Saved as a video on your channel when the stream ends." checked={replay} onChange={setReplay} disabled={closed} />
+      <ToggleField label={t("Keep a replay")} hint={t("Saved as a video on your channel when the stream ends.")} checked={replay} onChange={setReplay} disabled={closed} />
       <div className="flex justify-end">
-        <Button onClick={save} disabled={saving || !title.trim()}><Save size={14} /> {saving ? "Saving…" : "Save"}</Button>
+        <Button onClick={save} disabled={saving || !title.trim()}><Save size={14} /> {saving ? t("Saving…") : t("Save")}</Button>
       </div>
     </Card>
   )

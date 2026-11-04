@@ -75,6 +75,10 @@ class Settings(BaseSettings):
     SANDBOX_WEBHOOK_SECRET: str = "sandbox-webhook-secret"
     SANDBOX_ENABLED: bool = True
     SIGNUP_ENABLED: bool = True
+    REGION: str = "in"
+    REGION_ENFORCE: bool = False
+    REGION_URLS: str = ""
+    REGION_US_COUNTRIES: str = "US,CA"
     SIGNUP_MODE: str = ""
     CREATOR_SIGNUP: str = "open"
     EMAIL_PROVIDER: str = "sandbox"
@@ -86,8 +90,12 @@ class Settings(BaseSettings):
     ADS_MIN_CPM_MINOR: int = 5000
     ADS_MIN_TOPUP_MINOR: int = 100000
     ADS_MAX_TOPUP_MINOR: int = 100000000
+    ADS_IVT_MAX_PER_10M: int = 30
+    ADS_IVT_CIDRS: str = ""
     SPONSORSHIP_COMMISSION_BPS: int = 1000
     SPONSORSHIP_AUTO_APPROVE_DAYS: int = 7
+    ADS_VIEW_POOL_BPS: int = 1000
+    VIEW_POOL_MIN_MINUTES: int = 60
     RECO_MODEL: str = "off"
     RECO_AB_PERCENT: int = 50
     RECO_LOG_SAMPLE: float = 1.0
@@ -193,6 +201,9 @@ class Settings(BaseSettings):
     CF_STREAM_WEBHOOK_SECRET: str = ""
     CF_NOTIFY_SECRET: str = ""
     TTS_PROVIDER: str = "sandbox"
+    IMAGE_PROVIDER: str = "sandbox"
+    IMAGE_API_URL: str = ""
+    IMAGE_API_KEY: str = ""
     AZURE_TTS_KEY: str = ""
     AZURE_TTS_REGION: str = "centralindia"
     YOUTUBE_API_BASE: str = "https://www.googleapis.com/youtube/v3"
@@ -206,7 +217,7 @@ class Settings(BaseSettings):
         "LEMONSQUEEZY_WEBHOOK_SECRET", "BUNNY_API_KEY", "BUNNY_TOKEN_KEY", "BUNNY_WEBHOOK_SECRET",
         "AZURE_SPEECH_KEY", "OPENAI_TRANSCRIBE_KEY", "LLM_API_KEY", "LLM_BASE_URL",
         "SCAN_API_KEY", "GOOGLE_CLIENT_SECRET", "INSTAGRAM_APP_SECRET", "EXPO_ACCESS_TOKEN", "AZURE_TTS_KEY",
-        "CF_STREAM_TOKEN", "CF_STREAM_SIGNING_KEY", "CF_STREAM_WEBHOOK_SECRET", "CF_NOTIFY_SECRET",
+        "CF_STREAM_TOKEN", "CF_STREAM_SIGNING_KEY", "CF_STREAM_WEBHOOK_SECRET", "CF_NOTIFY_SECRET", "IMAGE_API_KEY",
         mode="after",
     )
     @classmethod

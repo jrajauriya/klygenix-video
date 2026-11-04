@@ -458,6 +458,21 @@ with configured(SCAN_PROVIDER="vendor", SCAN_API_URL="https://scan.example/v1/ch
         check("vendor verdict", (v.verdict, v.labels, v.score), ("review", ["violence"], 0.81))
         check("bearer key", calls[0].headers["Authorization"], "Bearer scan-key")
 
+print("\n== Azure OpenAI images (AI thumbnails)")
+from app.video.studio import creator_ai  # noqa: E402
+
+png = base64.b64encode(b"\x89PNG\r\n\x1a\nfake").decode()
+with configured(IMAGE_API_URL="https://kv.openai.azure.com/openai/deployments/img/images/generations?api-version=2024-10-21",
+                IMAGE_API_KEY="img-key"):
+    with fake(lambda r: httpx.Response(200, json={"data": [{"b64_json": png}]})):
+        raw = creator_ai._azure_image("Thumbnail for a chai video")
+        check("api-key header, b64 response, 16:9 size", (calls[0].headers["api-key"], body(calls[0])["size"],
+                                                           body(calls[0])["response_format"], raw[:4]),
+              ("img-key", "1792x1024", "b64_json", b"\x89PNG"))
+    with fake(lambda r: httpx.Response(400, json={"error": {"message": "content policy"}})):
+        ok("a refusal is an ImageError", raises(lambda: creator_ai._azure_image("x"), creator_ai.ImageError))
+ok("unconfigured, refused", raises(lambda: creator_ai._azure_image("x"), creator_ai.ImageError))
+
 print("\n== providers check (launch day)")
 from app import providers_check as pc  # noqa: E402
 from app.core.services.readiness import env_file_settings  # noqa: E402

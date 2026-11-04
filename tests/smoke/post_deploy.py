@@ -154,6 +154,11 @@ def run(args: argparse.Namespace) -> None:
     compressed("web HTML via render proxy", client, f"{base}/")
     r = client.head(f"{base}/")
     check("web answers HEAD (uptime monitors, crawlers)", r.status_code == 200, f"HTTP {r.status_code}")
+    r = client.get(f"{base}/sw.js")
+    check("web: the service worker is served, never cached", r.status_code == 200 and "javascript" in r.headers.get("content-type", "")
+          and "no-cache" in r.headers.get("cache-control", ""), f"HTTP {r.status_code} {r.headers.get('content-type')}")
+    r = client.get(f"{base}/manifest.webmanifest")
+    check("web: the app manifest is served", r.status_code == 200 and "Klygenix" in r.text, f"HTTP {r.status_code}")
     r = client.get(f"{base}/reels")
     check("web: deep link /reels falls back to the app", r.status_code == 200 and '<div id="root">' in r.text, f"HTTP {r.status_code}")
 
@@ -415,6 +420,9 @@ def money(client: httpx.Client, args: argparse.Namespace, api: str, auth: dict, 
     run4(client, args, api, auth, adm)
 
 
+BROWSER_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0 Safari/537.36"
+
+
 def _upload(client: httpx.Client, api: str, auth: dict, path: str, title: str, visibility: str, timeout: float) -> dict | None:
     r = client.post(f"{api}/api/video/studio/videos", headers=auth, json={"title": title, "rights_declared": True, "visibility": visibility})
     if r.status_code != 201:
@@ -473,12 +481,15 @@ def run4(client: httpx.Client, args: argparse.Namespace, api: str, auth: dict, a
     ad = None
     deadline = time.time() + 30
     while time.time() < deadline and ad is None:
-        ad = client.get(f"{api}/api/video/ads/decision?video={host['public_id']}", headers=viewer).json().get("ad")
+        ad = client.get(f"{api}/api/video/ads/decision?video={host['public_id']}",
+                        headers={**viewer, "User-Agent": BROWSER_UA}).json().get("ad")
         if ad is None:
             time.sleep(2)
     if check("an ad is served on the long video", ad is not None and ad.get("label") == "Ad", "no ad (campaign cache refreshes every 15 s)"):
-        for ev in ("start", "complete", "click"):
-            client.post(f"{api}/api/video/ads/events", json={"token": ad["token"], "event": ev})
+        client.post(f"{api}/api/video/ads/events", headers=viewer, json={"token": ad["token"], "event": "start"})
+        time.sleep(2.2)
+        client.post(f"{api}/api/video/ads/events", headers=viewer, json={"token": ad["token"], "event": "q0"})
+        client.post(f"{api}/api/video/ads/events", headers=viewer, json={"token": ad["token"], "event": "click"})
         spent = 0
         deadline = time.time() + 150
         while time.time() < deadline and not spent:
@@ -543,6 +554,29 @@ def run4(client: httpx.Client, args: argparse.Namespace, api: str, auth: dict, a
     client.post(f"{api}/api/auth/device/approve", headers=viewer, json={"user_code": d["user_code"]})
     r = client.post(f"{api}/api/auth/device/poll", json={"device_code": d["device_code"]})
     check("TV signs in with a device code", r.status_code == 200 and "access_token" in r.text, f"HTTP {r.status_code} {r.text[:120]}")
+
+    section("run 5: region, Hindi, ad integrity, downloads, inbox, view pool")
+    r = client.get(f"{api}/api/auth/region")
+    check("region discovery", r.status_code == 200 and r.json().get("region") in ("in", "us"), r.text[:120])
+    r = client.get(f"{api}/api/video/videos/notavideo00", headers={"Accept-Language": "hi"})
+    check("server messages in Hindi", r.status_code == 404 and any("\u0900" <= ch <= "\u097f" for ch in r.text), r.text[:120])
+    bot = client.get(f"{api}/api/video/ads/decision?video={host['public_id']}",
+                     headers={**viewer, "User-Agent": "Mozilla/5.0 (compatible; Googlebot/2.1)"}).json()
+    check("declared bots get no ad", bot.get("ad") is None, str(bot)[:120])
+    r = client.post(f"{api}/api/video/checkout", headers=viewer, json={"plan_key": "viewer_premium"})
+    client.post(f"{api}/api/video/sandbox/pay/{r.json()['id']}", headers=viewer)
+    _paid(client, api, viewer, r.json()["id"], args.paid_timeout)
+    d = client.post(f"{api}/api/video/videos/{creative['public_id']}/download", headers=viewer)
+    if check("Premium download link", d.status_code == 200 and bool(d.json().get("license")), f"HTTP {d.status_code} {d.text[:120]}"):
+        f = client.get(d.json()["url"])
+        check("the MP4 downloads", f.status_code == 200 and f.headers.get("content-type") == "video/mp4", f"HTTP {f.status_code}")
+    inbox = client.get(f"{api}/api/video/me/inbox", headers=auth).json()
+    check("the creator's inbox has the publish notice", any(n["kind"] == "published" for n in inbox.get("items", [])), str(inbox)[:160])
+    month = time.strftime("%Y-%m")
+    r = client.get(f"{api}/api/video/admin/ads/view-pool/preview?period={month}", headers=adm)
+    check("view-pool preview for the month", r.status_code == 200 and "pool_minor" in r.json(), f"HTTP {r.status_code} {r.text[:120]}")
+    r = client.get(f"{api}/api/video/search", params={"q": "स्मोक लॉन्ग वीडियो"})
+    check("Hinglish search answers a Devanagari query", r.status_code == 200, f"HTTP {r.status_code}")
 
 
 def main() -> int:

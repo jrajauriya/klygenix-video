@@ -10,12 +10,14 @@ import { errStatus, errText, getJson, loginPath, useSignedIn } from "../../lib/a
 import { clock } from "../../lib/format"
 import type { AskMessage, Citation, Quota, Segment, VideoDetail } from "../../lib/types"
 import { Skel } from "../../components/bits"
+import { useT } from "../../i18n"
 
 const StudyPanel = lazy(() => import("./StudyPanel").then((m) => ({ default: m.StudyPanel })))
 
 type Tab = "summary" | "chapters" | "transcript" | "ask" | "study"
 
 export function AiPanel({ video, currentMs, onSeek, className }: { video: VideoDetail; currentMs: number; onSeek: (ms: number) => void; className?: string }) {
+  const t = useT("watch")
   const [tab, setTab] = useState<Tab>("summary")
   const ready = video.ai_status === "ready"
   const insight = video.insight
@@ -28,22 +30,22 @@ export function AiPanel({ video, currentMs, onSeek, className }: { video: VideoD
   ]
 
   return (
-    <section aria-label="AI notes" className={cn("flex flex-col overflow-hidden rounded-2xl border border-line bg-panel", className)}>
+    <section aria-label={t("AI notes")} className={cn("flex flex-col overflow-hidden rounded-2xl border border-line bg-panel", className)}>
       <div role="tablist" className="flex shrink-0 gap-1 overflow-x-auto border-b border-line p-1.5 scrollbar-none">
-        {tabs.map((t) => (
+        {tabs.map((item) => (
           <button
-            key={t.key}
+            key={item.key}
             type="button"
             role="tab"
-            aria-selected={tab === t.key}
-            onClick={() => setTab(t.key)}
+            aria-selected={tab === item.key}
+            onClick={() => setTab(item.key)}
             className={cn(
               "inline-flex h-8 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 text-[13px] font-semibold transition-colors",
-              tab === t.key ? "bg-brand/25 text-white" : "text-muted hover:bg-white/5 hover:text-ink",
+              tab === item.key ? "bg-brand/25 text-white" : "text-muted hover:bg-white/5 hover:text-ink",
             )}
           >
-            {t.icon}
-            {t.label}
+            {item.icon}
+            {t(item.label)}
           </button>
         ))}
       </div>
@@ -57,7 +59,7 @@ export function AiPanel({ video, currentMs, onSeek, className }: { video: VideoD
                 <p className="text-sm leading-relaxed text-ink/90">{insight.summary}</p>
                 {insight.key_points?.length > 0 && (
                   <>
-                    <h3 className="mb-2 mt-4 text-xs font-semibold uppercase tracking-wide text-muted">Key points</h3>
+                    <h3 className="mb-2 mt-4 text-xs font-semibold uppercase tracking-wide text-muted">{t("Key points")}</h3>
                     <ul className="space-y-2">
                       {insight.key_points.map((p, i) => (
                         <li key={i} className="flex gap-2 text-sm leading-relaxed text-ink/85">
@@ -68,10 +70,10 @@ export function AiPanel({ video, currentMs, onSeek, className }: { video: VideoD
                     </ul>
                   </>
                 )}
-                <p className="mt-4 text-[11px] text-faint">Written by AI from the video's transcript. It can make mistakes.</p>
+                <p className="mt-4 text-[11px] text-faint">{t("Written by AI from the video's transcript. It can make mistakes.")}</p>
               </>
             ) : (
-              <p className="py-6 text-center text-sm text-muted">No summary for this video.</p>
+              <p className="py-6 text-center text-sm text-muted">{t("No summary for this video.")}</p>
             )}
           </div>
         ) : tab === "chapters" ? (
@@ -89,20 +91,22 @@ export function AiPanel({ video, currentMs, onSeek, className }: { video: VideoD
 }
 
 function NotReady({ status }: { status: string }) {
+  const t = useT("watch")
   const working = ["pending", "queued", "processing", "running"].includes(status)
   return (
     <div className="flex h-full flex-col items-center justify-center gap-2 py-8 text-center">
       {working ? <Loader2 size={22} className="animate-spin text-brand-soft" /> : <Sparkles size={22} className="text-faint" />}
-      <p className="text-sm font-semibold">{working ? "AI notes are being prepared" : "AI notes are not available"}</p>
-      <p className="max-w-xs text-xs text-muted">{working ? "Summary, chapters and Ask appear here once the video has been transcribed." : "This video does not have a transcript to work from."}</p>
+      <p className="text-sm font-semibold">{working ? t("AI notes are being prepared") : t("AI notes are not available")}</p>
+      <p className="max-w-xs text-xs text-muted">{working ? t("Summary, chapters and Ask appear here once the video has been transcribed.") : t("This video does not have a transcript to work from.")}</p>
     </div>
   )
 }
 
 function Chapters({ video, currentMs, onSeek }: { video: VideoDetail; currentMs: number; onSeek: (ms: number) => void }) {
+  const t = useT("watch")
   const chapters = video.insight?.chapters ?? []
   const current = activeChapter(chapters, currentMs)
-  if (!chapters.length) return <p className="py-6 text-center text-sm text-muted">No chapters for this video.</p>
+  if (!chapters.length) return <p className="py-6 text-center text-sm text-muted">{t("No chapters for this video.")}</p>
   return (
     <ol className="h-full space-y-1 overflow-y-auto pr-1">
       {chapters.map((c, i) => {
@@ -128,12 +132,13 @@ function Chapters({ video, currentMs, onSeek }: { video: VideoDetail; currentMs:
 }
 
 function Transcript({ videoId, currentMs, onSeek }: { videoId: string; currentMs: number; onSeek: (ms: number) => void }) {
+  const t = useT("watch")
   const q = useQuery({
     queryKey: ["transcript", videoId],
     queryFn: () => getJson<{ segments: Segment[] }>(`/api/video/videos/${videoId}/transcript`),
   })
   if (q.isLoading) return <div className="space-y-2">{Array.from({ length: 6 }, (_, i) => <Skel key={i} className="h-8 w-full" />)}</div>
-  return <TranscriptPanel className="h-full" segments={q.data?.segments ?? []} currentMs={currentMs} onSeek={onSeek} emptyText="No transcript for this video yet." />
+  return <TranscriptPanel className="h-full" segments={q.data?.segments ?? []} currentMs={currentMs} onSeek={onSeek} emptyText={t("No transcript for this video yet.")} searchPlaceholder={t("Search in transcript")} noMatchText={t("Nothing matches that.")} />
 }
 
 const STAMP = /\[(\d{1,2}:\d{2}(?::\d{2})?)\]/g
@@ -157,6 +162,7 @@ function Chip({ label, onClick, title }: { label: string; onClick: () => void; t
 }
 
 function Answer({ msg, onSeek }: { msg: AskMessage; onSeek: (ms: number) => void }) {
+  const t = useT("watch")
   const byLabel = new Map<string, Citation>((msg.citations ?? []).map((c) => [c.label, c]))
   const lines = (msg.answer ?? "").split("\n")
   return (
@@ -175,10 +181,10 @@ function Answer({ msg, onSeek }: { msg: AskMessage; onSeek: (ms: number) => void
         out.push(line.slice(at))
         return <p key={i}>{out}</p>
       })}
-      {msg.status === "declined" && <p className="text-xs text-muted">The video does not seem to cover that.</p>}
+      {msg.status === "declined" && <p className="text-xs text-muted">{t("The video does not seem to cover that.")}</p>}
       {(msg.citations?.length ?? 0) > 0 && (
         <div className="flex flex-wrap items-center gap-1 pt-1 text-xs text-muted">
-          Sources:
+          {t("Sources:")}
           {msg.citations.map((c) => <Chip key={c.start_ms} label={c.label} title={c.text} onClick={() => onSeek(c.start_ms)} />)}
         </div>
       )}
@@ -187,6 +193,7 @@ function Answer({ msg, onSeek }: { msg: AskMessage; onSeek: (ms: number) => void
 }
 
 function Ask({ videoId, onSeek }: { videoId: string; onSeek: (ms: number) => void }) {
+  const t = useT("watch")
   const signedIn = useSignedIn()
   const qc = useQueryClient()
   const [question, setQuestion] = useState("")
@@ -223,7 +230,7 @@ function Ask({ videoId, onSeek }: { videoId: string; onSeek: (ms: number) => voi
     } catch (err) {
       const status = errStatus(err)
       if (status === 402) setUpsell(true)
-      else toast.error(errText(err, "That question could not be answered right now."))
+      else toast.error(errText(err, t("That question could not be answered right now.")))
       setQuestion(text)
     } finally {
       setPending(null)
@@ -234,9 +241,9 @@ function Ask({ videoId, onSeek }: { videoId: string; onSeek: (ms: number) => voi
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 py-8 text-center">
         <MessageCircleQuestion size={26} className="text-brand-soft" />
-        <p className="text-sm font-semibold">Ask this video anything</p>
-        <p className="max-w-xs text-xs text-muted">Get answers with timestamps you can jump to. Free accounts get a few questions a day.</p>
-        <Link to={loginPath()} className="rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-hover">Sign in to ask</Link>
+        <p className="text-sm font-semibold">{t("Ask this video anything")}</p>
+        <p className="max-w-xs text-xs text-muted">{t("Get answers with timestamps you can jump to. Free accounts get a few questions a day.")}</p>
+        <Link to={loginPath()} className="rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-hover">{t("Sign in to ask")}</Link>
       </div>
     )
   }
@@ -247,8 +254,8 @@ function Ask({ videoId, onSeek }: { videoId: string; onSeek: (ms: number) => voi
         {q.isLoading && <Skel className="h-16 w-full" />}
         {!q.isLoading && messages.length === 0 && !pending && (
           <div className="py-4 text-center">
-            <p className="text-sm font-semibold">Ask about anything said in this video</p>
-            <p className="mt-1 text-xs text-muted">Answers cite the moments they come from. Tap a time to jump there.</p>
+            <p className="text-sm font-semibold">{t("Ask about anything said in this video")}</p>
+            <p className="mt-1 text-xs text-muted">{t("Answers cite the moments they come from. Tap a time to jump there.")}</p>
           </div>
         )}
         {messages.map((m) => (
@@ -261,15 +268,15 @@ function Ask({ videoId, onSeek }: { videoId: string; onSeek: (ms: number) => voi
           <div className="space-y-2">
             <div className="ml-auto w-fit max-w-[85%] rounded-2xl rounded-br-md bg-brand px-3 py-2 text-sm text-white">{pending}</div>
             <div className="inline-flex items-center gap-2 rounded-2xl rounded-bl-md bg-panel-2 px-3 py-2.5 text-sm text-muted">
-              <Loader2 size={14} className="animate-spin" /> Looking through the video…
+              <Loader2 size={14} className="animate-spin" /> {t("Looking through the video…")}
             </div>
           </div>
         )}
         {upsell && (
           <div className="rounded-2xl border border-brand/50 bg-gradient-to-br from-brand/25 to-transparent p-4">
-            <p className="flex items-center gap-2 text-sm font-semibold"><Crown size={16} className="text-brand-soft" /> You have used today's questions</p>
-            <p className="mt-1 text-xs text-muted">Viewer Premium lifts the daily limit and unlocks every subtitle language.</p>
-            <Link to="/plans" className="mt-3 inline-flex rounded-full bg-brand px-4 py-1.5 text-sm font-semibold text-white hover:bg-brand-hover">See Viewer Premium</Link>
+            <p className="flex items-center gap-2 text-sm font-semibold"><Crown size={16} className="text-brand-soft" /> {t("You have used today's questions")}</p>
+            <p className="mt-1 text-xs text-muted">{t("Viewer Premium lifts the daily limit and unlocks every subtitle language.")}</p>
+            <Link to="/plans" className="mt-3 inline-flex rounded-full bg-brand px-4 py-1.5 text-sm font-semibold text-white hover:bg-brand-hover">{t("See Viewer Premium")}</Link>
           </div>
         )}
       </div>
@@ -285,18 +292,18 @@ function Ask({ videoId, onSeek }: { videoId: string; onSeek: (ms: number) => voi
               }
             }}
             rows={1}
-            placeholder="Ask a question about this video"
-            aria-label="Question"
+            placeholder={t("Ask a question about this video")}
+            aria-label={t("Question")}
             className="max-h-28 min-h-9 flex-1 resize-none bg-transparent px-2 py-2 text-sm text-ink placeholder:text-faint outline-none"
           />
-          <button type="submit" disabled={question.trim().length < 2 || !!pending} aria-label="Ask" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand text-white hover:bg-brand-hover disabled:opacity-40">
+          <button type="submit" disabled={question.trim().length < 2 || !!pending} aria-label={t("Ask")} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand text-white hover:bg-brand-hover disabled:opacity-40">
             <ArrowUp size={17} />
           </button>
         </div>
         {quota && (
           <p className="mt-1.5 text-[11px] text-faint">
-            {left === null ? "Unlimited questions" : `${left} of ${quota.limit} questions left today`}
-            {left !== null && left <= 2 && <> · <Link to="/plans" className="text-brand-soft hover:underline">Get more</Link></>}
+            {left === null ? t("Unlimited questions") : t("{left} of {limit} questions left today", { left, limit: quota.limit ?? 0 })}
+            {left !== null && left <= 2 && <> · <Link to="/plans" className="text-brand-soft hover:underline">{t("Get more")}</Link></>}
           </p>
         )}
       </form>

@@ -1,5 +1,5 @@
 import {
-  BarChart3, Building2, Clapperboard, FileText, Handshake, Megaphone, CreditCard, LayoutDashboard, MessageSquareText, MonitorPlay,
+  BarChart3, Building2, CalendarDays, Clapperboard, FileText, Handshake, Megaphone, CreditCard, LayoutDashboard, MessageSquareText, MonitorPlay,
   PlaySquare, Radio, Settings, ShieldAlert, Sparkles, Tv, UserCog, Users, Wallet,
 } from "lucide-react"
 import type { NavItem, NavSection } from "@klygenixvideo/ui"
@@ -14,6 +14,7 @@ export const sections: NavSection[] = [
     items: [
       { to: "/", label: "Dashboard", icon: LayoutDashboard, featureKey: "video.dashboard", permissionKey: "video.dashboard" },
       { to: "/videos", label: "Videos", icon: PlaySquare, featureKey: "video.uploads", permissionKey: "video.uploads" },
+      { to: "/calendar", label: "Calendar", icon: CalendarDays, featureKey: "video.uploads", permissionKey: "video.uploads" },
       { to: "/live", label: "Live", icon: Radio, featureKey: "video.live", permissionKey: "video.live" },
       { to: "/clips", label: "Clip maker", icon: Clapperboard, featureKey: "video.clips", permissionKey: "video.clips" },
       { to: "/channel", label: "Channel", icon: Tv, featureKey: "video.channels", permissionKey: "video.channels" },

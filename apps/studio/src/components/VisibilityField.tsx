@@ -1,6 +1,7 @@
 import { CalendarClock, Globe, Link2, Lock } from "lucide-react"
 import { Input, cn } from "@klygenixvideo/ui"
 import type { Visibility } from "../lib/types"
+import { useT } from "../i18n"
 
 const CHOICES: { value: Visibility; label: string; hint: string; icon: typeof Globe }[] = [
   { value: "public", label: "Public", hint: "Anyone can find and watch it", icon: Globe },
@@ -22,6 +23,7 @@ export function VisibilityField({
   onChange: (v: Visibility) => void
   onPublishAt: (local: string) => void
 }) {
+  const t = useT()
   return (
     <div className="space-y-2">
       <div className={cn("grid gap-2", schedule ? "grid-cols-2" : "grid-cols-3")}>
@@ -41,15 +43,15 @@ export function VisibilityField({
             >
               <Icon size={16} className={on ? "mt-0.5 text-brand" : "mt-0.5 text-slate-500"} />
               <span>
-                <span className="block text-sm font-semibold text-slate-800">{c.label}</span>
-                <span className="block text-xs text-slate-500">{c.hint}</span>
+                <span className="block text-sm font-semibold text-slate-800">{t(c.label)}</span>
+                <span className="block text-xs text-slate-500">{t(c.hint)}</span>
               </span>
             </button>
           )
         })}
       </div>
       {value === "scheduled" && (
-        <Input type="datetime-local" value={publishAt} onChange={(e) => onPublishAt(e.target.value)} aria-label="Publish at" />
+        <Input type="datetime-local" value={publishAt} onChange={(e) => onPublishAt(e.target.value)} aria-label={t("Publish at")} />
       )}
     </div>
   )

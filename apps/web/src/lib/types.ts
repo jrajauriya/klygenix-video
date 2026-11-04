@@ -41,6 +41,12 @@ export interface VideoCard {
   access?: VideoAccess
   price_minor?: number | null
   locked?: boolean | VideoLock | null
+  paid_partnership?: PaidPartnership | null
+}
+
+export interface PaidPartnership {
+  brand: string
+  label: string
 }
 
 export type VideoAccess = "free" | "members" | "paid"
@@ -92,7 +98,6 @@ export interface VideoDetail extends VideoCard {
   locked: VideoLock | null
   products?: { disclosure: string; items: ProductLink[] } | null
   dubs?: { language: string; name: string; label: string; url: string }[]
-  paid_partnership?: { brand: string; label: string } | null
 }
 
 export interface HistoryItem extends VideoCard {

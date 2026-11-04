@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+
 from fastapi import APIRouter, Depends, Query, Response
 from fastapi.responses import Response as RawResponse
 from pydantic import BaseModel, Field
@@ -197,11 +199,13 @@ def music_file(track_id: int, ctx: StudioCtx = Depends(studio("video.clips"))):
 class TargetIn(BaseModel):
     platform: str
     caption: str = Field(default="", max_length=2200)
+    scheduled_at: datetime | None = None
 
 
 def target_out(t) -> dict:
     return {"id": t.id, "platform": t.platform, "status": t.status, "caption": t.caption, "external_id": t.external_id,
-            "external_url": t.external_url, "error": t.error, "updated_at": iso(t.updated_at)}
+            "external_url": t.external_url, "error": t.error, "updated_at": iso(t.updated_at),
+            "scheduled_at": iso(t.scheduled_at)}
 
 
 @router.get("/clips/{clip_id}/targets")
@@ -231,14 +235,18 @@ def add_target(clip_id: int, data: TargetIn, ctx: StudioCtx = Depends(studio("vi
         raise err(409, "connect_account_first")
     t = ctx.db.execute(select(PublishTarget).where(PublishTarget.clip_id == c.id,
                                                    PublishTarget.platform == data.platform)).scalars().first()
-    if t is not None and t.status in ("queued", "publishing", "published"):
+    if t is not None and t.status in ("scheduled", "queued", "publishing", "published"):
         raise err(409, "action_not_allowed")
+    later_at = data.scheduled_at if data.scheduled_at and data.scheduled_at > datetime.now(timezone.utc) + timedelta(minutes=1) else None
+    if data.scheduled_at and later_at is None and data.scheduled_at < datetime.now(timezone.utc) - timedelta(minutes=5):
+        raise err(400, "schedule_in_past")
     if t is None:
         t = PublishTarget(tenant_id=ctx.tenant_id, clip_id=c.id, platform=data.platform)
         ctx.db.add(t)
-    t.caption, t.status, t.error = data.caption.strip(), "queued", None
+    t.caption, t.status, t.error, t.scheduled_at = data.caption.strip(), "scheduled" if later_at else "queued", None, later_at
     ctx.db.commit()
-    publish_target.enqueue(t.id)
+    if not later_at:
+        publish_target.enqueue(t.id)
     ctx.db.refresh(t)
     return target_out(t)
 

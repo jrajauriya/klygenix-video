@@ -6,9 +6,11 @@ import { api } from "@klygenixvideo/auth"
 import { Check, Plus } from "lucide-react"
 import { Btn } from "./bits"
 import { errText, loginPath, useSignedIn } from "../lib/api"
+import { useT } from "../i18n"
 
 export function FollowButton({ handle, following, onChange, size = "md", className }: { handle: string; following: boolean; onChange?: (following: boolean) => void; size?: "sm" | "md"; className?: string }) {
   const signedIn = useSignedIn()
+  const t = useT()
   const navigate = useNavigate()
   const qc = useQueryClient()
   const [on, setOn] = useState(following)
@@ -35,7 +37,7 @@ export function FollowButton({ handle, following, onChange, size = "md", classNa
       qc.invalidateQueries({ queryKey: ["channel", handle] })
     } catch (err) {
       setOn(!next)
-      toast.error(errText(err, "That did not work. Try again."))
+      toast.error(errText(err, t("That did not work. Try again.")))
     } finally {
       setPending(false)
     }
@@ -44,7 +46,7 @@ export function FollowButton({ handle, following, onChange, size = "md", classNa
   return (
     <Btn tone={on ? "soft" : "light"} size={size} onClick={toggle} disabled={pending} aria-pressed={on} className={className}>
       {on ? <Check size={15} aria-hidden="true" /> : <Plus size={15} aria-hidden="true" />}
-      {on ? "Following" : "Follow"}
+      {on ? t("Following") : t("Follow")}
     </Btn>
   )
 }

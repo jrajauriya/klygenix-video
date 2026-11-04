@@ -88,7 +88,8 @@ async def viewer(client: httpx.AsyncClient, videos: list[str], stats: Stats, sto
         pid = random.choice(videos)
         await timed(stats, "watch", client.get(f"/api/video/videos/{pid}"))
         await timed(stats, "ad_breaks", client.get("/api/video/ads/breaks", params={"video": pid}))
-        await timed(stats, "ad_decision", client.get("/api/video/ads/decision", params={"video": pid, "slot": "pre"}))
+        await timed(stats, "ad_decision", client.get("/api/video/ads/decision", params={"video": pid, "slot": "pre"},
+                                                       headers={"User-Agent": "Mozilla/5.0 (Load) Chrome/131.0"}))
         start = random.randint(0, 3) * 60000
         await timed(stats, "danmaku_bucket", client.get(f"/api/video/videos/{pid}/danmaku",
                                                           params={"from_ms": start, "to_ms": start + 60000}))

@@ -1,5 +1,6 @@
 import { useRef, type PointerEvent } from "react"
 import { clock } from "../../lib/format"
+import { useT } from "../../i18n"
 
 type Edge = "start" | "end"
 
@@ -18,6 +19,7 @@ export function RangeBar({
   disabled?: boolean
   onChange: (startMs: number, endMs: number) => void
 }) {
+  const t = useT()
   const bar = useRef<HTMLDivElement>(null)
   const dragging = useRef<Edge | null>(null)
   const total = Math.max(durationMs, 1)
@@ -64,7 +66,7 @@ export function RangeBar({
           <button
             key={edge}
             type="button"
-            aria-label={edge === "start" ? "Drag the start" : "Drag the end"}
+            aria-label={edge === "start" ? t("Drag the start") : t("Drag the end")}
             disabled={disabled}
             onPointerDown={down(edge)}
             onPointerMove={(e) => {

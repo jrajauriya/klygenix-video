@@ -7,15 +7,17 @@ import { preloadHls, warmHls } from "@klygenixvideo/player/src/preload"
 import { Layout } from "./components/Layout"
 import HomePage from "./pages/Home"
 import NotFound from "./pages/NotFound"
+import { useT } from "./i18n"
 
 function RouteError() {
   const error = useRouteError() as { status?: number } | undefined
+  const t = useT()
   if (error?.status === 404) return <NotFound />
   return (
     <div className="mx-auto max-w-md px-6 py-24 text-center">
-      <h1 className="text-xl font-bold">Something went wrong</h1>
-      <p className="mt-2 text-sm text-muted">Reload the page to try again.</p>
-      <button type="button" onClick={() => window.location.reload()} className="mt-6 rounded-full bg-brand px-5 py-2 text-sm font-semibold text-white">Reload</button>
+      <h1 className="text-xl font-bold">{t("Something went wrong")}</h1>
+      <p className="mt-2 text-sm text-muted">{t("Reload the page to try again.")}</p>
+      <button type="button" onClick={() => window.location.reload()} className="mt-6 rounded-full bg-brand px-5 py-2 text-sm font-semibold text-white">{t("Reload")}</button>
     </div>
   )
 }
@@ -77,6 +79,8 @@ export const router = createBrowserRouter([
       { path: "/plans", lazy: page(() => import("./pages/Plans")) },
       { path: "/account", lazy: page(() => import("./pages/Account")) },
       { path: "/account/notices", lazy: page(() => import("./pages/CopyrightNotices")) },
+      { path: "/notifications", lazy: page(() => import("./pages/Notifications")) },
+      { path: "/subscriptions", lazy: page(() => import("./pages/Subscriptions")) },
       { path: "/activate", lazy: page(() => import("./pages/Activate")) },
       { path: "/brands", lazy: page(() => import("./pages/Brands")) },
       { path: "/waitlist", lazy: async () => ({ Component: (await import("./pages/Waitlist")).WaitlistPage }) },

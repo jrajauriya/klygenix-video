@@ -10,11 +10,13 @@ import { ReelTile, Thumb, VideoGridCard } from "../components/VideoCards"
 import { getJson, useSignedIn } from "../lib/api"
 import type { HistoryItem, VideoCard } from "../lib/types"
 import { useTitle } from "../lib/title"
+import { useT } from "../i18n"
 
 const GRID = "grid gap-x-4 gap-y-8 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4"
 
 export default function HomePage() {
   useTitle(null)
+  const t = useT("home")
   const signedIn = useSignedIn()
   const [tab, setTab] = useState<"all" | "following">("all")
   const home = useQuery({ queryKey: ["feed", "home"], queryFn: () => getJson<VideoCard[]>("/api/video/feed/home", { limit: 48 }) })
@@ -40,21 +42,21 @@ export default function HomePage() {
           value={tab}
           onChange={setTab}
           tabs={[
-            { key: "all", label: "For you" },
-            { key: "following", label: "Following" },
+            { key: "all", label: t("For you") },
+            { key: "following", label: t("Following") },
           ]}
         />
       )}
 
       {tab === "following" ? (
         <section>
-          <h1 className="sr-only">Following</h1>
+          <h1 className="sr-only">{t("Following")}</h1>
           {following.isLoading ? (
             <div className={GRID}><CardSkeletons /></div>
           ) : following.isError ? (
-            <Empty title="Your following feed did not load" body="Check your connection and try again." />
+            <Empty title={t("Your following feed did not load")} body={t("Check your connection and try again.")} />
           ) : (following.data ?? []).length === 0 ? (
-            <Empty icon={<Users size={32} />} title="Nothing from channels you follow yet" body="Follow a channel from any video and its new uploads will show up here." />
+            <Empty icon={<Users size={32} />} title={t("Nothing from channels you follow yet")} body={t("Follow a channel from any video and its new uploads will show up here.")} />
           ) : (
             <div className={GRID}>
               {(following.data ?? []).map((v) => (
@@ -68,7 +70,7 @@ export default function HomePage() {
           <LiveNowShelf />
 
           {resume.length > 0 && (
-            <Shelf title="Continue watching" icon={<History size={18} className="text-brand-soft" />}>
+            <Shelf title={t("Continue watching")} icon={<History size={18} className="text-brand-soft" />}>
               {resume.map((h) => (
                 <Link key={h.id} to={`/watch/${h.id}`} className="group w-64 shrink-0 snap-start sm:w-72">
                   <Thumb video={h} className="aspect-video w-full" progress={h.duration_ms ? h.position_ms / h.duration_ms : 0} />
@@ -81,9 +83,9 @@ export default function HomePage() {
 
           {(reels.isLoading || (reels.data ?? []).length > 0) && (
             <Shelf
-              title="Reels"
+              title={t("Reels")}
               icon={<Clapperboard size={18} className="text-brand-soft" />}
-              action={<Link to="/reels" className="mr-2 text-sm font-semibold text-brand-soft hover:underline">Watch all</Link>}
+              action={<Link to="/reels" className="mr-2 text-sm font-semibold text-brand-soft hover:underline">{t("Watch all")}</Link>}
             >
               {reels.isLoading
                 ? Array.from({ length: 6 }, (_, i) => <Skel key={i} className="aspect-[9/16] w-36 shrink-0 rounded-xl sm:w-44" />)
@@ -94,14 +96,14 @@ export default function HomePage() {
           <section>
             <div className="mb-4 flex items-center gap-2">
               <Video size={18} className="text-brand-soft" aria-hidden="true" />
-              <h1 className="text-lg font-bold tracking-tight">Videos</h1>
+              <h1 className="text-lg font-bold tracking-tight">{t("Videos")}</h1>
             </div>
             {home.isLoading ? (
               <div className={GRID}><CardSkeletons /></div>
             ) : home.isError ? (
-              <Empty title="Videos did not load" body="Check your connection and try again." />
+              <Empty title={t("Videos did not load")} body={t("Check your connection and try again.")} />
             ) : long.length === 0 ? (
-              <Empty icon={<Video size={32} />} title="No videos yet" body="When creators publish, their videos show up here." />
+              <Empty icon={<Video size={32} />} title={t("No videos yet")} body={t("When creators publish, their videos show up here.")} />
             ) : (
               <div className={GRID}>
                 {long.map((v, i) => <VideoGridCard key={v.id} video={v} priority={i < 2} />)}

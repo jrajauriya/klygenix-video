@@ -16,7 +16,7 @@ from app.video.social import counters
 
 router = APIRouter(prefix="/api/video", tags=["watch"])
 
-LANGS = ("en", "hi", "mr", "bn", "ta", "te")
+LANGS = ("en", "hi", "mr", "bn", "ta", "te", "gu", "kn", "ml", "pa", "or")
 
 
 def readable(viewer: Viewer, public_id: str) -> Video:
@@ -57,7 +57,7 @@ def video_detail(public_id: str, lang: str | None = None, viewer: Viewer = Depen
         },
         "embed": None if v.source != "embed" else {"platform": v.embed_platform, "url": v.embed_url,
                                                    "owner_verified": v.embed_owner_verified},
-        "paid_partnership": None, "liked": False, "following": False, "resume_ms": 0, "is_owner": False,
+        "paid_partnership": None, "ai_thumbnail": v.thumbnail_ai, "liked": False, "following": False, "resume_ms": 0, "is_owner": False,
     })
     if v.access != "free":
         from app.video.commerce import access

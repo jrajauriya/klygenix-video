@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from "react"
+import { useCallback, useEffect, useSyncExternalStore } from "react"
 import { useAuthStore } from "@klygenixvideo/auth"
 
 export type Lang = "en" | "hi"
@@ -50,6 +50,45 @@ const HI: Record<string, string> = {
   "Brand deals": "ब्रांड डील",
   Sponsorships: "स्पॉन्सरशिप",
   Feedback: "सुझाव",
+  Calendar: "कैलेंडर",
+}
+
+export type Vars = Record<string, string | number>
+
+let full: Record<string, string> | null = null
+let loading: Promise<void> | null = null
+const listeners = new Set<() => void>()
+
+export function loadHindi(): Promise<void> {
+  if (!loading) {
+    loading = import("./locales/hi").then((m) => {
+      full = { ...m.default, ...HI }
+      listeners.forEach((l) => l())
+    }).catch(() => {
+      loading = null
+    })
+  }
+  return loading
+}
+
+function subscribe(cb: () => void) {
+  listeners.add(cb)
+  return () => {
+    listeners.delete(cb)
+  }
+}
+
+const snapshot = () => full
+
+function fill(text: string, vars?: Vars): string {
+  if (!vars) return text
+  return text.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m))
+}
+
+function lookup(lang: Lang, text: string): string {
+  const plain = text.includes("|") ? text.slice(0, text.indexOf("|")) : text
+  if (lang !== "hi") return plain
+  return full?.[text] ?? HI[text] ?? full?.[plain] ?? HI[plain] ?? plain
 }
 
 export function useLang(): Lang {
@@ -57,9 +96,21 @@ export function useLang(): Lang {
   return lang === "hi" ? "hi" : "en"
 }
 
-export function useT() {
+export type T = (text: string, vars?: Vars) => string
+
+export function useT(): T {
   const lang = useLang()
-  return useCallback((text: string) => (lang === "hi" ? HI[text] ?? text : text), [lang])
+  const dict = useSyncExternalStore(subscribe, snapshot)
+  useEffect(() => {
+    if (lang === "hi" && !dict) loadHindi()
+  }, [lang, dict])
+  return useCallback((text: string, vars?: Vars) => fill(lookup(lang, text), vars), [lang, dict])
+}
+
+export function tr(text: string, vars?: Vars): string {
+  const lang = useAuthStore.getState().user?.settings?.language === "hi" ? "hi" : "en"
+  if (lang === "hi" && !full) loadHindi()
+  return fill(lookup(lang, text), vars)
 }
 
 export function useHtmlLang() {

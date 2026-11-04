@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query"
 import { api } from "@klygenixvideo/auth"
 import { STUDIO } from "./hooks"
+import { tr } from "../i18n"
 import type { StudioVideo } from "./types"
 
 export interface Brand {
@@ -23,6 +24,8 @@ export interface ReportDay {
   skips: number
   clicks: number
   spend_minor: number
+  starts?: number
+  invalid?: number
 }
 
 export interface Campaign {
@@ -39,13 +42,14 @@ export interface Campaign {
   start_at: string | null
   end_at: string | null
   targeting: { countries?: string[]; languages?: string[]; devices?: string[] } | null
+  exclude_categories?: string[]
   skip_after_seconds: number
   review_note: string | null
   created_at: string
   creative: { id: string; title: string; status: string; duration_ms: number | null } | null
   report?: {
     days: ReportDay[]
-    totals: Omit<ReportDay, "day"> & { ctr_bps: number; completion_bps: number }
+    totals: Omit<ReportDay, "day"> & { ctr_bps: number; completion_bps: number; invalid_bps?: number }
   }
 }
 
@@ -150,7 +154,10 @@ export const DELIVERABLES: { value: Deliverable; label: string; hint: string }[]
   { value: "post", label: "Community post", hint: "A post on the channel's community tab" },
 ]
 
-export const deliverableLabel = (d: string) => DELIVERABLES.find((x) => x.value === d)?.label ?? d
+export const deliverableLabel = (d: string) => {
+  const label = DELIVERABLES.find((x) => x.value === d)?.label
+  return label ? tr(label) : d
+}
 
 export const DEVICES = [
   { value: "desktop", label: "Desktop" },
@@ -169,6 +176,35 @@ export const bps = (n: number | null | undefined) => `${((n ?? 0) / 100).toFixed
 
 export const newKey = (prefix: string) =>
   `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
+
+export const CATEGORY_LABEL: Record<string, string> = {
+  news: "News",
+  violence: "Violence",
+  adult: "Adult themes",
+  politics: "Politics",
+  religion: "Religion",
+  kids: "Kids",
+  gaming: "Gaming",
+  education: "Education",
+  food: "Food",
+  tech: "Tech",
+  music: "Music",
+  finance: "Finance",
+  health: "Health",
+  sports: "Sports",
+  travel: "Travel",
+  beauty: "Beauty",
+}
+
+export const categoryLabel = (c: string) => (CATEGORY_LABEL[c] ? tr(CATEGORY_LABEL[c]) : c.charAt(0).toUpperCase() + c.slice(1).replace(/_/g, " "))
+
+export function useAdCategories() {
+  return useQuery({
+    queryKey: ["ad-categories"],
+    queryFn: async () => (await api.get<{ categories: string[] }>("/api/video/ads/categories")).data.categories,
+    staleTime: 10 * 60_000,
+  })
+}
 
 export function useBrand() {
   return useQuery({

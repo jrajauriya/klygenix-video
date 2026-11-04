@@ -5,6 +5,7 @@ import { ActivityIndicator, Image, KeyboardAvoidingView, Linking, Platform, Pres
 import { SafeAreaView } from "react-native-safe-area-context"
 import { formatMoney } from "@klygenixvideo/client/src/native"
 
+import { ContentLanguage } from "../../components/ContentLanguage"
 import { FeedbackForm } from "../../components/FeedbackForm"
 import { LanguageSwitch } from "../../components/LanguageSwitch"
 import { NotificationSettings } from "../../components/NotificationSettings"
@@ -12,6 +13,7 @@ import { SignIn } from "../../components/SignIn"
 import { SignUp } from "../../components/SignUp"
 import { WEB_URL, api, openWeb } from "../../lib/api"
 import { useAuth } from "../../lib/auth"
+import { useDownloads } from "../../lib/downloads"
 import { clock, day, humanise, price } from "../../lib/format"
 import { useT, type T } from "../../lib/i18n"
 import { colour, s } from "../../lib/theme"
@@ -137,9 +139,22 @@ function Purchases() {
   )
 }
 
+function Shortcut({ label, hint, onPress }: { label: string; hint?: string; onPress: () => void }) {
+  return (
+    <Pressable onPress={onPress} style={[s.card, s.row, { gap: 12 }]} accessibilityRole="button" accessibilityLabel={hint ? `${label}, ${hint}` : label}>
+      <View style={{ flex: 1 }}>
+        <Text style={{ fontWeight: "700", color: colour.navy }}>{label}</Text>
+        {hint ? <Text style={{ marginTop: 2, fontSize: 12, color: colour.slate500 }}>{hint}</Text> : null}
+      </View>
+      <Text style={s.link}>›</Text>
+    </Pressable>
+  )
+}
+
 function Account() {
   const { user, signOut } = useAuth()
   const { t } = useT()
+  const { items: downloads } = useDownloads()
   const { data: me, isLoading } = useQuery<Me>({
     queryKey: ["me", user?.id],
     queryFn: async () => (await api.get("/api/video/me")).data,
@@ -155,6 +170,13 @@ function Account() {
             <Text style={s.chipText}>@{me.channel.handle}</Text>
           </View>
         )}
+
+        <Shortcut label={t("profile.inbox")} onPress={() => router.push("/inbox")} />
+        <Shortcut
+          label={t("profile.downloads")}
+          hint={downloads.length ? t("download.count", { n: downloads.length }) : undefined}
+          onPress={() => router.push("/downloads")}
+        />
 
         {isLoading ? (
           <ActivityIndicator style={{ marginTop: 24 }} color={colour.brand} />
@@ -201,6 +223,7 @@ function Account() {
 
         <Text style={s.heading}>{t("profile.language")}</Text>
         <LanguageSwitch />
+        <ContentLanguage current={me?.profile.language} />
 
         <FeedbackForm />
 

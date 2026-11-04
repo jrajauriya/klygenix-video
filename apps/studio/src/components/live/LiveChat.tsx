@@ -6,6 +6,7 @@ import { formatMoney } from "@klygenixvideo/client"
 import { Badge, Button, Card, Input, Select, useConfirm } from "@klygenixvideo/ui"
 import { detail, when } from "../../lib/format"
 import { LIVE_PUBLIC, wsUrl, type LiveMessage, type LiveStream } from "../../lib/live"
+import { useT } from "../../i18n"
 
 const TIMEOUTS = [
   { value: "60", label: "1 minute" },
@@ -31,6 +32,7 @@ export interface ChatEvents {
 }
 
 export function LiveChat({ stream, ...events }: { stream: LiveStream } & ChatEvents) {
+  const t = useT()
   const confirm = useConfirm()
   const [items, setItems] = useState<LiveMessage[]>([])
   const [connected, setConnected] = useState(false)
@@ -120,7 +122,7 @@ export function LiveChat({ stream, ...events }: { stream: LiveStream } & ChatEve
     try {
       return (await api.post<{ ok: boolean; refunded?: boolean; slow_mode_seconds?: number }>(`${LIVE_PUBLIC}/${stream.id}/moderate`, body)).data
     } catch (err) {
-      toast.error(detail(err, "That did not work"))
+      toast.error(detail(err, t("That did not work")))
       return null
     } finally {
       setBusy(null)
@@ -130,37 +132,38 @@ export function LiveChat({ stream, ...events }: { stream: LiveStream } & ChatEve
   async function hide(m: LiveMessage) {
     const paid = (m.paid_minor ?? 0) > 0
     const ok = await confirm({
-      title: paid ? "Hide this paid message?" : "Hide this message?",
+      title: paid ? t("Hide this paid message?") : t("Hide this message?"),
       message: paid
-        ? `${m.author} paid ${formatMoney(m.paid_minor ?? 0, "INR")} for it. Hiding it refunds them in full, and the money comes off your earnings.`
-        : "It disappears for everyone watching.",
-      confirmLabel: paid ? "Hide and refund" : "Hide",
+        ? t("{author} paid {amount} for it. Hiding it refunds them in full, and the money comes off your earnings.", { author: m.author, amount: formatMoney(m.paid_minor ?? 0, "INR") })
+        : t("It disappears for everyone watching."),
+      confirmLabel: paid ? t("Hide and refund") : t("Hide"),
       variant: "destructive",
     })
     if (!ok) return
     const res = await moderate({ action: "hide", message_id: m.id }, `hide-${m.id}`)
     if (!res) return
     setItems((prev) => prev.filter((x) => x.id !== m.id))
-    toast.success(res.refunded ? "Hidden and refunded" : "Message hidden")
+    toast.success(res.refunded ? t("Hidden and refunded") : t("Message hidden"))
   }
 
   async function timeoutUser(m: LiveMessage) {
-    const label = TIMEOUTS.find((t) => t.value === timeout)?.label ?? `${timeout} s`
+    const found = TIMEOUTS.find((o) => o.value === timeout)
+    const label = found ? t(found.label) : t("{n} s", { n: timeout })
     const ok = await confirm({
-      title: `Time out ${m.author}?`,
-      message: `They cannot chat for ${label}.`,
-      confirmLabel: "Time out",
+      title: t("Time out {author}?", { author: m.author }),
+      message: t("They cannot chat for {length}.", { length: label }),
+      confirmLabel: t("Time out"),
     })
     if (!ok) return
     const res = await moderate({ action: "timeout", message_id: m.id, seconds: Number(timeout) }, `to-${m.id}`)
-    if (res) toast.success(`${m.author} is timed out for ${label}`)
+    if (res) toast.success(t("{author} is timed out for {length}", { author: m.author, length: label }))
   }
 
   async function slowMode(on: boolean) {
     const res = await moderate(on ? { action: "slow_mode", seconds: Number(slow) } : { action: "slow_mode_off" }, "slow")
     if (!res) return
     handlers.current.onSlowMode?.(res.slow_mode_seconds ?? 0)
-    toast.success(on ? `Slow mode on: ${res.slow_mode_seconds} s` : "Slow mode off")
+    toast.success(on ? t("Slow mode on: {n} s", { n: res.slow_mode_seconds ?? 0 }) : t("Slow mode off"))
   }
 
   async function send() {
@@ -172,7 +175,7 @@ export function LiveChat({ stream, ...events }: { stream: LiveStream } & ChatEve
       setItems((prev) => merge([data], prev))
       setText("")
     } catch (err) {
-      toast.error(detail(err, "Could not send"))
+      toast.error(detail(err, t("Could not send")))
     } finally {
       setBusy(null)
     }
@@ -182,13 +185,13 @@ export function LiveChat({ stream, ...events }: { stream: LiveStream } & ChatEve
     <Card className="flex min-h-[28rem] flex-col p-0">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-3">
         <div>
-          <h2 className="text-sm font-bold text-navy">Live chat</h2>
-          <p className="text-xs text-slate-500">{connected ? "Connected" : "Connecting…"} · {items.length} messages</p>
+          <h2 className="text-sm font-bold text-navy">{t("Live chat")}</h2>
+          <p className="text-xs text-slate-500">{connected ? t("Connected") : t("Connecting…")} · {items.length === 1 ? t("1 message") : t("{n} messages", { n: items.length })}</p>
         </div>
         {!closed && (
           <div className="flex flex-wrap items-center gap-1.5">
             <Clock size={14} className="text-slate-400" aria-hidden="true" />
-            <Select value={timeout} onChange={setTimeoutLen} options={TIMEOUTS} className="w-32" aria-label="Timeout length" />
+            <Select value={timeout} onChange={setTimeoutLen} options={TIMEOUTS.map((o) => ({ ...o, label: t(o.label) }))} className="w-32" aria-label={t("Timeout length")} />
           </div>
         )}
       </div>
@@ -196,20 +199,20 @@ export function LiveChat({ stream, ...events }: { stream: LiveStream } & ChatEve
         <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 bg-slate-50 px-4 py-2">
           <Snail size={14} className="text-slate-500" aria-hidden="true" />
           <span className="text-xs font-medium text-slate-600">
-            Slow mode {stream.slow_mode_seconds ? `on · ${stream.slow_mode_seconds} s` : "off"}
+            {stream.slow_mode_seconds ? t("Slow mode on · {n} s", { n: stream.slow_mode_seconds }) : t("Slow mode off")}
           </span>
-          <Select value={slow} onChange={setSlow} options={SLOW} className="ml-auto w-24" aria-label="Slow mode interval" />
+          <Select value={slow} onChange={setSlow} options={SLOW.map((o) => ({ ...o, label: t(o.label) }))} className="ml-auto w-24" aria-label={t("Slow mode interval")} />
           <Button size="sm" variant="outline" onClick={() => slowMode(true)} disabled={busy !== null}>
-            {stream.slow_mode_seconds ? "Change" : "Turn on"}
+            {stream.slow_mode_seconds ? t("Change") : t("Turn on")}
           </Button>
           {stream.slow_mode_seconds > 0 && (
-            <Button size="sm" variant="ghost" onClick={() => slowMode(false)} disabled={busy !== null}>Turn off</Button>
+            <Button size="sm" variant="ghost" onClick={() => slowMode(false)} disabled={busy !== null}>{t("Turn off")}</Button>
           )}
         </div>
       )}
       <div ref={list} className="max-h-[32rem] min-h-0 flex-1 space-y-1 overflow-y-auto px-2 py-2" aria-live="polite">
         {items.length === 0 ? (
-          <p className="px-2 py-6 text-center text-sm text-slate-500">No messages yet.</p>
+          <p className="px-2 py-6 text-center text-sm text-slate-500">{t("No messages yet.")}</p>
         ) : (
           items.map((m) => {
             const paid = (m.paid_minor ?? 0) > 0
@@ -217,20 +220,20 @@ export function LiveChat({ stream, ...events }: { stream: LiveStream } & ChatEve
               <div key={m.id} className={`group flex items-start gap-2 rounded-md px-2 py-1.5 ${paid ? "border border-amber-200 bg-amber-50" : "hover:bg-slate-50"}`}>
                 <div className="min-w-0 flex-1 text-sm">
                   <span className="font-semibold text-slate-800">{m.author}</span>
-                  {m.moderator && <Badge color="blue" className="ml-1">Mod</Badge>}
-                  {paid && <Badge color="amber" className="ml-1">{m.tier ?? "Paid"} · {formatMoney(m.paid_minor ?? 0, "INR")}</Badge>}
+                  {m.moderator && <Badge color="blue" className="ml-1">{t("Mod")}</Badge>}
+                  {paid && <Badge color="amber" className="ml-1">{m.tier ?? t("Paid|access")} · {formatMoney(m.paid_minor ?? 0, "INR")}</Badge>}
                   <span className="ml-1.5 break-words text-slate-700">{m.body}</span>
                   {m.created_at && <span className="ml-1.5 text-[11px] text-slate-400">{when(m.created_at, true)}</span>}
                 </div>
                 <div className="flex shrink-0 gap-1">
                   {!closed && !m.moderator && (
                     <Button size="sm" variant="ghost" className="h-7 px-2" disabled={busy !== null} onClick={() => timeoutUser(m)}
-                      aria-label={`Time out ${m.author}`} title="Time out">
+                      aria-label={t("Time out {author}", { author: m.author })} title={t("Time out")}>
                       <Clock size={13} />
                     </Button>
                   )}
                   <Button size="sm" variant="ghost" className="h-7 px-2 text-red-600" disabled={busy !== null} onClick={() => hide(m)}
-                    aria-label={`Hide message from ${m.author}`} title={paid ? "Hide and refund" : "Hide"}>
+                    aria-label={t("Hide message from {author}", { author: m.author })} title={paid ? t("Hide and refund") : t("Hide")}>
                     <EyeOff size={13} />
                   </Button>
                 </div>
@@ -246,9 +249,9 @@ export function LiveChat({ stream, ...events }: { stream: LiveStream } & ChatEve
           send()
         }}
       >
-        <Input value={text} maxLength={200} onChange={(e) => setText(e.target.value)} placeholder={stream.status === "live" ? "Say something to your viewers" : "Chat opens when you are live"}
-          disabled={stream.status !== "live"} aria-label="Chat message" />
-        <Button type="submit" size="sm" disabled={stream.status !== "live" || !text.trim() || busy !== null}><Send size={13} /> Send</Button>
+        <Input value={text} maxLength={200} onChange={(e) => setText(e.target.value)} placeholder={stream.status === "live" ? t("Say something to your viewers") : t("Chat opens when you are live")}
+          disabled={stream.status !== "live"} aria-label={t("Chat message")} />
+        <Button type="submit" size="sm" disabled={stream.status !== "live" || !text.trim() || busy !== null}><Send size={13} /> {t("Send")}</Button>
       </form>
     </Card>
   )

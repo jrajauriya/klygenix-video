@@ -8,6 +8,7 @@ import { clock } from "../lib/format"
 import { useT } from "../lib/i18n"
 import { colour } from "../lib/theme"
 
+const VIEWABLE_MS = 2000
 const QUARTILES: [number, string][] = [
   [0.25, "q1"],
   [0.5, "mid"],
@@ -57,6 +58,14 @@ export function AdOverlay({ ad, onDone }: { ad: Ad; onDone: () => void }) {
     }, 10_000)
     return () => clearTimeout(stall)
   }, [ad.playback?.url])
+
+  useEffect(() => {
+    if (!started) return
+    const viewable = setTimeout(() => {
+      if (!finished.current) send("q0")
+    }, VIEWABLE_MS)
+    return () => clearTimeout(viewable)
+  }, [started])
 
   useEventListener(player, "statusChange", ({ status }) => {
     if (status === "error") finishRef.current("error")

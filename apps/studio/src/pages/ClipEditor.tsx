@@ -20,6 +20,7 @@ import { Reframe } from "../components/clips/Reframe"
 import { Music } from "../components/clips/Music"
 import { PublishTargets } from "../components/clips/PublishTargets"
 import type { Visibility } from "../lib/types"
+import { useT } from "../i18n"
 
 const WORKING = ["queued", "rendering"]
 
@@ -30,6 +31,7 @@ const sameMusic = (a: ClipMusic | null, b: ClipMusic | null) =>
   a === b || (a !== null && b !== null && a.track_id === b.track_id && Math.abs(a.volume - b.volume) < 0.001 && a.duck === b.duck)
 
 export default function ClipEditor() {
+  const t = useT()
   const { id } = useParams()
   const navigate = useNavigate()
   const qc = useQueryClient()
@@ -79,17 +81,17 @@ export default function ClipEditor() {
   }, [clip?.status])
 
   if (isLoading) return <Spinner />
-  if (isError || !clip) return <EmptyState title="This clip could not be found" />
+  if (isError || !clip) return <EmptyState title={t("This clip could not be found")} />
 
   const duration = source?.duration_ms ?? clip.end_ms
   const sourceRatio = source?.width && source?.height ? source.width / source.height : 16 / 9
   const locked = WORKING.includes(clip.status) || clip.status === "published" || clip.status === "processing"
   const length = end - start
   const problem =
-    end <= start ? "The end must come after the start."
-      : length > CLIP_MAX_MS ? `Clips can be up to ${CLIP_MAX_MS / 1000} seconds.`
-        : end > duration + 500 ? "The end is past the end of the video."
-          : !title.trim() ? "Give the clip a title." : null
+    end <= start ? t("The end must come after the start.")
+      : length > CLIP_MAX_MS ? t("Clips can be up to {n} seconds.", { n: CLIP_MAX_MS / 1000 })
+        : end > duration + 500 ? t("The end is past the end of the video.")
+          : !title.trim() ? t("Give the clip a title.") : null
   const tracking = clip.reframe?.status === "tracking"
   const trackDirty = !sameTrack(keyframes, savedTrack(clip))
   const centerDirty = keyframes.length === 0 && Math.abs(centerX - (clip.reframe?.center_x ?? 0.5)) > 0.001
@@ -129,9 +131,9 @@ export default function ClipEditor() {
     setBusy("save")
     try {
       await persist()
-      toast.success("Clip saved")
+      toast.success(t("Clip saved"))
     } catch (err) {
-      toast.error(detail(err, "Could not save the clip"))
+      toast.error(detail(err, t("Could not save the clip")))
     } finally {
       setBusy(null)
     }
@@ -145,12 +147,12 @@ export default function ClipEditor() {
       const { data } = await api.post<Clip>(`${STUDIO}/clips/${clip!.id}/render`)
       refresh(data)
       qc.invalidateQueries({ queryKey: ["video-me"] })
-      toast.success("Rendering. This usually takes under a minute.")
+      toast.success(t("Rendering. This usually takes under a minute."))
     } catch (err) {
       if (httpStatus(err) === 402) {
-        setQuotaHit(detail(err, "You have used this month's clip renders."))
+        setQuotaHit(detail(err, t("You have used this month's clip renders.")))
       } else {
-        toast.error(detail(err, "Could not start the render"))
+        toast.error(detail(err, t("Could not start the render")))
       }
     } finally {
       setBusy(null)
@@ -160,9 +162,9 @@ export default function ClipEditor() {
   async function trackFaces() {
     if (keyframes.length) {
       const ok = await confirm({
-        title: "Replace your keyframes?",
-        message: "Face tracking finds the speaker and sets new keyframes. The ones you placed are replaced.",
-        confirmLabel: "Track faces",
+        title: t("Replace your keyframes?"),
+        message: t("Face tracking finds the speaker and sets new keyframes. The ones you placed are replaced."),
+        confirmLabel: t("Track faces"),
       })
       if (!ok) return
     }
@@ -171,9 +173,9 @@ export default function ClipEditor() {
       await persist()
       const { data } = await api.post<Clip>(`${STUDIO}/clips/${clip!.id}/track`)
       refresh(data)
-      toast.success("Looking for faces. This takes a few seconds.")
+      toast.success(t("Looking for faces. This takes a few seconds."))
     } catch (err) {
-      toast.error(detail(err, "Could not start face tracking"))
+      toast.error(detail(err, t("Could not start face tracking")))
     } finally {
       setBusy(null)
     }
@@ -181,9 +183,9 @@ export default function ClipEditor() {
 
   async function remove() {
     const ok = await confirm({
-      title: "Delete this clip?",
-      message: clip!.status === "published" ? "The reel already published from it stays on your channel." : "The clip and its rendered file are removed.",
-      confirmLabel: "Delete clip",
+      title: t("Delete this clip?"),
+      message: clip!.status === "published" ? t("The reel already published from it stays on your channel.") : t("The clip and its rendered file are removed."),
+      confirmLabel: t("Delete clip"),
       variant: "destructive",
     })
     if (!ok) return
@@ -191,10 +193,10 @@ export default function ClipEditor() {
     try {
       await api.delete(`${STUDIO}/clips/${clip!.id}`)
       qc.invalidateQueries({ queryKey: ["studio-clips"] })
-      toast.success("Clip deleted")
+      toast.success(t("Clip deleted"))
       navigate("/clips")
     } catch (err) {
-      toast.error(detail(err, "Could not delete the clip"))
+      toast.error(detail(err, t("Could not delete the clip")))
       setBusy(null)
     }
   }
@@ -210,28 +212,28 @@ export default function ClipEditor() {
         actions={
           <div className="flex flex-wrap gap-2">
             {source && (
-              <Button variant="outline" size="sm" aria-label="Source video" onClick={() => navigate(`/videos/${source.id}?tab=clips`)}>
-                <Film size={14} /> <span className="hidden sm:inline">Source video</span>
+              <Button variant="outline" size="sm" aria-label={t("Source video")} onClick={() => navigate(`/videos/${source.id}?tab=clips`)}>
+                <Film size={14} /> <span className="hidden sm:inline">{t("Source video")}</span>
               </Button>
             )}
-            <Button variant="ghost" size="sm" className="text-red-600" aria-label="Delete clip" onClick={remove} disabled={busy !== null || WORKING.includes(clip.status)}>
-              <Trash2 size={14} /> <span className="hidden sm:inline">Delete</span>
+            <Button variant="ghost" size="sm" className="text-red-600" aria-label={t("Delete clip")} onClick={remove} disabled={busy !== null || WORKING.includes(clip.status)}>
+              <Trash2 size={14} /> <span className="hidden sm:inline">{t("Delete")}</span>
             </Button>
           </div>
         }
       />
       <div className="-mt-1 mb-3 flex pl-10 flex-wrap items-center gap-2 text-sm text-slate-500">
         <ClipStatusPill status={clip.status} />
-        {source && <span className="truncate">From “{source.title}”</span>}
+        {source && <span className="truncate">{t("From “{title}”", { title: source.title })}</span>}
       </div>
 
       {clip.status === "failed" && clip.error && (
-        <p className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">The render failed: {clip.error}</p>
+        <p className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{t("The render failed: {error}", { error: clip.error })}</p>
       )}
       {quotaHit && (
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
           <span>{quotaHit}</span>
-          <Link to="/billing" className="font-semibold underline">See plans</Link>
+          <Link to="/billing" className="font-semibold underline">{t("See plans")}</Link>
         </div>
       )}
 
@@ -239,7 +241,7 @@ export default function ClipEditor() {
         <div className="space-y-3 lg:col-span-3">
           {rendered && (
             <Tabs
-              tabs={[{ key: "rendered", label: "Rendered clip" }, { key: "source", label: "Edit on source" }]}
+              tabs={[{ key: "rendered", label: t("Rendered clip") }, { key: "source", label: t("Edit on source") }]}
               active={view}
               onChange={setView}
             />
@@ -255,13 +257,13 @@ export default function ClipEditor() {
               <div className="flex flex-wrap justify-center gap-2">
                 <a href={clip.download_url!} download={`clip-${clip.id}.mp4`}
                   className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50">
-                  <Download size={15} /> Download MP4
+                  <Download size={15} /> {t("Download MP4")}
                 </a>
                 {clip.status === "rendered" && (
-                  <Button onClick={() => setPublishing(true)}><Send size={15} /> Publish as reel</Button>
+                  <Button onClick={() => setPublishing(true)}><Send size={15} /> {t("Publish as reel")}</Button>
                 )}
                 {clip.status === "published" && clip.output_video_id && (
-                  <Button variant="outline" onClick={() => navigate(`/videos/${clip.output_video_id}`)}>Open the reel</Button>
+                  <Button variant="outline" onClick={() => navigate(`/videos/${clip.output_video_id}`)}>{t("Open the reel")}</Button>
                 )}
               </div>
             </div>
@@ -279,29 +281,29 @@ export default function ClipEditor() {
                 <FrameOverlay aspect={aspect} sourceRatio={sourceRatio} centerX={frameX} style={style} />
               </VideoPreview>
               <p className="text-xs text-slate-500">
-                The preview loops the selected moment. The white frame shows what ends up in the clip; captions are a sample of the style.
+                {t("The preview loops the selected moment. The white frame shows what ends up in the clip; captions are a sample of the style.")}
               </p>
             </>
           )}
 
           <Card className="space-y-4 p-4">
             <div className="flex items-center justify-between gap-2">
-              <h3 className="text-sm font-bold text-navy">Moment</h3>
+              <h3 className="text-sm font-bold text-navy">{t("Moment")}</h3>
               <span className={length > CLIP_MAX_MS || length <= 0 ? "font-num text-sm font-semibold text-red-600" : "font-num text-sm text-slate-600"}>
-                {seconds(Math.max(0, length))} s · {clock(start)} – {clock(end)}
+                {t("{n} s", { n: seconds(Math.max(0, length)) })} · {clock(start)} – {clock(end)}
               </span>
             </div>
             <RangeBar durationMs={duration} startMs={start} endMs={end} playheadMs={playhead} disabled={locked} onChange={setRange} />
             <div className="grid gap-4 sm:grid-cols-2">
-              <EdgeInput label="Start (seconds)" value={start} disabled={locked}
+              <EdgeInput label={t("Start (seconds)")} value={start} disabled={locked}
                 onChange={(ms) => setRange(ms, end)} onNow={() => setRange(playhead, end)} />
-              <EdgeInput label="End (seconds)" value={end} disabled={locked}
+              <EdgeInput label={t("End (seconds)")} value={end} disabled={locked}
                 onChange={(ms) => setRange(start, ms)} onNow={() => setRange(start, playhead)} />
             </div>
           </Card>
 
           <Card className="space-y-3 p-4">
-            <h3 className="text-sm font-bold text-navy">Framing</h3>
+            <h3 className="text-sm font-bold text-navy">{t("Framing")}</h3>
             <Reframe
               info={clip.reframe}
               keyframes={keyframes}
@@ -322,40 +324,40 @@ export default function ClipEditor() {
 
         <div className="space-y-4 lg:col-span-2">
           <Card className="space-y-4 p-4">
-            <Field label="Title" required>
+            <Field label={t("Title")} required>
               <Input value={title} maxLength={160} disabled={locked} onChange={(e) => setTitle(e.target.value)} />
             </Field>
-            <Field label="Shape">
+            <Field label={t("Shape")}>
               <AspectPicker value={aspect} onChange={setAspect} disabled={locked} />
             </Field>
-            <Field label="Captions">
+            <Field label={t("Captions")}>
               <StylePicker value={style} onChange={setStyle} disabled={locked} />
             </Field>
           </Card>
 
           <Card className="space-y-3 p-4">
-            <h3 className="text-sm font-bold text-navy">Music</h3>
+            <h3 className="text-sm font-bold text-navy">{t("Music")}</h3>
             <Music value={music} onChange={setMusic} disabled={locked} />
           </Card>
 
           {watermark && (
             <p className="rounded-lg border border-brand-100 bg-brand-50 px-3 py-2 text-sm text-slate-700">
-              On the free plan, rendered clips carry a small Klygenix Play watermark.{" "}
-              <Link to="/billing" className="font-semibold text-brand underline">Upgrade to remove it</Link>
+              {t("On the free plan, rendered clips carry a small Klygenix Play watermark.")}{" "}
+              <Link to="/billing" className="font-semibold text-brand underline">{t("Upgrade to remove it")}</Link>
             </p>
           )}
 
           {problem && !locked && <p className="text-sm text-red-600">{problem}</p>}
           {WORKING.includes(clip.status) && (
-            <p className="flex items-center gap-2 text-sm text-slate-600"><Loader2 size={15} className="animate-spin text-brand" /> Rendering your clip…</p>
+            <p className="flex items-center gap-2 text-sm text-slate-600"><Loader2 size={15} className="animate-spin text-brand" /> {t("Rendering your clip…")}</p>
           )}
 
           <div className="flex flex-wrap justify-end gap-2">
             <Button variant="outline" onClick={save} disabled={locked || !dirty || Boolean(problem) || busy !== null}>
-              <Save size={14} /> {busy === "save" ? "Saving…" : "Save"}
+              <Save size={14} /> {busy === "save" ? t("Saving…") : t("Save")}
             </Button>
             <Button onClick={render} disabled={locked || tracking || Boolean(problem) || busy !== null}>
-              <Wand2 size={14} /> {busy === "render" ? "Starting…" : clip.status === "rendered" ? "Render again" : "Render clip"}
+              <Wand2 size={14} /> {busy === "render" ? t("Starting…") : clip.status === "rendered" ? t("Render again") : t("Render clip")}
             </Button>
           </div>
         </div>
@@ -383,6 +385,7 @@ function EdgeInput({
   onChange: (ms: number) => void
   onNow: () => void
 }) {
+  const t = useT()
   const [text, setText] = useState(seconds(value))
   useEffect(() => setText(seconds(value)), [value])
   const commit = () => {
@@ -393,7 +396,7 @@ function EdgeInput({
   return (
     <Field label={label}>
       <div className="flex items-center gap-1">
-        <Button size="icon" variant="outline" aria-label="Back half a second" disabled={disabled} onClick={() => onChange(Math.max(0, value - 500))}>
+        <Button size="icon" variant="outline" aria-label={t("Back half a second")} disabled={disabled} onClick={() => onChange(Math.max(0, value - 500))}>
           <Minus size={14} />
         </Button>
         <Input type="number" step="0.1" min="0" value={text} disabled={disabled} className="text-center font-num" aria-label={label}
@@ -401,10 +404,10 @@ function EdgeInput({
           onKeyDown={(e) => {
             if (e.key === "Enter") commit()
           }} />
-        <Button size="icon" variant="outline" aria-label="Forward half a second" disabled={disabled} onClick={() => onChange(value + 500)}>
+        <Button size="icon" variant="outline" aria-label={t("Forward half a second")} disabled={disabled} onClick={() => onChange(value + 500)}>
           <Plus size={14} />
         </Button>
-        <Button size="sm" variant="ghost" disabled={disabled} onClick={onNow} title="Use the preview's current time">Now</Button>
+        <Button size="sm" variant="ghost" disabled={disabled} onClick={onNow} title={t("Use the preview's current time")}>{t("Now")}</Button>
       </div>
     </Field>
   )
@@ -416,6 +419,7 @@ function PublishModal({ clip, defaultTitle, onClose, onDone }: {
   onClose: () => void
   onDone: (c: Clip) => void
 }) {
+  const t = useT()
   const navigate = useNavigate()
   const [title, setTitle] = useState(defaultTitle)
   const [description, setDescription] = useState("")
@@ -433,9 +437,9 @@ function PublishModal({ clip, defaultTitle, onClose, onDone }: {
       })
       onDone(data.clip)
       setMade({ video_id: data.video_id, public_id: data.public_id })
-      toast.success("Your reel is on its way. It shows on your channel once processed.")
+      toast.success(t("Your reel is on its way. It shows on your channel once processed."))
     } catch (err) {
-      toast.error(detail(err, "Could not publish the clip"))
+      toast.error(detail(err, t("Could not publish the clip")))
     } finally {
       setBusy(false)
     }
@@ -445,30 +449,30 @@ function PublishModal({ clip, defaultTitle, onClose, onDone }: {
     <Modal
       open
       onClose={onClose}
-      title={made ? "Reel created" : "Publish as a reel"}
+      title={made ? t("Reel created") : t("Publish as a reel")}
       size="md"
       footer={
         <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={onClose}>{made ? "Close" : "Cancel"}</Button>
+          <Button variant="outline" onClick={onClose}>{made ? t("Close") : t("Cancel")}</Button>
           {made ? (
-            <Button onClick={() => navigate(`/videos/${made.video_id}`)}>Open the new reel</Button>
+            <Button onClick={() => navigate(`/videos/${made.video_id}`)}>{t("Open the new reel")}</Button>
           ) : (
-            <Button onClick={publish} disabled={busy || !title.trim()}><Send size={14} /> {busy ? "Publishing…" : "Publish"}</Button>
+            <Button onClick={publish} disabled={busy || !title.trim()}><Send size={14} /> {busy ? t("Publishing…") : t("Publish")}</Button>
           )}
         </div>
       }
     >
       {made ? (
-        <p className="text-sm text-slate-600">The reel is being processed and appears on your channel shortly. You can edit its details from its page.</p>
+        <p className="text-sm text-slate-600">{t("The reel is being processed and appears on your channel shortly. You can edit its details from its page.")}</p>
       ) : (
         <div className="space-y-4">
-          <Field label="Title" required>
+          <Field label={t("Title")} required>
             <Input value={title} maxLength={200} onChange={(e) => setTitle(e.target.value)} />
           </Field>
-          <Field label="Description" hint="Leave empty to say which video it was clipped from.">
+          <Field label={t("Description")} hint={t("Leave empty to say which video it was clipped from.")}>
             <Textarea rows={3} value={description} onChange={(e) => setDescription(e.target.value)} />
           </Field>
-          <Field label="Visibility">
+          <Field label={t("Visibility")}>
             <VisibilityField schedule={false} value={visibility} publishAt="" onChange={setVisibility} onPublishAt={() => undefined} />
           </Field>
         </div>

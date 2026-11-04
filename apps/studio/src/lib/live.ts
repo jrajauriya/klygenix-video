@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query"
 import { api } from "@klygenixvideo/auth"
 import { STUDIO } from "./hooks"
 import type { MembershipTier } from "./types"
+import { useT } from "../i18n"
 
 export const LIVE_STUDIO = "/api/video/studio/live"
 export const LIVE_PUBLIC = "/api/video/live"
@@ -67,13 +68,14 @@ export async function copyText(text: string): Promise<boolean> {
 }
 
 export function useTierOptions() {
+  const t = useT()
   const { data } = useQuery({
     queryKey: ["studio-tiers", "live"],
     queryFn: async () => (await api.get<MembershipTier[]>(`${STUDIO}/memberships/tiers`)).data,
     retry: false,
     staleTime: 60_000,
   })
-  const levels = data && data.length ? data.map((t) => ({ value: String(t.rank), label: `${t.name} (level ${t.rank}) and above` }))
-    : [1, 2, 3, 4, 5].map((r) => ({ value: String(r), label: `Members level ${r} and above` }))
-  return [{ value: "", label: "Everyone" }, ...levels]
+  const levels = data && data.length ? data.map((tier) => ({ value: String(tier.rank), label: t("{name} (level {n}) and above", { name: tier.name, n: tier.rank }) }))
+    : [1, 2, 3, 4, 5].map((r) => ({ value: String(r), label: t("Members level {n} and above", { n: r }) }))
+  return [{ value: "", label: t("Everyone") }, ...levels]
 }

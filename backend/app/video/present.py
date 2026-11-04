@@ -46,7 +46,7 @@ def studio_video(v: Video, pend: dict | None = None) -> dict:
         "comments": v.comment_count + pend.get("comment_count", 0),
         "danmaku": v.danmaku_count + pend.get("danmaku_count", 0),
         "watch_ms": v.watch_ms + pend.get("watch_ms", 0), "embed_platform": v.embed_platform,
-        "embed_url": v.embed_url, "created_at": iso(v.created_at), "access": v.access, "ads_enabled": v.ads_enabled,
+        "embed_url": v.embed_url, "created_at": iso(v.created_at), "access": v.access, "ads_enabled": v.ads_enabled, "made_for_kids": v.made_for_kids, "safety_labels": v.safety_labels,
         "sponsor_deal_id": v.sponsor_deal_id,
         "price_minor": v.price_inr_minor, "members_rank": v.members_rank, "preview_seconds": v.preview_seconds,
         "dubbing_allowed": v.dubbing_allowed,

@@ -1,4 +1,4 @@
-import { formatDistanceToNowStrict } from "date-fns"
+import { currentLang, tr } from "../i18n"
 
 const compact = new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 })
 
@@ -8,7 +8,16 @@ export function compactNumber(n: number | null | undefined): string {
 
 export function views(n: number | null | undefined): string {
   const v = n ?? 0
-  return `${compactNumber(v)} ${v === 1 ? "view" : "views"}`
+  return tr(v === 1 ? "{n} view" : "{n} views", { n: compactNumber(v) })
+}
+
+const STEPS: [Intl.RelativeTimeFormatUnit, number][] = [
+  ["year", 31_536_000_000], ["month", 2_592_000_000], ["week", 604_800_000], ["day", 86_400_000], ["hour", 3_600_000], ["minute", 60_000],
+]
+const relative: Partial<Record<string, Intl.RelativeTimeFormat>> = {}
+
+export function locale(): string {
+  return currentLang() === "hi" ? "hi-IN" : "en-IN"
 }
 
 export function timeAgo(iso: string | null | undefined): string {
@@ -16,8 +25,13 @@ export function timeAgo(iso: string | null | undefined): string {
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return ""
   const diff = Date.now() - d.getTime()
-  if (diff < 60_000) return "just now"
-  return `${formatDistanceToNowStrict(d)} ago`
+  if (diff < 60_000) return tr("just now")
+  const lang = currentLang()
+  const fmt = (relative[lang] ??= new Intl.RelativeTimeFormat(lang, { numeric: "always" }))
+  for (const [unit, size] of STEPS) {
+    if (diff >= size) return fmt.format(-Math.floor(diff / size), unit)
+  }
+  return fmt.format(-1, "minute")
 }
 
 export function clock(ms: number): string {
@@ -33,7 +47,7 @@ export function longDate(iso: string | null | undefined): string {
   if (!iso) return "—"
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return "—"
-  return d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
+  return d.toLocaleDateString(locale(), { day: "numeric", month: "short", year: "numeric" })
 }
 
 export const LANG_NAMES: Record<string, string> = {

@@ -4,6 +4,7 @@ import { api } from "@klygenixvideo/auth"
 import type { AdCreative } from "@klygenixvideo/player/src/AdBreak"
 import { getJson } from "../../lib/api"
 import type { AdBreaks } from "../../lib/types"
+import { useT } from "../../i18n"
 
 const AdBreak = lazy(() => import("@klygenixvideo/player/src/AdBreak").then((m) => ({ default: m.AdBreak })))
 
@@ -22,6 +23,7 @@ interface Plan {
 const fresh = (video: string): Plan => ({ video, pre: false, played: new Set(), first: null, last: null, busy: false })
 
 export function useWatchAds({ videoId, signedIn, on, videoRef }: { videoId: string; signedIn: boolean; on: boolean; videoRef: RefObject<HTMLVideoElement | null> }) {
+  const t = useT("watch")
   const breaks = useQuery({
     queryKey: adBreaksKey(videoId, signedIn),
     enabled: Boolean(videoId),
@@ -100,7 +102,7 @@ export function useWatchAds({ videoId, signedIn, on, videoRef }: { videoId: stri
 
   const overlay = ad ? (
     <Suspense fallback={null}>
-      <AdBreak key={ad.token} ad={ad} http={api} muted={muted} onDone={done} />
+      <AdBreak key={ad.token} ad={ad} http={api} muted={muted} onDone={done} t={t} />
     </Suspense>
   ) : null
 

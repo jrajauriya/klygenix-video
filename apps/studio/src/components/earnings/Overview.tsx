@@ -4,6 +4,7 @@ import { Card } from "@klygenixvideo/ui"
 import { when } from "../../lib/format"
 import type { Earnings } from "../../lib/types"
 import { PURPOSES, inr } from "./shared"
+import { useLang, useT } from "../../i18n"
 
 function Tile({ label, value, icon, children }: { label: string; value: string; icon: ReactNode; children: ReactNode }) {
   return (
@@ -28,36 +29,38 @@ function Line({ label, value, strong, minus }: { label: string; value: number; s
 }
 
 export function Overview({ data }: { data: Earnings }) {
+  const t = useT()
+  const lang = useLang()
   const b = data.balances
-  const t = data.month_totals
+  const totals = data.month_totals
   const days = data.refund_window_days
   const reservePct = data.reserve_bps / 100
   const commissionPct = data.commission_bps / 100
-  const monthName = new Date(`${data.month}-01T00:00:00`).toLocaleDateString("en-IN", { month: "long", year: "numeric" })
+  const monthName = new Date(`${data.month}-01T00:00:00`).toLocaleDateString(lang === "hi" ? "hi-IN" : "en-IN", { month: "long", year: "numeric" })
   const most = Math.max(1, ...PURPOSES.map((p) => data.month_by_purpose[p.key] ?? 0))
 
   return (
     <div className="space-y-5">
       <section aria-labelledby="balances-h">
-        <h2 id="balances-h" className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Balances</h2>
+        <h2 id="balances-h" className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">{t("Balances")}</h2>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          <Tile label="Held" value={inr(b.held_minor)} icon={<Clock size={17} />}>
-            Your share of recent sales, held for the {days}-day refund window before it is released.
+          <Tile label={t("Held")} value={inr(b.held_minor)} icon={<Clock size={17} />}>
+            {t("Your share of recent sales, held for the {days}-day refund window before it is released.", { days })}
           </Tile>
-          <Tile label="Reserve" value={inr(b.reserve_minor)} icon={<ShieldCheck size={17} />}>
-            {reservePct}% of each sale, kept a little longer to cover disputes and chargebacks, then released.
+          <Tile label={t("Reserve")} value={inr(b.reserve_minor)} icon={<ShieldCheck size={17} />}>
+            {t("{pct}% of each sale, kept a little longer to cover disputes and chargebacks, then released.", { pct: reservePct })}
           </Tile>
-          <Tile label="On the way" value={inr(b.pending_minor)} icon={<Truck size={17} />}>
-            Released by us and on its way to your bank account.
+          <Tile label={t("On the way")} value={inr(b.pending_minor)} icon={<Truck size={17} />}>
+            {t("Released by us and on its way to your bank account.")}
           </Tile>
-          <Tile label="Released" value={inr(b.released_minor)} icon={<Landmark size={17} />}>
-            Paid out to your bank so far.
+          <Tile label={t("Released")} value={inr(b.released_minor)} icon={<Landmark size={17} />}>
+            {t("Paid out to your bank so far.")}
           </Tile>
-          <Tile label="Owed back" value={inr(b.owed_back_minor)} icon={<ArrowDownLeft size={17} />}>
-            Refunds made after the money was released. It comes out of your next payouts.
+          <Tile label={t("Owed back")} value={inr(b.owed_back_minor)} icon={<ArrowDownLeft size={17} />}>
+            {t("Refunds made after the money was released. It comes out of your next payouts.")}
           </Tile>
-          <Tile label="Next release" value={b.next_release_at ? when(b.next_release_at) : "—"} icon={<CalendarClock size={17} />}>
-            {b.next_release_at ? "When the oldest held money is due to be released." : "Nothing is waiting to be released."}
+          <Tile label={t("Next release")} value={b.next_release_at ? when(b.next_release_at) : "—"} icon={<CalendarClock size={17} />}>
+            {b.next_release_at ? t("When the oldest held money is due to be released.") : t("Nothing is waiting to be released.")}
           </Tile>
         </div>
       </section>
@@ -66,28 +69,28 @@ export function Overview({ data }: { data: Earnings }) {
         <Card className="p-5">
           <h2 className="text-sm font-bold text-navy">{monthName}</h2>
           <p className="mb-3 text-xs text-slate-500">
-            Klygenix Play keeps {commissionPct}% commission plus GST on it. TCS and TDS are withheld for the government and show on your statement.
+            {t("Klygenix Play keeps {pct}% commission plus GST on it. TCS and TDS are withheld for the government and show on your statement.", { pct: commissionPct })}
           </p>
           <dl>
-            <Line label="Sales" value={t.gross_minor} />
-            <Line label="Commission" value={t.commission_minor} minus />
-            <Line label="GST on commission" value={t.commission_tax_minor} minus />
-            <Line label="TCS (GST)" value={t.tcs_minor} minus />
-            <Line label="TDS (194-O)" value={t.tds_minor} minus />
-            <Line label="Refunded" value={t.refunded_minor} minus />
-            <Line label="Your share" value={t.net_minor} strong />
+            <Line label={t("Sales")} value={totals.gross_minor} />
+            <Line label={t("Commission")} value={totals.commission_minor} minus />
+            <Line label={t("GST on commission")} value={totals.commission_tax_minor} minus />
+            <Line label="TCS (GST)" value={totals.tcs_minor} minus />
+            <Line label="TDS (194-O)" value={totals.tds_minor} minus />
+            <Line label={t("Refunded")} value={totals.refunded_minor} minus />
+            <Line label={t("Your share")} value={totals.net_minor} strong />
           </dl>
         </Card>
         <Card className="p-5">
-          <h2 className="text-sm font-bold text-navy">Sales by kind</h2>
-          <p className="mb-3 text-xs text-slate-500">What viewers paid this month, before deductions.</p>
+          <h2 className="text-sm font-bold text-navy">{t("Sales by kind")}</h2>
+          <p className="mb-3 text-xs text-slate-500">{t("What viewers paid this month, before deductions.")}</p>
           <ul className="space-y-3">
             {PURPOSES.map((p) => {
               const v = data.month_by_purpose[p.key] ?? 0
               return (
                 <li key={p.key}>
                   <div className="flex items-center justify-between gap-3 text-sm">
-                    <span className="text-slate-700">{p.label} <span className="text-xs text-slate-500">· {p.hint}</span></span>
+                    <span className="text-slate-700">{t(p.label)} <span className="text-xs text-slate-500">· {t(p.hint)}</span></span>
                     <span className="font-num font-semibold text-navy">{inr(v)}</span>
                   </div>
                   <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100" aria-hidden="true">

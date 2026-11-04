@@ -4,6 +4,7 @@ import { api } from "@klygenixvideo/auth"
 import { Button, Card, StatusPill } from "@klygenixvideo/ui"
 import { detail } from "../../lib/format"
 import { LIVE_STUDIO, wsUrl, type LiveStream } from "../../lib/live"
+import { useT } from "../../i18n"
 
 type Phase = "off" | "camera" | "connecting" | "sending" | "stopping"
 
@@ -11,7 +12,7 @@ const TYPES = ["video/webm;codecs=vp8,opus", "video/webm;codecs=vp9,opus", "vide
 
 function pickType(): string | undefined {
   if (typeof MediaRecorder === "undefined") return undefined
-  return TYPES.find((t) => MediaRecorder.isTypeSupported(t))
+  return TYPES.find((ty) => MediaRecorder.isTypeSupported(ty))
 }
 
 const PHASE: Record<Phase, { label: string; hex: string }> = {
@@ -23,6 +24,7 @@ const PHASE: Record<Phase, { label: string; hex: string }> = {
 }
 
 export function BrowserGoLive({ stream, onChange }: { stream: LiveStream; onChange?: () => void }) {
+  const t = useT()
   const videoRef = useRef<HTMLVideoElement>(null)
   const media = useRef<MediaStream | null>(null)
   const recorder = useRef<MediaRecorder | null>(null)
@@ -51,7 +53,7 @@ export function BrowserGoLive({ stream, onChange }: { stream: LiveStream; onChan
     if (socket.current && socket.current.readyState <= WebSocket.OPEN) socket.current.close(1000)
     socket.current = null
     if (all) {
-      media.current?.getTracks().forEach((t) => t.stop())
+      media.current?.getTracks().forEach((track) => track.stop())
       media.current = null
       if (videoRef.current) videoRef.current.srcObject = null
     }
@@ -69,7 +71,7 @@ export function BrowserGoLive({ stream, onChange }: { stream: LiveStream; onChan
       setPhase("camera")
     } catch (err) {
       const name = (err as { name?: string })?.name
-      setError(name === "NotAllowedError" ? "The browser was not allowed to use the camera and microphone." : "No camera or microphone could be opened.")
+      setError(name === "NotAllowedError" ? t("The browser was not allowed to use the camera and microphone.") : t("No camera or microphone could be opened."))
     }
   }
 
@@ -88,7 +90,7 @@ export function BrowserGoLive({ stream, onChange }: { stream: LiveStream; onChan
     try {
       ticket = (await api.get<{ ticket: string }>(`${LIVE_STUDIO}/${stream.id}/ingest-ticket`)).data.ticket
     } catch (err) {
-      setError(detail(err, "Could not get permission to send video"))
+      setError(detail(err, t("Could not get permission to send video")))
       setPhase("camera")
       return
     }
@@ -122,7 +124,7 @@ export function BrowserGoLive({ stream, onChange }: { stream: LiveStream; onChan
       }
       recorder.current = null
       if (!stopping.current) {
-        setError(e.code === 4403 ? "The server refused the video. The stream may have ended, or the permission ran out." : "The connection dropped. Press Go live to carry on.")
+        setError(e.code === 4403 ? t("The server refused the video. The stream may have ended, or the permission ran out.") : t("The connection dropped. Press Go live to carry on."))
       }
       setPhase(media.current ? "camera" : "off")
       onChange?.()
@@ -145,33 +147,33 @@ export function BrowserGoLive({ stream, onChange }: { stream: LiveStream; onChan
     <Card className="space-y-3 p-5">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <h2 className="text-sm font-bold text-navy">Go live from this browser</h2>
-          <p className="mt-0.5 text-sm text-slate-500">Uses your camera and microphone. No encoder needed.</p>
+          <h2 className="text-sm font-bold text-navy">{t("Go live from this browser")}</h2>
+          <p className="mt-0.5 text-sm text-slate-500">{t("Uses your camera and microphone. No encoder needed.")}</p>
         </div>
-        <StatusPill label={p.label} hex={p.hex} />
+        <StatusPill label={t(p.label)} hex={p.hex} />
       </div>
       <div className="relative overflow-hidden rounded-lg bg-black" style={{ aspectRatio: "16 / 9" }}>
-        <video ref={videoRef} muted playsInline autoPlay className="absolute inset-0 h-full w-full object-cover" aria-label="Camera preview" />
+        <video ref={videoRef} muted playsInline autoPlay className="absolute inset-0 h-full w-full object-cover" aria-label={t("Camera preview")} />
         {phase === "off" && (
-          <div className="absolute inset-0 flex items-center justify-center text-sm text-slate-300">Camera preview</div>
+          <div className="absolute inset-0 flex items-center justify-center text-sm text-slate-300">{t("Camera preview")}</div>
         )}
       </div>
-      {!supported && <p className="text-sm text-amber-800">This browser cannot record WebM video. Use Chrome, Edge or Firefox, or stream from OBS.</p>}
+      {!supported && <p className="text-sm text-amber-800">{t("This browser cannot record WebM video. Use Chrome, Edge or Firefox, or stream from OBS.")}</p>}
       {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>}
       <div className="flex flex-wrap items-center gap-2">
         {phase === "off" ? (
-          <Button variant="outline" onClick={camera} disabled={!supported || closed}><Camera size={14} /> Turn camera on</Button>
+          <Button variant="outline" onClick={camera} disabled={!supported || closed}><Camera size={14} /> {t("Turn camera on")}</Button>
         ) : (
-          <Button variant="ghost" onClick={cameraOff} disabled={phase === "sending" || phase === "connecting"}><CameraOff size={14} /> Camera off</Button>
+          <Button variant="ghost" onClick={cameraOff} disabled={phase === "sending" || phase === "connecting"}><CameraOff size={14} /> {t("Camera off")}</Button>
         )}
         {phase === "sending" || phase === "stopping" ? (
-          <Button variant="destructive" onClick={stop} disabled={phase === "stopping"}><Square size={14} /> {phase === "stopping" ? "Stopping…" : "Stop sending"}</Button>
+          <Button variant="destructive" onClick={stop} disabled={phase === "stopping"}><Square size={14} /> {phase === "stopping" ? t("Stopping…") : t("Stop sending")}</Button>
         ) : (
-          <Button onClick={start} disabled={phase !== "camera" || closed}><Radio size={14} /> {phase === "connecting" ? "Connecting…" : "Go live"}</Button>
+          <Button onClick={start} disabled={phase !== "camera" || closed}><Radio size={14} /> {phase === "connecting" ? t("Connecting…") : t("Go live")}</Button>
         )}
-        {sent > 0 && <span className="ml-auto font-num text-xs text-slate-500">{(sent / 1_048_576).toFixed(1)} MB sent</span>}
+        {sent > 0 && <span className="ml-auto font-num text-xs text-slate-500">{t("{n} MB sent", { n: (sent / 1_048_576).toFixed(1) })}</span>}
       </div>
-      <p className="text-xs text-slate-500">Stopping sends nothing more but keeps the stream open. Use End stream to finish it.</p>
+      <p className="text-xs text-slate-500">{t("Stopping sends nothing more but keeps the stream open. Use End stream to finish it.")}</p>
     </Card>
   )
 }

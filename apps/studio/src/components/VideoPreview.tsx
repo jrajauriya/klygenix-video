@@ -1,6 +1,7 @@
 import { useEffect, useRef, type ReactNode } from "react"
 import type Hls from "hls.js"
 import { cn } from "@klygenixvideo/ui"
+import { useT } from "../i18n"
 
 export interface Seek {
   ms: number
@@ -40,6 +41,7 @@ export function VideoPreview({
   onDuration,
   children,
 }: Props) {
+  const t = useT()
   const ref = useRef<HTMLVideoElement>(null)
   const range = useRef<{ start?: number; end?: number }>({})
   const handlers = useRef({ onTime, onDuration })
@@ -128,7 +130,7 @@ export function VideoPreview({
         />
       ) : (
         <div className="absolute inset-0 flex items-center justify-center text-sm text-slate-300">
-          {poster ? <img src={poster} alt="" className="h-full w-full object-contain opacity-70" /> : "No preview yet"}
+          {poster ? <img src={poster} alt="" className="h-full w-full object-contain opacity-70" /> : t("No preview yet")}
         </div>
       )}
       {children}

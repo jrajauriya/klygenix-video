@@ -53,6 +53,8 @@ export interface StudioVideo {
   members_rank?: number | null
   preview_seconds?: number | null
   dubbing_allowed?: boolean
+  made_for_kids?: boolean
+  safety_labels?: string[] | null
 }
 
 export type VideoAccess = "free" | "members" | "paid"
@@ -77,10 +79,12 @@ export interface ThumbnailIdea {
   reason: string
   url: string
   chosen: boolean
+  ai?: boolean
 }
 
 export interface StudioVideoDetail extends StudioVideo {
   thumbnail_custom?: boolean
+  thumbnail_ai?: boolean
   thumbnail_ideas?: ThumbnailIdea[]
   insight: Insight | null
   playback: Playback | null
@@ -237,8 +241,9 @@ export interface MusicTrack {
 export interface PublishTarget {
   id?: number
   platform: "youtube" | "instagram"
-  status: "queued" | "publishing" | "published" | "failed" | string
+  status: "scheduled" | "queued" | "publishing" | "published" | "failed" | "cancelled" | string
   caption?: string
+  scheduled_at?: string | null
   external_id: string | null
   external_url: string | null
   error: string | null
@@ -549,4 +554,52 @@ export interface Dub {
   model: string | null
   error: string | null
   label: string
+}
+
+export interface ChapterRow {
+  start_ms: number
+  title: string
+}
+
+export interface ChaptersOut {
+  chapters: ChapterRow[]
+  version: number
+  history: { version: number; by: "ai" | "creator"; count: number; created_at: string }[]
+}
+
+export interface RepurposePack {
+  id: number
+  language: string
+  blog_post: string
+  x_post: string
+  linkedin_post: string
+  instagram_caption: string
+  newsletter: string
+  citations: { start_ms: number; label: string; text: string }[]
+  model: string
+  created_at: string
+}
+
+export interface CalendarItem {
+  type: "video" | "clip"
+  id: number
+  public_id?: string
+  clip_id?: number
+  kind?: "long" | "reel"
+  title: string
+  at: string | null
+  target: "play" | "youtube" | "instagram" | string
+  status: string
+  error?: string | null
+}
+
+export interface InboxNote {
+  id: number
+  kind: string
+  title: string
+  body: string
+  url: string | null
+  image: string | null
+  read: boolean
+  created_at: string
 }

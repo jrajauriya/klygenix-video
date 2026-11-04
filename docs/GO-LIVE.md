@@ -31,3 +31,11 @@ should only need the keys below. Do one provider at a time on staging first.
 
 **Never** run the sandbox `live` service on the production host, and never set `SANDBOX_ENABLED=true` there — readiness
 refuses both.
+
+## Run 5 providers and hosts
+
+| Provider / host | Switch | Keys | First real check |
+|---|---|---|---|
+| Azure OpenAI images (AI thumbnails) | `IMAGE_PROVIDER=azure` | `IMAGE_API_URL` (…/images/generations?api-version=…), `IMAGE_API_KEY` | Generate AI thumbnails for one video; each batch counts 3 against `ai_images` |
+| US host (V5.4) | a second VPS with `backend/.env.us.example` | its own DB, Redis, Bunny library (US), Lemon Squeezy; `REGION=us`, `REGION_ENFORCE=true`, `REGION_URLS` on **both** hosts | `tests/smoke/region_rehearsal.py --india https://api.play.klygenix.com --us https://api.us.play.klygenix.com` |
+| Invalid-traffic ranges | `ADS_IVT_CIDRS` | data-centre CIDR list (from an IVT vendor when one is chosen) | Admin → Advertising → Invalid traffic shows `datacentre` |

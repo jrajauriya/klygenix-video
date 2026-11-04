@@ -14,6 +14,8 @@ import { useSignupState } from "../lib/beta"
 import { WaitlistForm } from "./Waitlist"
 import { LANG_NAMES } from "../lib/format"
 import { useTitle } from "../lib/title"
+import { useT } from "../i18n"
+import { rich } from "../i18n/rich"
 
 const COUNTRY_NAMES: Record<string, string> = {
   IN: "India", US: "United States", GB: "United Kingdom", AE: "United Arab Emirates", SG: "Singapore",
@@ -26,7 +28,8 @@ function safeReturn(raw: string | null): string {
 }
 
 export function LoginPage() {
-  useTitle("Sign in")
+  const t = useT("auth")
+  useTitle(t("Sign in"))
   const [params] = useSearchParams()
   const navigate = useNavigate()
   const qc = useQueryClient()
@@ -51,55 +54,56 @@ export function LoginPage() {
       const res = (err as { response?: { status?: number; headers?: Record<string, string> } }).response
       if (res?.headers?.["x-totp-required"]) {
         setNeedsCode(true)
-        setError(needsCode ? "That code is not right." : "")
+        setError(needsCode ? t("That code is not right.") : "")
         return
       }
-      setError(errText(err, "Invalid email or password."))
+      setError(errText(err, t("Invalid email or password.")))
     }
   }
 
   return (
     <AuthShell
-      title="Sign in to Klygenix Play"
-      subtitle="Ask videos, send danmaku and pick up where you left off."
+      title={t("Sign in to Klygenix Play")}
+      subtitle={t("Ask videos, send danmaku and pick up where you left off.")}
       footer={
         <>
           {signup?.mode === "closed" ? (
-            <p>New here? <Link to="/waitlist" className="font-semibold text-brand-soft hover:underline">Join the waitlist</Link></p>
+            <p>{t("New here?")} <Link to="/waitlist" className="font-semibold text-brand-soft hover:underline">{t("Join the waitlist")}</Link></p>
           ) : (
-            <p>New here? <Link to={`/signup${back !== "/" ? `?returnUrl=${encodeURIComponent(back)}` : ""}`} className="font-semibold text-brand-soft hover:underline">Create an account</Link></p>
+            <p>{t("New here?")} <Link to={`/signup${back !== "/" ? `?returnUrl=${encodeURIComponent(back)}` : ""}`} className="font-semibold text-brand-soft hover:underline">{t("Create an account")}</Link></p>
           )}
-          {signup?.mode === "invite" && <p className="mt-1 text-xs">No invite code yet? <Link to="/waitlist" className="font-semibold text-brand-soft hover:underline">Join the waitlist</Link></p>}
-          <p className="mt-2 text-xs text-faint">You can watch everything without an account.</p>
+          {signup?.mode === "invite" && <p className="mt-1 text-xs">{t("No invite code yet?")} <Link to="/waitlist" className="font-semibold text-brand-soft hover:underline">{t("Join the waitlist")}</Link></p>}
+          <p className="mt-2 text-xs text-faint">{t("You can watch everything without an account.")}</p>
         </>
       }
     >
       <form onSubmit={submit} className="space-y-4">
-        <Field label="Email">
+        <Field label={t("Email")}>
           <input className={INPUT} type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus />
         </Field>
-        <Field label="Password">
+        <Field label={t("Password")}>
           <div className="relative">
             <input className={`${INPUT} pr-10`} type={show ? "text" : "password"} autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
-            <button type="button" onClick={() => setShow(!show)} aria-label={show ? "Hide password" : "Show password"} className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-faint hover:text-ink">
+            <button type="button" onClick={() => setShow(!show)} aria-label={show ? t("Hide password") : t("Show password")} className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-faint hover:text-ink">
               {show ? <EyeOff size={16} /> : <Eye size={16} />}
             </button>
           </div>
         </Field>
         {needsCode && (
-          <Field label="Code from your authenticator app">
+          <Field label={t("Code from your authenticator app")}>
             <input className={INPUT} inputMode="numeric" autoComplete="one-time-code" value={code} onChange={(e) => setCode(e.target.value)} required />
           </Field>
         )}
         {error && <ErrorNote>{error}</ErrorNote>}
-        <Btn type="submit" tone="brand" size="lg" className="w-full" disabled={login.isPending}>{login.isPending ? "Signing in…" : "Sign in"}</Btn>
+        <Btn type="submit" tone="brand" size="lg" className="w-full" disabled={login.isPending}>{login.isPending ? t("Signing in…") : t("Sign in")}</Btn>
       </form>
     </AuthShell>
   )
 }
 
 export function SignupPage() {
-  useTitle("Create account")
+  const t = useT("auth")
+  useTitle(t("Create account"))
   const [params] = useSearchParams()
   const navigate = useNavigate()
   const qc = useQueryClient()
@@ -121,14 +125,14 @@ export function SignupPage() {
   useEffect(() => {
     if (!showInvite || code.length < 4) return
     let live = true
-    const t = window.setTimeout(() => {
+    const timer = window.setTimeout(() => {
       api.post<{ valid: boolean; role: string | null }>("/api/video/invites/check", { code })
         .then((r) => live && setCheck({ code, ...r.data }))
         .catch(() => undefined)
     }, 500)
     return () => {
       live = false
-      window.clearTimeout(t)
+      window.clearTimeout(timer)
     }
   }, [code, showInvite])
 
@@ -136,10 +140,10 @@ export function SignupPage() {
   const inviteNote = !checked || code.length < 4
     ? null
     : !checked.valid
-      ? { ok: false, text: "That invite code is not valid, used up or expired." }
+      ? { ok: false, text: t("That invite code is not valid, used up or expired.") }
       : needCreatorCode && checked.role !== "creator"
-        ? { ok: false, text: "This is a viewer invite. Opening a channel needs a creator invite code." }
-        : { ok: true, text: checked.role === "creator" ? "Creator invite code accepted." : "Invite code accepted." }
+        ? { ok: false, text: t("This is a viewer invite. Opening a channel needs a creator invite code.") }
+        : { ok: true, text: checked.role === "creator" ? t("Creator invite code accepted.") : t("Invite code accepted.") }
 
   function set<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((f) => {
@@ -155,7 +159,7 @@ export function SignupPage() {
     const age = ageOn(form.birthDate)
     const needed = minimumAge(form.country)
     if (age === null || age < needed) {
-      setError(`You need to be at least ${needed} to open an account in this country. You can still watch without one.`)
+      setError(t("You need to be at least {age} to open an account in this country. You can still watch without one.", { age: needed }))
       return
     }
     setPending(true)
@@ -175,7 +179,7 @@ export function SignupPage() {
       qc.clear()
       navigate(back, { replace: true })
     } catch (err) {
-      setError(errStatus(err) === 403 ? errText(err, "Sign-up needs an invite code right now.") : errText(err, "That account could not be created."))
+      setError(errStatus(err) === 403 ? errText(err, t("Sign-up needs an invite code right now.")) : errText(err, t("That account could not be created.")))
     } finally {
       setPending(false)
     }
@@ -184,9 +188,9 @@ export function SignupPage() {
   if (state?.mode === "closed") {
     return (
       <AuthShell
-        title="Sign-ups are closed for now"
-        subtitle="Klygenix Play isn't taking new accounts right now. Join the waitlist and we'll invite you when there's room."
-        footer={<Link to="/" className="font-semibold text-brand-soft hover:underline">Keep watching without an account</Link>}
+        title={t("Sign-ups are closed for now")}
+        subtitle={t("Klygenix Play isn't taking new accounts right now. Join the waitlist and we'll invite you when there's room.")}
+        footer={<Link to="/" className="font-semibold text-brand-soft hover:underline">{t("Keep watching without an account")}</Link>}
       >
         <WaitlistForm defaultRole={params.get("role")} />
       </AuthShell>
@@ -195,63 +199,63 @@ export function SignupPage() {
 
   return (
     <AuthShell
-      title="Create your Klygenix Play account"
-      subtitle="Free. Ask videos, follow channels, send danmaku."
-      footer={<p>Already have an account? <Link to={`/login${back !== "/" ? `?returnUrl=${encodeURIComponent(back)}` : ""}`} className="font-semibold text-brand-soft hover:underline">Sign in</Link></p>}
+      title={t("Create your Klygenix Play account")}
+      subtitle={t("Free. Ask videos, follow channels, send danmaku.")}
+      footer={<p>{t("Already have an account?")} <Link to={`/login${back !== "/" ? `?returnUrl=${encodeURIComponent(back)}` : ""}`} className="font-semibold text-brand-soft hover:underline">{t("Sign in")}</Link></p>}
     >
       <form onSubmit={submit} className="space-y-4">
-        <Field label="Your name">
+        <Field label={t("Your name")}>
           <input className={INPUT} value={form.name} onChange={(e) => set("name", e.target.value)} required autoComplete="name" maxLength={80} />
         </Field>
-        <Field label="Email">
+        <Field label={t("Email")}>
           <input className={INPUT} type="email" value={form.email} onChange={(e) => set("email", e.target.value)} required autoComplete="email" />
         </Field>
-        <Field label="Password" hint="8 or more characters">
+        <Field label={t("Password")} hint={t("8 or more characters")}>
           <input className={INPUT} type="password" value={form.password} onChange={(e) => set("password", e.target.value)} required minLength={8} autoComplete="new-password" />
         </Field>
-        <Field label="Date of birth">
+        <Field label={t("Date of birth")}>
           <input className={INPUT} type="date" value={form.birthDate} max={today} onChange={(e) => set("birthDate", e.target.value)} required autoComplete="bday" />
         </Field>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field label="Country">
+          <Field label={t("Country")}>
             <select className={INPUT} value={form.country} onChange={(e) => set("country", e.target.value)}>
-              {PLAY_COUNTRIES.map((c) => <option key={c} value={c}>{COUNTRY_NAMES[c]}</option>)}
+              {PLAY_COUNTRIES.map((c) => <option key={c} value={c}>{t(COUNTRY_NAMES[c])}</option>)}
             </select>
           </Field>
-          <Field label="Language">
+          <Field label={t("Language")}>
             <select className={INPUT} value={form.language} onChange={(e) => set("language", e.target.value)}>
               {PLAY_LANGUAGES.map((l) => <option key={l} value={l}>{LANG_NAMES[l]}</option>)}
             </select>
           </Field>
         </div>
-        <p className="rounded-xl bg-white/[0.04] px-3 py-2 text-xs text-muted">18+ in India (16+ in Germany), 13+ elsewhere. You can still watch without an account.</p>
+        <p className="rounded-xl bg-white/[0.04] px-3 py-2 text-xs text-muted">{t("18+ in India (16+ in Germany), 13+ elsewhere. You can still watch without an account.")}</p>
         {creatorMode === "closed" ? (
           <div className="rounded-xl border border-line p-3">
-            <p className="text-sm font-semibold">Creator channels open soon</p>
-            <p className="mt-0.5 text-xs text-muted">New channels aren't open yet. <Link to="/waitlist?role=creator" className="font-semibold text-brand-soft hover:underline">Join the waitlist as a creator</Link> and we'll invite you.</p>
+            <p className="text-sm font-semibold">{t("Creator channels open soon")}</p>
+            <p className="mt-0.5 text-xs text-muted">{rich(t("New channels aren't open yet. {link} and we'll invite you."), { link: <Link to="/waitlist?role=creator" className="font-semibold text-brand-soft hover:underline">{t("Join the waitlist as a creator")}</Link> })}</p>
           </div>
         ) : (
           <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-line p-3 hover:border-brand/50">
             <input type="checkbox" checked={form.creator} onChange={(e) => set("creator", e.target.checked)} className="mt-0.5 h-4 w-4 accent-[#A21CAF]" />
             <span>
-              <span className="block text-sm font-semibold">Open a creator channel</span>
+              <span className="block text-sm font-semibold">{t("Open a creator channel")}</span>
               <span className="block text-xs text-muted">
-                Upload videos and reels under your own handle. You can also do this later in Studio.
-                {creatorMode === "invite" && " Opening a channel needs a creator invite code for now."}
+                {t("Upload videos and reels under your own handle. You can also do this later in Studio.")}
+                {creatorMode === "invite" && ` ${t("Opening a channel needs a creator invite code for now.")}`}
               </span>
             </span>
           </label>
         )}
         {form.creator && (
           <div className="space-y-4 rounded-xl border border-brand/30 bg-brand/[0.06] p-3">
-            <Field label="Channel handle" hint="3 to 40 letters, numbers or hyphens">
+            <Field label={t("Channel handle")} hint={t("3 to 40 letters, numbers or hyphens")}>
               <div className="flex items-center gap-1.5">
                 <span className="text-sm text-muted">@</span>
                 <input
                   className={INPUT}
                   value={form.handle}
                   pattern={HANDLE_PATTERN}
-                  title="3 to 40 letters, numbers or hyphens"
+                  title={t("3 to 40 letters, numbers or hyphens")}
                   onChange={(e) => {
                     setHandleTouched(true)
                     set("handle", e.target.value)
@@ -260,14 +264,14 @@ export function SignupPage() {
                 />
               </div>
             </Field>
-            <Field label="Channel name">
-              <input className={INPUT} value={form.channelName} placeholder={form.name || "Your channel"} onChange={(e) => set("channelName", e.target.value)} maxLength={80} />
+            <Field label={t("Channel name")}>
+              <input className={INPUT} value={form.channelName} placeholder={form.name || t("Your channel")} onChange={(e) => set("channelName", e.target.value)} maxLength={80} />
             </Field>
           </div>
         )}
         {showInvite && (
           <div className="space-y-1.5">
-            <Field label={needCreatorCode ? "Creator invite code" : "Invite code"} hint={inviteMode || needCreatorCode ? undefined : "Optional"}>
+            <Field label={needCreatorCode ? t("Creator invite code") : t("Invite code")} hint={inviteMode || needCreatorCode ? undefined : t("Optional")}>
               <input
                 className={`${INPUT} font-mono uppercase tracking-wider`}
                 value={form.invite}
@@ -282,17 +286,21 @@ export function SignupPage() {
               />
             </Field>
             <p id="invite-note" aria-live="polite" className={`text-xs ${inviteNote ? (inviteNote.ok ? "text-[#4ade80]" : "text-[#fca5a5]") : "text-faint"}`}>
-              {inviteNote?.text ?? (inviteMode ? "Klygenix Play is invite-only for now." : "")}
+              {inviteNote?.text ?? (inviteMode ? t("Klygenix Play is invite-only for now.") : "")}
             </p>
             {(inviteMode || needCreatorCode) && (
-              <p className="text-xs text-muted">No code? <Link to={`/waitlist${needCreatorCode ? "?role=creator" : ""}`} className="font-semibold text-brand-soft hover:underline">Join the waitlist</Link></p>
+              <p className="text-xs text-muted">{t("No code?")} <Link to={`/waitlist${needCreatorCode ? "?role=creator" : ""}`} className="font-semibold text-brand-soft hover:underline">{t("Join the waitlist")}</Link></p>
             )}
           </div>
         )}
         {error && <ErrorNote>{error}</ErrorNote>}
-        <Btn type="submit" tone="brand" size="lg" className="w-full" disabled={pending}>{pending ? "Creating…" : "Create account"}</Btn>
+        <Btn type="submit" tone="brand" size="lg" className="w-full" disabled={pending}>{pending ? t("Creating…") : t("Create account")}</Btn>
         <p className="text-center text-[11px] leading-relaxed text-faint">
-          By creating an account you agree to the <Link to="/legal/terms" className="underline hover:text-ink">Terms</Link>, <Link to="/legal/privacy" className="underline hover:text-ink">Privacy notice</Link> and <Link to="/legal/guidelines" className="underline hover:text-ink">Community guidelines</Link>.
+          {rich(t("By creating an account you agree to the {terms}, {privacy} and {guidelines}."), {
+            terms: <Link to="/legal/terms" className="underline hover:text-ink">{t("Terms")}</Link>,
+            privacy: <Link to="/legal/privacy" className="underline hover:text-ink">{t("Privacy notice")}</Link>,
+            guidelines: <Link to="/legal/guidelines" className="underline hover:text-ink">{t("Community guidelines")}</Link>,
+          })}
         </p>
       </form>
     </AuthShell>

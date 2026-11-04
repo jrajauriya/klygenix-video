@@ -1,5 +1,6 @@
 import * as tus from "tus-js-client"
 import type { UploadTicket } from "./types"
+import { tr } from "../i18n"
 
 export interface Transfer {
   done: Promise<void>
@@ -26,8 +27,8 @@ function viaPut(file: File, ticket: UploadTicket, onProgress: (fraction: number)
         reject(new Error(uploadError(xhr)))
       }
     }
-    xhr.onerror = () => reject(new Error("The upload stopped. Check your connection and try again."))
-    xhr.onabort = () => reject(new Error("Upload cancelled"))
+    xhr.onerror = () => reject(new Error(tr("The upload stopped. Check your connection and try again.")))
+    xhr.onabort = () => reject(new Error(tr("Upload cancelled")))
     xhr.send(file)
   })
   return { done, abort: () => xhr.abort() }
@@ -38,9 +39,9 @@ function uploadError(xhr: XMLHttpRequest): string {
     const body = JSON.parse(xhr.responseText)
     if (typeof body?.detail === "string") return body.detail
   } catch {
-    return `The upload was refused (${xhr.status}).`
+    return tr("The upload was refused ({status}).", { status: xhr.status })
   }
-  return `The upload was refused (${xhr.status}).`
+  return tr("The upload was refused ({status}).", { status: xhr.status })
 }
 
 function viaTus(file: File, ticket: UploadTicket, onProgress: (fraction: number) => void): Transfer {

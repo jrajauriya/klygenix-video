@@ -4,7 +4,7 @@ import type { CaptionTrack, Chapter, DubTrack } from "./types"
 import { ChapterBar } from "./ChapterBar"
 import { activeChapter, cx, formatClock } from "./format"
 import {
-  BackIcon, CaptionsIcon, CheckIcon, ChevronIcon, ExpandIcon, ForwardIcon, MuteIcon, PauseIcon, PlayIcon,
+  BackIcon, CaptionsIcon, CheckIcon, ChevronIcon, ExpandIcon, ForwardIcon, MuteIcon, PauseIcon, PipIcon, PlayIcon,
   SettingsIcon, ShrinkIcon, SpinnerIcon, VolumeIcon,
 } from "./icons"
 
@@ -39,6 +39,7 @@ export interface HlsPlayerProps {
   className?: string
   videoRef?: RefObject<HTMLVideoElement | null>
   children?: ReactNode
+  t?: (text: string) => string
 }
 
 interface Level {
@@ -50,6 +51,12 @@ interface Level {
 type Menu = null | "root" | "quality" | "speed" | "captions" | "audio"
 
 const DRIFT = 0.3
+
+const same = (text: string) => text
+
+function pipSupported(): boolean {
+  return typeof document !== "undefined" && "pictureInPictureEnabled" in document && document.pictureInPictureEnabled
+}
 
 function editable(target: EventTarget | null): boolean {
   const el = target as HTMLElement | null
@@ -67,7 +74,7 @@ function useLatest<T>(value: T) {
 export function HlsPlayer({
   src, poster, startMs, autoPlay = false, muted: mutedProp = false, loop = false, controls = true, captions,
   captionLang: captionProp, chapters, dubs, hotkeys = true, hold = false, live = false, fit = "contain", onTime, onEnded, onPlay, onPause,
-  onDanmakuToggle, onCaptionChange, onMutedChange, onError, className, videoRef, children,
+  onDanmakuToggle, onCaptionChange, onMutedChange, onError, className, videoRef, children, t = same,
 }: HlsPlayerProps) {
   const video = useRef<HTMLVideoElement>(null)
   const box = useRef<HTMLDivElement>(null)
@@ -95,6 +102,8 @@ export function HlsPlayer({
   const [failed, setFailed] = useState(false)
   const [dubLang, setDubLang] = useState<string | null>(null)
   const [behind, setBehind] = useState(false)
+  const [pip, setPip] = useState(false)
+  const [canPip] = useState(pipSupported)
   const audio = useRef<HTMLAudioElement>(null)
   const dub = dubs?.find((d) => d.language === dubLang) ?? null
   const dubRef = useLatest(dub)
@@ -412,6 +421,26 @@ export function HlsPlayer({
     }
   }, [])
 
+  useEffect(() => {
+    const v = video.current
+    if (!v || !canPip) return
+    const on = () => setPip(true)
+    const off = () => setPip(false)
+    v.addEventListener("enterpictureinpicture", on)
+    v.addEventListener("leavepictureinpicture", off)
+    return () => {
+      v.removeEventListener("enterpictureinpicture", on)
+      v.removeEventListener("leavepictureinpicture", off)
+    }
+  }, [canPip])
+
+  const togglePip = useCallback(() => {
+    const v = video.current
+    if (!v || !canPip) return
+    if (document.pictureInPictureElement) document.exitPictureInPicture().catch(() => undefined)
+    else v.requestPictureInPicture().catch(() => undefined)
+  }, [canPip])
+
   const chooseCaption = useCallback((lang: string | null) => {
     if (lang) lastCaption.current = lang
     setCaptionLang(lang)
@@ -449,6 +478,7 @@ export function HlsPlayer({
       else if (key === "arrowleft" && !onButton && !live) nudge(-5_000)
       else if (key === "arrowright" && !onButton && !live) nudge(5_000)
       else if (key === "f") toggleFullscreen()
+      else if (key === "i" && canPip) togglePip()
       else if (key === "m") toggleMute()
       else if (key === "c") toggleCaptions()
       else if (key === "d") toggleDanmaku()
@@ -458,7 +488,7 @@ export function HlsPlayer({
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [hotkeys, controls, live, toggle, nudge, toggleFullscreen, toggleMute, toggleCaptions, toggleDanmaku, wake])
+  }, [hotkeys, controls, live, toggle, nudge, toggleFullscreen, toggleMute, toggleCaptions, toggleDanmaku, wake, canPip, togglePip])
 
   function chooseLevel(index: number) {
     setLevel(index)
@@ -484,9 +514,9 @@ export function HlsPlayer({
   const showChrome = controls && (!playing || active || menu !== null)
   const chapter = activeChapter(chapters, current)
   const qualityLabel = level === -1
-    ? `Auto${actualLevel >= 0 && levels[actualLevel] ? ` (${levels[actualLevel].height}p)` : ""}`
+    ? `${t("Auto")}${actualLevel >= 0 && levels[actualLevel] ? ` (${levels[actualLevel].height}p)` : ""}`
     : `${levels[level]?.height ?? ""}p`
-  const captionLabel = captions?.find((c) => c.lang === captionLang)?.label ?? "Off"
+  const captionLabel = captions?.find((c) => c.lang === captionLang)?.label ?? t("Off")
 
   return (
     <div
@@ -595,14 +625,14 @@ export function HlsPlayer({
 
       {failed && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/70 p-6 text-center text-sm text-white/80">
-          This video could not be played. Check your connection and try again.
+          {t("This video could not be played. Check your connection and try again.")}
         </div>
       )}
 
       {controls && !started && !playing && !failed && (
         <button
           type="button"
-          aria-label="Play"
+          aria-label={t("Play")}
           onClick={toggle}
           className="absolute left-1/2 top-1/2 flex h-16 w-16 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-[#A21CAF]/90 text-white shadow-lg ring-4 ring-white/10 transition hover:bg-[#C026D3]"
         >
@@ -617,20 +647,20 @@ export function HlsPlayer({
             showChrome ? "opacity-100" : "pointer-events-none opacity-0",
           )}
         >
-          {!live && <ChapterBar durationMs={duration} currentMs={current} bufferedMs={buffered} chapters={chapters} onSeek={seek} />}
+          {!live && <ChapterBar durationMs={duration} currentMs={current} bufferedMs={buffered} chapters={chapters} onSeek={seek} label={t("Seek")} />}
           <div className="flex items-center gap-0.5 sm:gap-1">
-            <CtlButton label={playing ? "Pause (k)" : "Play (k)"} onClick={toggle}>{playing ? <PauseIcon /> : <PlayIcon />}</CtlButton>
-            {!live && <CtlButton label="Back 10 seconds (j)" onClick={() => nudge(-10_000)}><BackIcon /></CtlButton>}
-            {!live && <CtlButton label="Forward 10 seconds (l)" onClick={() => nudge(10_000)}><ForwardIcon /></CtlButton>}
+            <CtlButton label={playing ? t("Pause (k)") : t("Play (k)")} onClick={toggle}>{playing ? <PauseIcon /> : <PlayIcon />}</CtlButton>
+            {!live && <CtlButton label={t("Back 10 seconds (j)")} onClick={() => nudge(-10_000)}><BackIcon /></CtlButton>}
+            {!live && <CtlButton label={t("Forward 10 seconds (l)")} onClick={() => nudge(10_000)}><ForwardIcon /></CtlButton>}
             <div className="group/vol flex items-center">
-              <CtlButton label={muted ? "Unmute (m)" : "Mute (m)"} onClick={toggleMute}>{muted || volume === 0 ? <MuteIcon /> : <VolumeIcon />}</CtlButton>
+              <CtlButton label={muted ? t("Unmute (m)") : t("Mute (m)")} onClick={toggleMute}>{muted || volume === 0 ? <MuteIcon /> : <VolumeIcon />}</CtlButton>
               <input
                 type="range"
                 min={0}
                 max={1}
                 step={0.05}
                 value={muted ? 0 : volume}
-                aria-label="Volume"
+                aria-label={t("Volume")}
                 onChange={(e) => {
                   const v = sink()
                   if (!v) return
@@ -645,11 +675,11 @@ export function HlsPlayer({
                 type="button"
                 onClick={goLive}
                 onPointerUp={(e) => e.stopPropagation()}
-                title={behind ? "Jump to live" : "You are watching live"}
+                title={behind ? t("Jump to live") : t("You are watching live")}
                 className="ml-1 inline-flex h-7 items-center gap-1.5 rounded-full px-2 text-xs font-bold uppercase tracking-wide text-white hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E879F9]"
               >
                 <span className={cx("h-2 w-2 rounded-full", behind ? "bg-white/50" : "bg-[#ef4444]")} />
-                {behind ? "Go live" : "Live"}
+                {behind ? t("Go live") : t("Live")}
               </button>
             ) : (
               <span className="ml-1 whitespace-nowrap text-xs tabular-nums text-white/90 sm:text-[13px]">
@@ -662,7 +692,7 @@ export function HlsPlayer({
             <div className="flex-1" />
             {rate !== 1 && !live && <span className="mr-1 rounded bg-white/15 px-1.5 text-[11px] font-semibold">{rate}x</span>}
             {!!captions?.length && (
-              <CtlButton label="Subtitles (c)" onClick={toggleCaptions} pressed={!!captionLang}>
+              <CtlButton label={t("Subtitles (c)")} onClick={toggleCaptions} pressed={!!captionLang}>
                 <span className={cx("relative", captionLang && "text-[#F0ABFC]")}>
                   <CaptionsIcon />
                   {captionLang && <span className="absolute -bottom-1 left-1 right-1 h-0.5 rounded bg-[#E879F9]" />}
@@ -670,7 +700,7 @@ export function HlsPlayer({
               </CtlButton>
             )}
             <div className="relative">
-              <CtlButton label="Settings" onClick={() => setMenu(menu ? null : "root")} pressed={menu !== null}><SettingsIcon /></CtlButton>
+              <CtlButton label={t("Settings")} onClick={() => setMenu(menu ? null : "root")} pressed={menu !== null}><SettingsIcon /></CtlButton>
               {menu && (
                 <div
                   role="menu"
@@ -679,16 +709,16 @@ export function HlsPlayer({
                 >
                   {menu === "root" && (
                     <>
-                      {levels.length > 0 && <MenuRow label="Quality" value={qualityLabel} onClick={() => setMenu("quality")} />}
-                      {!live && <MenuRow label="Speed" value={rate === 1 ? "Normal" : `${rate}x`} onClick={() => setMenu("speed")} />}
-                      {!!captions?.length && <MenuRow label="Subtitles" value={captionLabel} onClick={() => setMenu("captions")} />}
-                      {!!dubs?.length && <MenuRow label="Audio" value={dub ? `${dub.name} (${dub.label})` : "Original"} onClick={() => setMenu("audio")} />}
+                      {levels.length > 0 && <MenuRow label={t("Quality")} value={qualityLabel} onClick={() => setMenu("quality")} />}
+                      {!live && <MenuRow label={t("Speed")} value={rate === 1 ? t("Normal") : `${rate}x`} onClick={() => setMenu("speed")} />}
+                      {!!captions?.length && <MenuRow label={t("Subtitles")} value={captionLabel} onClick={() => setMenu("captions")} />}
+                      {!!dubs?.length && <MenuRow label={t("Audio")} value={dub ? `${dub.name} (${dub.label})` : t("Original")} onClick={() => setMenu("audio")} />}
                     </>
                   )}
                   {menu === "quality" && (
                     <>
-                      <MenuBack label="Quality" onClick={() => setMenu("root")} />
-                      <MenuOption label="Auto" on={level === -1} onClick={() => { chooseLevel(-1); setMenu(null) }} />
+                      <MenuBack label={t("Quality")} onClick={() => setMenu("root")} />
+                      <MenuOption label={t("Auto")} on={level === -1} onClick={() => { chooseLevel(-1); setMenu(null) }} />
                       {[...levels].sort((a, b) => b.height - a.height).map((l) => (
                         <MenuOption key={l.index} label={`${l.height}p`} on={level === l.index} onClick={() => { chooseLevel(l.index); setMenu(null) }} />
                       ))}
@@ -696,16 +726,16 @@ export function HlsPlayer({
                   )}
                   {menu === "speed" && (
                     <>
-                      <MenuBack label="Speed" onClick={() => setMenu("root")} />
+                      <MenuBack label={t("Speed")} onClick={() => setMenu("root")} />
                       {SPEEDS.map((s) => (
-                        <MenuOption key={s} label={s === 1 ? "Normal" : `${s}x`} on={rate === s} onClick={() => { chooseRate(s); setMenu(null) }} />
+                        <MenuOption key={s} label={s === 1 ? t("Normal") : `${s}x`} on={rate === s} onClick={() => { chooseRate(s); setMenu(null) }} />
                       ))}
                     </>
                   )}
                   {menu === "audio" && (
                     <>
-                      <MenuBack label="Audio" onClick={() => setMenu("root")} />
-                      <MenuOption label="Original" on={!dub} onClick={() => { setDubLang(null); setMenu(null) }} />
+                      <MenuBack label={t("Audio")} onClick={() => setMenu("root")} />
+                      <MenuOption label={t("Original")} on={!dub} onClick={() => { setDubLang(null); setMenu(null) }} />
                       {dubs?.map((d) => (
                         <MenuOption key={d.language} label={`${d.name} (${d.label})`} on={dubLang === d.language} onClick={() => { setDubLang(d.language); setMenu(null) }} />
                       ))}
@@ -713,8 +743,8 @@ export function HlsPlayer({
                   )}
                   {menu === "captions" && (
                     <>
-                      <MenuBack label="Subtitles" onClick={() => setMenu("root")} />
-                      <MenuOption label="Off" on={!captionLang} onClick={() => { chooseCaption(null); setMenu(null) }} />
+                      <MenuBack label={t("Subtitles")} onClick={() => setMenu("root")} />
+                      <MenuOption label={t("Off")} on={!captionLang} onClick={() => { chooseCaption(null); setMenu(null) }} />
                       {captions?.map((c) => (
                         <MenuOption key={c.lang} label={c.label} on={captionLang === c.lang} onClick={() => { chooseCaption(c.lang); setMenu(null) }} />
                       ))}
@@ -723,7 +753,10 @@ export function HlsPlayer({
                 </div>
               )}
             </div>
-            <CtlButton label={fullscreen ? "Exit full screen (f)" : "Full screen (f)"} onClick={toggleFullscreen}>
+            {canPip && (
+              <CtlButton label={pip ? t("Exit picture-in-picture (i)") : t("Picture-in-picture (i)")} onClick={togglePip} pressed={pip}><PipIcon /></CtlButton>
+            )}
+            <CtlButton label={fullscreen ? t("Exit full screen (f)") : t("Full screen (f)")} onClick={toggleFullscreen}>
               {fullscreen ? <ShrinkIcon /> : <ExpandIcon />}
             </CtlButton>
           </div>

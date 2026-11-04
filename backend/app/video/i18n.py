@@ -5,12 +5,12 @@ from datetime import datetime
 from fastapi import HTTPException
 from app.core.messages import err
 
-SUPPORTED = ("en", "hi", "mr", "bn", "ta", "te")
+SUPPORTED = ("en", "hi", "mr", "bn", "ta", "te", "gu", "kn", "ml", "pa", "or")
 DEFAULT = "en"
-NAMES = {"en": "English", "hi": "हिन्दी", "mr": "मराठी", "bn": "বাংলা", "ta": "தமிழ்", "te": "తెలుగు"}
-ENGLISH_NAMES = {"en": "English", "hi": "Hindi", "mr": "Marathi", "bn": "Bengali", "ta": "Tamil", "te": "Telugu"}
-LOCALES = {"en": "en-IN", "hi": "hi-IN", "mr": "mr-IN", "bn": "bn-IN", "ta": "ta-IN", "te": "te-IN"}
-SCRIPTS = {"en": "Latin", "hi": "Devanagari", "mr": "Devanagari", "bn": "Bengali", "ta": "Tamil", "te": "Telugu"}
+NAMES = {"en": "English", "hi": "हिन्दी", "mr": "मराठी", "bn": "বাংলা", "ta": "தமிழ்", "te": "తెలుగు", "gu": "ગુજરાતી", "kn": "ಕನ್ನಡ", "ml": "മലയാളം", "pa": "ਪੰਜਾਬੀ", "or": "ଓଡ଼ିଆ"}
+ENGLISH_NAMES = {"en": "English", "hi": "Hindi", "mr": "Marathi", "bn": "Bengali", "ta": "Tamil", "te": "Telugu", "gu": "Gujarati", "kn": "Kannada", "ml": "Malayalam", "pa": "Punjabi", "or": "Odia"}
+LOCALES = {"en": "en-IN", "hi": "hi-IN", "mr": "mr-IN", "bn": "bn-IN", "ta": "ta-IN", "te": "te-IN", "gu": "gu-IN", "kn": "kn-IN", "ml": "ml-IN", "pa": "pa-IN", "or": "or-IN"}
+SCRIPTS = {"en": "Latin", "hi": "Devanagari", "mr": "Devanagari", "bn": "Bengali", "ta": "Tamil", "te": "Telugu", "gu": "Gujarati", "kn": "Kannada", "ml": "Malayalam", "pa": "Gurmukhi", "or": "Odia"}
 MONTHS = {
     "hi": ("जनवरी", "फ़रवरी", "मार्च", "अप्रैल", "मई", "जून", "जुलाई", "अगस्त", "सितंबर", "अक्टूबर", "नवंबर", "दिसंबर"),
     "mr": ("जानेवारी", "फेब्रुवारी", "मार्च", "एप्रिल", "मे", "जून", "जुलै", "ऑगस्ट", "सप्टेंबर", "ऑक्टोबर", "नोव्हेंबर", "डिसेंबर"),

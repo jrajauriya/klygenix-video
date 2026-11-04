@@ -1,18 +1,31 @@
 import { useState } from "react"
 import { Link } from "react-router-dom"
-import { Clapperboard, Crown, Lock, Play } from "lucide-react"
+import { Clapperboard, Crown, Handshake, Lock, Play } from "lucide-react"
 import { cn } from "@klygenixvideo/ui"
-import type { VideoCard } from "../lib/types"
+import type { PaidPartnership, VideoCard } from "../lib/types"
+import { useT } from "../i18n"
 import { compactNumber, rupees, timeAgo, views } from "../lib/format"
 import { AiBadge, ChannelAvatar, ChannelName } from "./bits"
 
+export function PaidPartnershipChip({ partnership, className }: { partnership: PaidPartnership | null | undefined; className?: string }) {
+  const t = useT()
+  if (!partnership) return null
+  return (
+    <span title={partnership.label || t("Paid partnership with {brand}", { brand: partnership.brand })} className={cn("inline-flex items-center gap-1 rounded-md bg-black/75 px-1.5 py-0.5 text-[11px] font-semibold text-white ring-1 ring-white/20", className)}>
+      <Handshake size={11} aria-hidden="true" />
+      {t("Paid partnership")}
+    </span>
+  )
+}
+
 export function AccessBadge({ video, className }: { video: Pick<VideoCard, "access" | "price_minor">; className?: string }) {
+  const t = useT()
   if (!video.access || video.access === "free") return null
   const members = video.access === "members"
   return (
     <span className={cn("inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-bold", members ? "bg-[#FACC15] text-black" : "bg-snow text-black", className)}>
       {members ? <Crown size={11} aria-hidden="true" /> : <Lock size={11} aria-hidden="true" />}
-      {members ? "Members" : video.price_minor ? rupees(video.price_minor) : "Paid"}
+      {members ? t("Members") : video.price_minor ? rupees(video.price_minor) : t("Paid")}
     </span>
   )
 }
@@ -49,6 +62,7 @@ export function Thumb({ video, className, progress, rounded = "rounded-xl", prio
 }
 
 export function VideoGridCard({ video, to, progress, priority }: { video: VideoCard; to?: string; progress?: number; priority?: boolean }) {
+  useT()
   const href = to ?? `/watch/${video.id}`
   return (
     <article className="group min-w-0">
@@ -73,6 +87,7 @@ export function VideoGridCard({ video, to, progress, priority }: { video: VideoC
             {video.published_at && <span aria-hidden="true">·</span>}
             {video.published_at && <span>{timeAgo(video.published_at)}</span>}
             {video.ai_generated && <AiBadge className="ml-0.5" />}
+            <PaidPartnershipChip partnership={video.paid_partnership} className="ml-0.5" />
           </div>
         </div>
       </div>
@@ -81,6 +96,7 @@ export function VideoGridCard({ video, to, progress, priority }: { video: VideoC
 }
 
 export function VideoRowCard({ video, to, snippet, compact = false }: { video: VideoCard; to?: string; snippet?: React.ReactNode; compact?: boolean }) {
+  useT()
   const href = to ?? `/watch/${video.id}`
   return (
     <article className="group flex min-w-0 gap-3">
@@ -98,7 +114,12 @@ export function VideoRowCard({ video, to, snippet, compact = false }: { video: V
           {!compact && video.published_at && <span aria-hidden="true">·</span>}
           {!compact && video.published_at && <span>{timeAgo(video.published_at)}</span>}
         </div>
-        {video.ai_generated && <AiBadge className="mt-1.5" />}
+        {(video.ai_generated || video.paid_partnership) && (
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
+            {video.ai_generated && <AiBadge />}
+            <PaidPartnershipChip partnership={video.paid_partnership} />
+          </div>
+        )}
         {snippet && <div className="mt-2">{snippet}</div>}
       </div>
     </article>
@@ -118,7 +139,10 @@ export function ReelTile({ video }: { video: VideoCard }) {
             {compactNumber(video.views)}
           </p>
         </div>
-        {video.ai_generated && <AiBadge className="absolute left-2 top-2" />}
+        <div className="absolute left-2 top-2 flex flex-col items-start gap-1">
+          {video.ai_generated && <AiBadge />}
+          <PaidPartnershipChip partnership={video.paid_partnership} />
+        </div>
         <AccessBadge video={video} className="absolute right-2 top-2" />
       </div>
     </Link>

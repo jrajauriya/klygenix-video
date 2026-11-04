@@ -13,6 +13,7 @@ from app.core.messages import err
 from app.video.commerce import access, quotas
 from app.video.models.ai import AskMessage, Segment, Transcript
 from app.video.models.media import CaptionTrack, Video
+from app.video.services.translit import roman
 from app.video.models.social import Channel
 from app.video.present import video_card
 from app.video.routers import limits
@@ -148,6 +149,18 @@ def search(request: Request, response: Response, q: str = Query(min_length=2, ma
     published = (Video.status == "published") & (Video.visibility == "public") & Video.is_deleted.is_(False)
     title_rows = db.execute(select(Video.id, func.ts_rank(Video.search, tsq).label("r")).where(
         published, Video.search.op("@@")(tsq)).order_by(text("r DESC"), Video.id.desc()).limit(200)).all()
+    rq = roman(q)
+    rtsq = func.websearch_to_tsquery("simple", rq)
+    seg_roman = []
+    if rq:
+        title_rows += db.execute(select(Video.id, func.ts_rank(Video.search_roman, rtsq).label("r")).where(
+            published, Video.search_roman.op("@@")(rtsq)).order_by(text("r DESC"), Video.id.desc()).limit(200)).all()
+        seg_roman = db.execute(select(Segment.video_id, Segment.start_ms, Segment.text, Segment.roman,
+                                      func.ts_rank(Segment.search_roman, rtsq).label("r"))
+                               .join(Video, Video.id == Segment.video_id).join(Transcript, Transcript.id == Segment.transcript_id)
+                               .where(published, Video.access == "free", Transcript.is_current.is_(True),
+                                      Segment.search_roman.op("@@")(rtsq))
+                               .order_by(text("r DESC"), Segment.video_id.desc()).limit(200)).all()
     seg_text = db.execute(select(Segment.video_id, Segment.start_ms, Segment.text, func.ts_rank(Segment.search, tsq).label("r"))
                           .join(Video, Video.id == Segment.video_id).join(Transcript, Transcript.id == Segment.transcript_id)
                           .where(published, Video.access == "free", Transcript.is_current.is_(True), Segment.search.op("@@")(tsq))
@@ -165,12 +178,25 @@ def search(request: Request, response: Response, q: str = Query(min_length=2, ma
         if start_ms is not None and score > r["moment_score"]:
             r.update(start_ms=start_ms, snippet=snippet, moment_score=score)
 
+    best: dict[int, float] = {}
     for vid, rank in title_rows:
-        bump(vid, 0.6 + min(float(rank), 1.0))
+        best[vid] = max(best.get(vid, 0.0), float(rank))
+    for vid, rank in best.items():
+        bump(vid, 0.6 + min(rank, 1.0))
     for vid, start, snippet, rank in seg_text:
         lex = lexical(q, snippet)
         if lex:
             bump(vid, min(1.0, float(rank) * 2) * 0.8 + lex * 0.5, start, snippet)
+    texted = {(vid, start) for vid, start, _, _ in seg_text}
+    for vid, start, snippet, rsnip, rank in seg_roman:
+        lex = lexical(rq, rsnip)
+        if lex and (vid, start) not in texted:
+            bump(vid, min(1.0, float(rank) * 2) * 0.8 + lex * 0.5, start, snippet)
+    if rq and len(rq) >= 4 and not results:
+        sim = func.word_similarity(rq, Video.roman)
+        for vid, score in db.execute(select(Video.id, sim.label("s")).where(published, sim > 0.45)
+                                     .order_by(text("s DESC"), Video.id.desc()).limit(50)).all():
+            bump(vid, float(score))
     for vid, start, snippet, d in seg_vec:
         sim = 1 - float(d)
         if sim >= 0.25:

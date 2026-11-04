@@ -22,12 +22,12 @@ PUBLIC = {
     ("POST", "/api/video/waitlist"), ("POST", "/api/video/waitlist/confirm"), ("POST", "/api/video/invites/check"),
     ("GET", "/api/video/beta"), ("POST", "/api/video/feedback"),
     ("GET", "/api/video/ads/breaks"), ("GET", "/api/video/ads/decision"), ("POST", "/api/video/ads/events"),
-    ("GET", "/api/video/brands"),
+    ("GET", "/api/video/brands"), ("GET", "/api/video/ads/categories"), ("GET", "/api/video/feed/subscriptions"),
 }
 NO_CHANNEL = {("GET", "/api/video/studio/channel"), ("GET", "/api/video/studio/onboarding"), ("GET", "/api/video/studio/brand"),
               ("GET", "/api/video/studio/ads/campaigns"), ("GET", "/api/video/studio/sponsorships/my-briefs"),
               ("GET", "/api/video/studio/sponsorships/deals")}
-SIGNED = {p for _, p in routes if p.startswith(("/api/video/webhooks/", "/api/video/sandbox/hls/", "/api/video/sandbox/hls-preview/", "/api/video/sandbox/thumb/", "/api/video/dubs/", "/api/video/sandbox/live/",
+SIGNED = {p for _, p in routes if p.startswith(("/api/video/webhooks/", "/api/video/sandbox/hls/", "/api/video/sandbox/hls-preview/", "/api/video/sandbox/thumb/", "/api/video/sandbox/download/", "/api/video/dubs/", "/api/video/sandbox/live/",
                                                  "/api/video/sandbox/upload/", "/api/video/studio/clip-files/"))}
 
 

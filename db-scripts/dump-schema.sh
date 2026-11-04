@@ -18,6 +18,7 @@ ARGS=(); for s in "${SCHEMAS[@]}"; do ARGS+=(-n "$s"); done
   echo "DO \$\$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'klygenix_video_app') THEN"
   echo "  CREATE ROLE klygenix_video_app LOGIN PASSWORD 'klygenix_video_app'; END IF; END \$\$;"
   echo "CREATE EXTENSION IF NOT EXISTS vector;"
+  echo "CREATE EXTENSION IF NOT EXISTS pg_trgm;"
   docker exec "$CONTAINER_NAME" pg_dump -U "$PG_USER" -d "$PG_DB" --schema-only --no-owner "${ARGS[@]}" \
     | grep -v -e '^SET transaction_timeout' -e '^\\restrict' -e '^\\unrestrict'
   docker exec "$CONTAINER_NAME" pg_dump -U "$PG_USER" -d "$PG_DB" --schema-only --no-owner -t public.alembic_version

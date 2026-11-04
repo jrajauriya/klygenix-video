@@ -63,6 +63,9 @@ The only fix is Expo SDK 58 (`npm audit fix --force`), which is a breaking upgra
 | Ad events (run 4) | a decision mints a random impression token kept in Redis for 3 h; each event counts once per token, nothing before `start`; frequency caps per viewer (hashed IP for anonymous), budget and daily caps checked before serving; never on embeds, reels, members-only/paid videos, own videos or for Premium viewers | `test_ads.py` |
 | Sponsorship escrow (run 4) | the creator's Route transfer is held until the brand approves (or 7 days after delivery); disputes resolved by an admin (release or refund through the one refund path); the deliverable gets a server-set "Paid partnership" label | `test_sponsorships.py` |
 | TV device sign-in (run 4) | RFC 8628 shape: 8-character code from an unambiguous alphabet, 10-minute expiry, device code stored hashed, one approval by a signed-in viewer, token handed out once, `slow_down` on fast polling, per-IP limit on new codes | `test_device_login.py` |
+| Ad integrity (run 5) | billing on a viewability event (`q0`, ≥ 2 s after `start`), same viewer key as the decision, declared bots refused, data-centre CIDRs (`ADS_IVT_CIDRS`) and per-IP/per-user bursts marked invalid, completes faster than half the ad refused; invalid traffic is never billed nor shared with creators | `test_ads.py` |
+| Downloads (run 5) | Premium-only, signed 6-hour MP4 links (sandbox HMAC route / Bunny token), 30-day licences bound to the viewer (HMAC over user, video, expiry) re-checked online; embeds and locked videos refused | `test_viewer_growth.py` |
+| Regions (run 5) | accounts pinned to a home region; with `REGION_ENFORCE` the other host refuses sign-up and sign-in; no cross-region joins | `test_view_pool.py`, `tests/smoke/region_rehearsal.py` |
 | Counter-notices (run 4) | only the uploader of the removed video, sworn statements and a typed signature required; forwarded to the claimant; restore after 10 business days unless an admin records a court action | `test_trust_beta.py` |
 
 ## Debug routes
@@ -85,6 +88,7 @@ origin is in any CSP.
 | inline | `# nosec B608 nosemgrep` in `core/services/secrets.py`, `scripts/manage_secrets.py`; `# nosec B104` in `core/services/readiness.py` | identifiers come from a fixed table list / the bind check looks for 0.0.0.0 | — |
 | `infra/security/semgrep.sh` | nginx `request-host-used`, `dynamic-proxy-host` | `server_name`s are fixed by `${PUBLIC_DOMAIN}` at container start | when nginx gains a new `map` |
 | npm (this file) | five Expo-toolchain highs | see above | 31 Dec 2026 |
+| `.gitleaks.toml` | the exact phrase "Route keys, ASCI/advertiser policy text" in `docs/BUILD-PLAN.md` | gitleaks' generic-api-key rule read run-4 prose (already in commit `d1ba83c`) as a key; the entry matches that phrase only | — |
 
 Development defaults that look like secrets are fake and are blocked in production by
 `python -m app.readiness`: `SECRET_KEY=dev-secret-key-change-in-production`, `GLOBAL_ADMIN_PASSWORD=admin123`,

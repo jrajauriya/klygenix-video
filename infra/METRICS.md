@@ -334,3 +334,15 @@ playback (a deleted or blocked creative video). Pausing a campaign in Admin → 
 The active recommendation model is over three days old: the nightly job (02:30 IST) is training but not promoting, or
 not training. Admin → Recommender shows the last candidates and their offline metrics; a candidate that does not beat
 the heuristic is never promoted automatically. Setting `RECO_MODEL=off` returns every viewer to the heuristic feed.
+
+## Run 5 alerts
+
+### KvAdInvalidTrafficHigh
+More than 20% of viewable ad impressions in the last hour were invalid (bots, data-centre IPs, bursts, a different
+viewer sending the events, events faster than playback). Invalid impressions are never billed, but a spike usually means
+a scraper or a fraud attempt on one channel: Admin → Advertising → Invalid traffic shows the reasons and the campaigns.
+Raise `ADS_IVT_CIDRS` with the offending ranges, or pause the campaign.
+
+### KvDigestNotSent
+The daily notification digest (08:00 IST sweep) has not run for over 26 hours. Check the scheduler and the mail outbox
+(Admin → Beta → Outbox) for failures; the digest is safe to re-run — notifications are marked once sent.

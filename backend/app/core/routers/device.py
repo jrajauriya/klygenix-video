@@ -35,6 +35,7 @@ def _norm(user_code: str) -> str:
 
 class StartIn(BaseModel):
     client: str = Field(default="tv", max_length=20)
+    name: str = Field(default="", max_length=60)
 
 
 @router.post("/start")
@@ -48,12 +49,25 @@ def start(data: StartIn, request: Request):
             break
     else:
         raise err(503, "action_not_allowed")
+    ua = (request.headers.get("user-agent") or "")[:200]
+    name = data.name.strip() or _guess(ua, data.client)
     r.setex(_key(device_code), TTL, json.dumps({"user_code": raw, "status": "pending", "client": data.client[:20],
-                                                "created": int(time.time()), "polled": 0}))
+                                                "name": name[:60], "created": int(time.time()), "polled": 0}))
     code = f"{raw[:4]}-{raw[4:]}"
     base = settings.WEB_BASE_URL.rstrip("/")
     return {"device_code": device_code, "user_code": code, "verification_uri": f"{base}/activate",
             "verification_uri_complete": f"{base}/activate?code={code}", "expires_in": TTL, "interval": INTERVAL}
+
+
+def _guess(ua: str, client: str) -> str:
+    u = ua.lower()
+    for key, label in (("tizen", "Samsung TV"), ("web0s", "LG TV"), ("webos", "LG TV"), ("aft", "Fire TV"), ("bravia", "Sony TV"),
+                       ("android tv", "Android TV"), ("googletv", "Google TV"), ("crkey", "Chromecast"), ("appletv", "Apple TV"),
+                       ("smarttv", "Smart TV"), ("macintosh", "Mac browser"), ("windows", "Windows browser"),
+                       ("android", "Android device"), ("iphone", "iPhone")):
+        if key in u:
+            return label
+    return "TV" if client == "tv" else client.title() or "Device"
 
 
 def _by_user_code(user_code: str) -> tuple[str, dict]:
@@ -75,7 +89,10 @@ class CodeIn(BaseModel):
 @router.get("/{user_code}")
 def describe(user_code: str, user: User = Depends(get_current_user)):
     _, d = _by_user_code(user_code)
+    from datetime import datetime, timezone
+
     return {"user_code": f"{d['user_code'][:4]}-{d['user_code'][4:]}", "client": d["client"], "status": d["status"],
+            "name": d.get("name") or "TV", "requested_at": datetime.fromtimestamp(d["created"], timezone.utc).isoformat(),
             "expires_in": max(0, TTL - (int(time.time()) - d["created"]))}
 
 

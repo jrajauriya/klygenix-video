@@ -14,8 +14,9 @@ METRICS = {
     "ask": ("viewer", "ask_per_day", "day"),
     "ai_minutes": ("creator", "ai_minutes", "month"),
     "renders": ("creator", "renders", "month"),
+    "ai_images": ("creator", "ai_images", "month"),
 }
-LABELS = {"ask": "Ask questions", "ai_minutes": "AI minutes", "renders": "clip renders"}
+LABELS = {"ask": "Ask questions", "ai_minutes": "AI minutes", "renders": "clip renders", "ai_images": "AI thumbnails"}
 
 
 class QuotaExceeded(Exception):

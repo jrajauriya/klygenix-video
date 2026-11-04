@@ -8,6 +8,7 @@ import { Sheet } from "../../components/Sheet"
 import { Btn, Field, TEXTAREA, Tabs } from "../../components/bits"
 import { usePay } from "../../components/Support"
 import { giftIcon } from "./gifts"
+import { useT } from "../../i18n"
 
 export type SupportMode = "superchat" | "gift"
 
@@ -23,6 +24,7 @@ export default function LiveSupportSheet({
   onPaid: () => unknown
 }) {
   const pay = usePay()
+  const tr = useT("live")
   const tiers: SuperchatTier[] = support.superchat_tiers ?? []
   const gifts: LiveGift[] = support.gifts ?? []
   const [mode, setMode] = useState<SupportMode>(initialMode)
@@ -43,8 +45,8 @@ export default function LiveSupportSheet({
       onClose()
       await pay.start({
         body: { purpose: "superchat", stream_id: streamId, boost_tier: chosenTier.tier, message: message.trim() || undefined },
-        label: `${chosenTier.label} super chat · ${channelName}`,
-        done: "Your super chat is pinned in the live chat.",
+        label: tr("{tier} super chat · {channel}", { tier: chosenTier.label, channel: channelName }),
+        done: tr("Your super chat is pinned in the live chat."),
         onPaid: async () => {
           setMessage("")
           await onPaid()
@@ -55,8 +57,8 @@ export default function LiveSupportSheet({
       onClose()
       await pay.start({
         body: { purpose: "gift", stream_id: streamId, gift: chosenGift.gift },
-        label: `${chosenGift.label} gift · ${channelName}`,
-        done: `You sent ${channelName} a ${chosenGift.label}.`,
+        label: tr("{gift} gift · {channel}", { gift: chosenGift.label, channel: channelName }),
+        done: tr("You sent {channel} a {gift}.", { channel: channelName, gift: chosenGift.label }),
         onPaid,
       }, "gift")
     }
@@ -70,13 +72,13 @@ export default function LiveSupportSheet({
       <Sheet
         open={open}
         onClose={onClose}
-        title={<span className="inline-flex items-center gap-2"><MessageSquareHeart size={17} className="text-[#FACC15]" aria-hidden="true" /> Support {channelName} live</span>}
+        title={<span className="inline-flex items-center gap-2"><MessageSquareHeart size={17} className="text-[#FACC15]" aria-hidden="true" /> {tr("Support {name} live", { name: channelName })}</span>}
         footer={
           <>
-            <Btn tone="ghost" onClick={onClose}>Cancel</Btn>
+            <Btn tone="ghost" onClick={onClose}>{tr("Cancel")}</Btn>
             <Btn tone="brand" type="submit" form="live-support-form" disabled={!ready || pay.busy !== null}>
               {pay.busy ? <Loader2 size={16} className="animate-spin" aria-hidden="true" /> : null}
-              {mode === "superchat" ? "Send super chat" : `Send ${chosenGift?.label ?? "gift"}`} {price ? rupees(price) : ""}
+              {mode === "superchat" ? tr("Send super chat") : tr("Send {gift}", { gift: chosenGift?.label ?? tr("gift") })} {price ? rupees(price) : ""}
             </Btn>
           </>
         }
@@ -86,18 +88,18 @@ export default function LiveSupportSheet({
             value={mode}
             onChange={setMode}
             tabs={[
-              ...(tiers.length ? [{ key: "superchat" as const, label: "Super chat" }] : []),
-              ...(gifts.length ? [{ key: "gift" as const, label: "Gift" }] : []),
+              ...(tiers.length ? [{ key: "superchat" as const, label: tr("Super chat") }] : []),
+              ...(gifts.length ? [{ key: "gift" as const, label: tr("Gift") }] : []),
             ]}
           />
           {mode === "superchat" ? (
             <>
-              <p className="text-sm text-muted">A super chat is pinned at the top of the live chat in its tier colour, for everyone watching.</p>
-              <Field label="Message (optional)" hint={`${message.length}/200`}>
-                <textarea className={`${TEXTAREA} resize-none`} rows={3} maxLength={200} value={message} onChange={(e) => setMessage(e.target.value.slice(0, 200))} placeholder="Say something to the stream…" />
+              <p className="text-sm text-muted">{tr("A super chat is pinned at the top of the live chat in its tier colour, for everyone watching.")}</p>
+              <Field label={tr("Message (optional)")} hint={`${message.length}/200`}>
+                <textarea className={`${TEXTAREA} resize-none`} rows={3} maxLength={200} value={message} onChange={(e) => setMessage(e.target.value.slice(0, 200))} placeholder={tr("Say something to the stream…")} />
               </Field>
               <fieldset>
-                <legend className="mb-2 text-sm font-medium text-muted">Tier</legend>
+                <legend className="mb-2 text-sm font-medium text-muted">{tr("Tier")}</legend>
                 <div className="grid gap-2">
                   {tiers.map((t) => (
                     <label
@@ -111,7 +113,7 @@ export default function LiveSupportSheet({
                       <span className="h-4 w-4 shrink-0 rounded-full" style={{ background: t.color }} />
                       <span className="min-w-0 flex-1">
                         <span className="block text-sm font-semibold">{t.label}</span>
-                        <span className="block text-xs text-muted">Pinned for {t.pin_seconds >= 60 ? `${Math.round(t.pin_seconds / 60)} min` : `${t.pin_seconds} s`}</span>
+                        <span className="block text-xs text-muted">{t.pin_seconds >= 60 ? tr("Pinned for {n} min", { n: Math.round(t.pin_seconds / 60) }) : tr("Pinned for {n} s", { n: t.pin_seconds })}</span>
                       </span>
                       <span className="text-sm font-bold tabular-nums">{rupees(t.price_minor)}</span>
                     </label>
@@ -120,16 +122,16 @@ export default function LiveSupportSheet({
               </fieldset>
               {chosenTier && (
                 <div className="rounded-xl p-3 text-black" style={{ background: chosenTier.color }}>
-                  <p className="text-xs font-bold">You · {rupees(chosenTier.price_minor)}</p>
-                  <p className="mt-0.5 break-words text-sm">{message.trim() || "Your message"}</p>
+                  <p className="text-xs font-bold">{tr("You")} · {rupees(chosenTier.price_minor)}</p>
+                  <p className="mt-0.5 break-words text-sm">{message.trim() || tr("Your message")}</p>
                 </div>
               )}
             </>
           ) : (
             <>
-              <p className="text-sm text-muted">A gift shows in the chat with your name and stays pinned for a few seconds.</p>
+              <p className="text-sm text-muted">{tr("A gift shows in the chat with your name and stays pinned for a few seconds.")}</p>
               <fieldset>
-                <legend className="mb-2 text-sm font-medium text-muted">Gift</legend>
+                <legend className="mb-2 text-sm font-medium text-muted">{tr("Gift")}</legend>
                 <div className="grid grid-cols-3 gap-2">
                   {gifts.map((g) => (
                     <label
@@ -150,7 +152,7 @@ export default function LiveSupportSheet({
             </>
           )}
           <p className="rounded-xl bg-white/[0.05] px-3 py-2.5 text-xs leading-relaxed text-muted">
-            Goes to {channelName}, minus {feeText(support)} and taxes. If the creator removes it from the chat, you get a full refund.
+            {tr("Goes to {name}, minus {fee} and taxes. If the creator removes it from the chat, you get a full refund.", { name: channelName, fee: feeText(support) })}
           </p>
         </form>
       </Sheet>

@@ -17,7 +17,7 @@ from app.video.sessions import platform_session
 from app.video.storage import backend
 
 router = APIRouter(prefix="/api/video", tags=["dubbing"])
-NAMES = {"en": "English", "hi": "Hindi", "mr": "Marathi", "bn": "Bengali", "ta": "Tamil", "te": "Telugu"}
+NAMES = {"en": "English", "hi": "Hindi", "mr": "Marathi", "bn": "Bengali", "ta": "Tamil", "te": "Telugu", "gu": "Gujarati", "kn": "Kannada", "ml": "Malayalam", "pa": "Punjabi", "or": "Odia"}
 
 
 def dub_out(d: DubTrack) -> dict:

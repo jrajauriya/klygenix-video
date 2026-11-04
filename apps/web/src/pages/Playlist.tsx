@@ -11,9 +11,12 @@ import { loginPath, useMe, useSignedIn } from "../lib/api"
 import { rupees, views } from "../lib/format"
 import { useTitle } from "../lib/title"
 import NotFound from "./NotFound"
+import { useT } from "../i18n"
+import { rich } from "../i18n/rich"
 
 export default function PlaylistPage() {
   const { id = "" } = useParams()
+  const t = useT("channel")
   const pid = /^\d+$/.test(id) ? Number(id) : null
   const signedIn = useSignedIn()
   const q = usePlaylist(pid)
@@ -46,8 +49,8 @@ export default function PlaylistPage() {
     if (!p) return
     pay.start({
       body: { purpose: "series", playlist_id: p.id },
-      label: `Series: ${p.title}`,
-      done: `The whole series "${p.title}" is yours.`,
+      label: t("Series: {title}", { title: p.title }),
+      done: t("The whole series \"{title}\" is yours.", { title: p.title }),
       onPaid: async () => {
         await qc.invalidateQueries({ queryKey: ["playlist", p.id] })
         qc.invalidateQueries({ queryKey: ["purchases"] })
@@ -56,15 +59,15 @@ export default function PlaylistPage() {
     }, "series")
   }
 
-  const resumeLabel = series && prog && prog.completed > 0 ? (prog.next ? "Continue" : "Watch again") : "Play all"
+  const resumeLabel = series && prog && prog.completed > 0 ? (prog.next ? t("Continue") : t("Watch again")) : t("Play all")
 
   return (
     <PageShell className="max-w-5xl">
       <header className="rounded-2xl bg-panel p-4 sm:p-6">
         <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted">
           <ListVideo size={14} aria-hidden="true" />
-          {series ? <SeriesBadge /> : <span>Playlist</span>}
-          {p.visibility !== "public" && <span className="rounded-md bg-white/10 px-1.5 py-0.5 normal-case tracking-normal">{p.visibility === "unlisted" ? "Unlisted" : "Private"}</span>}
+          {series ? <SeriesBadge /> : <span>{t("Playlist")}</span>}
+          {p.visibility !== "public" && <span className="rounded-md bg-white/10 px-1.5 py-0.5 normal-case tracking-normal">{p.visibility === "unlisted" ? t("Unlisted") : t("Private")}</span>}
         </div>
         <h1 className="mt-2 break-words text-2xl font-bold leading-tight sm:text-3xl">{p.title}</h1>
         {p.channel && (
@@ -72,7 +75,7 @@ export default function PlaylistPage() {
             <Link to={`/@${p.channel.handle}`} aria-label={p.channel.name}><ChannelAvatar channel={p.channel} size={28} /></Link>
             <ChannelName channel={p.channel} className="font-semibold text-ink" />
             <span aria-hidden="true">·</span>
-            <span className="shrink-0">{p.video_count} {p.video_count === 1 ? "video" : "videos"}</span>
+            <span className="shrink-0">{t(p.video_count === 1 ? "{n} video" : "{n} videos", { n: p.video_count })}</span>
           </div>
         )}
         {p.description && <p className="mt-3 max-w-3xl whitespace-pre-wrap break-words text-sm leading-relaxed text-ink/85">{p.description}</p>}
@@ -80,30 +83,30 @@ export default function PlaylistPage() {
         {series && signedIn && prog && prog.total > 0 && (
           <div className="mt-4 max-w-md">
             <div className="flex items-center justify-between text-sm">
-              <span className="font-semibold text-ink">{prog.completed} of {prog.total} watched</span>
+              <span className="font-semibold text-ink">{t("{done} of {total} watched", { done: prog.completed, total: prog.total })}</span>
               <span className="tabular-nums text-muted">{prog.percent}%</span>
             </div>
-            <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-white/10" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={prog.percent} aria-label="Series progress">
+            <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-white/10" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={prog.percent} aria-label={t("Series progress")}>
               <div className="h-full rounded-full bg-brand" style={{ width: `${prog.percent}%` }} />
             </div>
           </div>
         )}
         {series && !signedIn && p.videos.length > 0 && (
-          <p className="mt-4 text-sm text-muted"><Link to={`/login?returnUrl=${encodeURIComponent(`/playlist/${p.id}`)}`} className="font-semibold text-brand-soft hover:underline">Sign in</Link> to keep track of what you have watched.</p>
+          <p className="mt-4 text-sm text-muted">{rich(t("{signin} to keep track of what you have watched."), { signin: <Link to={`/login?returnUrl=${encodeURIComponent(`/playlist/${p.id}`)}`} className="font-semibold text-brand-soft hover:underline">{t("Sign in")}</Link> })}</p>
         )}
 
         {paid && p.price_minor && !isCreator && (
           <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl bg-panel-2 px-3 py-2.5">
             <Lock size={16} className="shrink-0 text-brand-soft" aria-hidden="true" />
             <p className="min-w-0 flex-1 text-sm">
-              {owned ? <span className="font-semibold">You own this series.</span> : <><span className="font-semibold">Paid series · {rupees(p.price_minor)}</span> <span className="text-muted">— every video in it, yours to keep.</span></>}
+              {owned ? <span className="font-semibold">{t("You own this series.")}</span> : <><span className="font-semibold">{t("Paid series · {price}", { price: rupees(p.price_minor) })}</span> <span className="text-muted">{t("— every video in it, yours to keep.")}</span></>}
             </p>
             {!owned && (signedIn ? (
               <Btn tone="brand" size="sm" onClick={buy} disabled={pay.busy !== null}>
-                {pay.busy ? <Loader2 size={14} className="animate-spin" aria-hidden="true" /> : null} Buy series {rupees(p.price_minor)}
+                {pay.busy ? <Loader2 size={14} className="animate-spin" aria-hidden="true" /> : null} {t("Buy series {price}", { price: rupees(p.price_minor) })}
               </Btn>
             ) : (
-              <Link to={loginPath()} className="inline-flex h-8 items-center rounded-full bg-snow px-3 text-xs font-semibold text-black hover:bg-snow/85">Sign in to buy</Link>
+              <Link to={loginPath()} className="inline-flex h-8 items-center rounded-full bg-snow px-3 text-xs font-semibold text-black hover:bg-snow/85">{t("Sign in to buy")}</Link>
             ))}
           </div>
         )}
@@ -119,15 +122,15 @@ export default function PlaylistPage() {
         <div className="mt-6">
           <ScopedAsk
             endpoint={`/api/video/playlists/${p.id}/ask`}
-            title={series ? "Ask this series" : "Ask this playlist"}
-            blurb={`Get answers from every video in this ${series ? "series" : "playlist"}, with links to the exact moments.`}
+            title={series ? t("Ask this series") : t("Ask this playlist")}
+            blurb={series ? t("Get answers from every video in this series, with links to the exact moments.") : t("Get answers from every video in this playlist, with links to the exact moments.")}
           />
         </div>
       )}
 
       <div className="mt-6">
         {p.videos.length === 0 ? (
-          <Empty icon={<ListVideo size={30} />} title="Nothing to watch here yet" body="Videos added to this playlist will show up here." />
+          <Empty icon={<ListVideo size={30} />} title={t("Nothing to watch here yet")} body={t("Videos added to this playlist will show up here.")} />
         ) : (
           <ol className="space-y-2">
             {p.videos.map((v, i) => {
@@ -142,8 +145,8 @@ export default function PlaylistPage() {
                       <p className="line-clamp-2 text-sm font-semibold leading-snug text-ink sm:text-[15px]">{v.title}</p>
                       <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
                         <span>{views(v.views)}</span>
-                        {watched && <span className="inline-flex items-center gap-1 text-emerald-400"><CheckCircle2 size={13} aria-hidden="true" /> Watched</span>}
-                        {next && <span className="rounded-md bg-brand/25 px-1.5 py-0.5 font-semibold text-brand-soft">Up next</span>}
+                        {watched && <span className="inline-flex items-center gap-1 text-emerald-400"><CheckCircle2 size={13} aria-hidden="true" /> {t("Watched")}</span>}
+                        {next && <span className="rounded-md bg-brand/25 px-1.5 py-0.5 font-semibold text-brand-soft">{t("Up next")}</span>}
                       </p>
                     </div>
                   </Link>

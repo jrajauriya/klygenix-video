@@ -2,7 +2,7 @@
 
 The master plan (`../Klygenix_Docs/Klygenix_Video/klygenix-video-master-plan.html`) says what and
 why; this file says what is built, what each test proves, what runs only on sandbox providers and
-what is blocked. Built in unattended runs, 3 Nov 2026 (run 4 newest, below). **Run 4 is not committed** (the owner
+what is blocked. Built in unattended runs, 3–4 Nov 2026 (run 5 newest, below). **Run 5 is not committed** (the owner
 commits by hand) **and nothing is deployed.**
 
 **Done means:** `npx tsc --noEmit -p tsconfig.app.json` and `vite build` pass for every app it touches;
@@ -29,6 +29,70 @@ its suites green **twice over one database**; CLAUDE.md updated.
 | 13 Verification & docs | Suites ×2, parity, e2e, load test, docs (this file, LAUNCH, PROVIDERS, SECURITY, README, CLAUDE.md), plan HTML updated | See results below | — |
 | 14 Stretch | Playlists and series with progress (V1.7 / V3.1); watch parties with a shared playhead and chat (V3.7); AI thumbnail ideas + custom thumbnails shown (V1.3); data export / erasure; studio analytics with daily series; comment inbox with hide/unhide | Done | `test_playlists.py`, `test_parties.py`, `test_thumbnails.py`, `test_viewer_extras.py` |
 | 14 not started | Tips, boost danmaku, channel memberships, paid videos (V2.2–V2.5) | Waiting | They pay creators: rule S11 needs Razorpay Route linked accounts and creator KYC (V2.1), not forked yet |
+
+## Run 5 — ad integrity, Hindi & India-first, viewer growth, creator AI v2, V5.4 regions, V5.6 view pool (4 Nov 2026)
+
+Owner's choice: these five tracks, overnight, no stops; V5.4 and V5.6 started early (the plan's measured-need gate is noted
+in the plan HTML). Runs 1–4 committed (`d95dd50`, `cccf074`, `57d79d6`, `d1ba83c`). The baseline was taken as run 4's
+final double pass on the identical committed tree. **Nothing committed, nothing deployed.**
+
+| Phase | Scope | Status | Proven by |
+|---|---|---|---|
+| 1 Ad integrity & brand safety | Billing on a viewability event (`q0`, ≥ 2 s after `start`); invalid traffic not billed or shared (declared bots refused, data-centre CIDRs, per-IP/per-user bursts, other-viewer events, too-fast viewable/complete); brand-safety categories per video (title, tags, AI tags, scan labels) that campaigns can exclude; "made for kids" videos never get ads; CSV exports by day / category / device; admin invalid-traffic view; `kv_ads_invalid_total`, `kv_ads_viewable_total`, `KvAdInvalidTrafficHigh` | Done | `test_ads` 73 |
+| 2 Hindi & India-first | Web fully in Hindi (lazy dictionaries, `Accept-Language` so server messages are Hindi), studio fully in Hindi, TV and mobile Hindi; Hinglish search (Devanagari ↔ Latin transliteration with schwa deletion and phonetic folding, `search_roman` tsvectors, `pg_trgm` typo fallback); partnership label on every card; device names on TV approval; Hindi feedback mail | Done | `test_search` 13, e2e Hindi screens + axe |
+| 3 Viewer growth | Installable web app (manifest, icons, hand-written service worker that never caches API or media, offline page); picture-in-picture (web player, mobile); Premium offline downloads (6-hour MP4 link + 30-day viewer-bound licence, re-checked online, withdrawn when Premium lapses or the video is removed); notification inbox (push, new videos from followed channels, replies, deals) with web/studio/mobile bells and daily/weekly email digests; Subscriptions tab with "new since last visit" (web, mobile, TV) | Done (downloads/PiP not on a device) | `test_viewer_growth` 31 |
+| 4 Creator AI v2 | AI thumbnails (sandbox Pillow designs from frames; Azure image adapter contract-tested), `ai_images` quota, AI-made label; Gujarati, Kannada, Malayalam, Punjabi, Odia for subtitles, dubbing voices and STT; chapter editor with versions; repurpose pack (blog post, X / LinkedIn / Instagram, newsletter, timestamp citations, Markdown); content calendar with scheduled, rescheduled and cancelled clip posts | Done (sandbox models) | `test_creator_ai` 32, `test_provider_contracts` 104 |
+| 5 V5.4 regions + V5.6 view pool | `REGION` / `home_region` / `REGION_ENFORCE` / `/api/auth/region`, region readiness, `backend/.env.us.example`, a second local stack (`KV_STACK=staging-us`) and a region rehearsal; view pool = `ADS_VIEW_POOL_BPS` of net ad revenue split by qualified watch time (completion-weighted, free hosted videos, minutes floor), admin preview and run, Route direct transfers, "View pool" on statements | Done (sandbox / local) | `test_view_pool` 21, `tests/smoke/region_rehearsal.py` |
+| 6 Frontends | Web, studio + admin, mobile + TV by three parallel agents (file ownership as in run 4) | Done | tsc + build, e2e, `expo export` |
+| 7 Verification | below | Done | — |
+
+### Run 5 results
+| Check | Result |
+|---|---|
+| API suites, **twice over one database** | **44 suites, 1,344 checks per pass, 0 failed both passes.** New: viewer growth 31, creator AI 32, view pool & regions 21; grown: ads 73, search 13, provider contracts 104 |
+| Migrations | 18 revisions (`…14_ad_integrity_and_brand_safety`, `…15_hinglish_search` with `pg_trgm` and a romanised backfill of 1,415 videos / 11,142 segments, `…16_notifications`, `…17_creator_ai_v2`, `…18_regions_and_view_pool`); `alembic check` clean; schema re-dumped (**95 tables**); parity green |
+| Browser (`node tests/e2e/run.mjs`, four apps, English + Hindi) | screens **319/0**, axe WCAG 2.2 AA **139/0** (incl. Hindi and run-5 screens at 390 px), speed **14/0** (watch video start 1.75 s, reels 1.63 s; JS home 176 / reels 391 / watch 413 KB of 420 — Hindi watch measured at 419 KB) |
+| Mobile | tsc, `expo export` iOS + Android, native imports 12/0; not run on a device |
+| Production stack `play.localhost:8443` | **smoke 157/0** incl. the run 4 journeys and run 5 (region discovery, Hindi server messages, bots get no ad, Premium download link + MP4, inbox, view-pool preview, Hinglish search, the service worker served `no-cache`, the manifest); **CSP 36/0** |
+| US-region rehearsal | a second stack `play-us.localhost:9443` (`KV_STACK=staging-us`) beside India: **6/0** — each host reports its region, US sign-ups land in the US database only, Indian sign-ups on the US host are sent to India, accounts sign in only on their home host |
+| Load on the stack | 100 viewers + 200 sockets: **1,148 req/s, 0 errors, p95 ≤ 29 ms** (ad breaks / decision p95 25 ms, now through the real decision path with a browser UA); live **1,000/1,000 watchers, 55,000/55,000 deliveries, fan-out p95 62 ms**, HLS p95 75 ms |
+| Security | gitleaks 0 (after one prose false positive allowlisted) · bandit 0 · semgrep 0 (262 rules, 782 files) · pip-audit 0 · npm audit pass (same 3 allow-listed dev tools) |
+| Backups · monitoring | off-host rehearsal 12/0 · `monitoring.sh check` 38 rules incl. `KvAdInvalidTrafficHigh`, `KvDigestNotSent`, all promtool tests green |
+
+### Bugs found and fixed in run 5
+- `route_transfers.kind` was `String(8)`: a `view_pool` transfer was truncated and surfaced as a 422 ("out of range") —
+  widened to 10 (and the trap noted in CLAUDE.md).
+- Ad refunds lost a paisa twice (refund gross and taxable split rounded differently) — both round half-up now.
+- `made_for_kids` was passed to a helper that did not accept it (500 on every upload until fixed in the router).
+- Saving any video detail reset the brand-safety labels — now only when title, description, tags or the kids flag change.
+- `pg_trgm` was missing from the schema dump, so the parity check could not load the schema.
+- A gitleaks false positive already in commit `d1ba83c` (prose in this file) — allowlisted by the exact phrase.
+- The staging overlay hard-coded its env file and container names, so a second (US) stack could not start — both now follow `KV_STACK`.
+- The smoke's download check used a video its own takedown journey had removed (correct 403) — it now downloads a published one.
+- Process: the first full run stopped at `test_security` on the new public `/ads/categories` route, which is public by design (allowlisted).
+
+### Decisions taken in run 5
+- Billing moved from `start` to `q0` (2 s viewable); invalid traffic is recorded per reason and never billed or shared.
+  Declared bots get no ad at all; data-centre ranges come from `ADS_IVT_CIDRS` (empty until an IVT vendor supplies them).
+- Hinglish search is an in-house transliteration (no new dependency); English loanwords written in Devanagari do not always
+  meet their English spelling — their English text is indexed anyway.
+- Downloads are licences, not DRM (plain MP4 on the device, 30-day licence, re-checked online).
+- Digest default weekly (Mondays 08:00 IST), opt-out — **confirm DPDP consent**.
+- The US host runs the same compose file with `backend/.env.us.example` (no separate overlay); Lemon Squeezy is its only
+  rail; accounts are pinned by country (US, CA → us).
+- View pool placeholder 10% of net ad revenue, `VIEW_POOL_MIN_MINUTES` 60, completion weighting 0.5–1.0.
+- One profile language drives both the interface and the content language; the web shows them separately.
+
+### Still blocked or open after run 5
+| Item | Needs |
+|---|---|
+| Everything from run 4 | accounts, CA, lawyer, VPS (unchanged) |
+| Device runs | downloads, PiP and background audio on a real phone; TV wrappers |
+| DRM for downloads | a DRM provider (Bunny/Cloudflare) if creators require it |
+| IVT vendor | real data-centre lists and fraud signals |
+| US host | a second VPS, DNS `us.play.klygenix.com`, US Bunny library, Lemon Squeezy store |
+| Small gaps | server-side partnership label is English; `/admin/ads/ivt` has no date filter; chapter history keeps no old contents; only the latest repurpose pack is listed; notifications carry no app field |
+| Known flake | `test_analytics_reco` "finished video sits lower" (affinity cache timing, from run 4) |
 
 ## Run 4 — provider go-live readiness, trust & safety, closed beta, V5 on the sandbox (3–4 Nov 2026)
 

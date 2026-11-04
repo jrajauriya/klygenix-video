@@ -236,6 +236,18 @@ def _job_lines() -> list[str]:
         dropped = get_redis().hget(REALTIME_KEY, "dropped")
         out += ["# HELP kv_realtime_dropped_total Realtime messages dropped because a socket fell behind.",
                 "# TYPE kv_realtime_dropped_total counter", f"kv_realtime_dropped_total {int(dropped or 0)}"]
+        ivt = get_redis().hgetall("kv:ads:ivt")
+        tot = {(k.decode() if isinstance(k, bytes) else k): int(v) for k, v in get_redis().hgetall("kv:ads:totals").items()}
+        out += ["# HELP kv_ads_invalid_total Ad events refused as invalid traffic, by reason.", "# TYPE kv_ads_invalid_total counter"]
+        for k, v in sorted(ivt.items()):
+            out.append(f"kv_ads_invalid_total{_labels(reason=k.decode() if isinstance(k, bytes) else k)} {int(v)}")
+        last = get_redis().get("kv:digest:last_run")
+        out += ["# HELP kv_digest_last_run_age_hours Hours since the notification digest last ran (-1 never).",
+                "# TYPE kv_digest_last_run_age_hours gauge",
+                f"kv_digest_last_run_age_hours {round((time.time() - int(last)) / 3600, 1) if last else -1}"]
+        out += ["# HELP kv_ads_viewable_total Viewable ad impressions, billable or invalid.", "# TYPE kv_ads_viewable_total counter"]
+        for k in ("billable", "invalid"):
+            out.append(f"kv_ads_viewable_total{_labels(outcome=k)} {tot.get(k, 0)}")
     except Exception:
         up = 0
     else:

@@ -9,7 +9,7 @@ from app.ai.captions import Cue
 from app.ai.textkit import STOP, fmt_ts, keywords, overlap, parse_ts, sentences, title_case, words
 
 ENGINE = "kv-intel-1"
-LANG_NAMES = {"en": "English", "hi": "Hindi", "mr": "Marathi", "bn": "Bengali", "ta": "Tamil", "te": "Telugu"}
+LANG_NAMES = {"en": "English", "hi": "Hindi", "mr": "Marathi", "bn": "Bengali", "ta": "Tamil", "te": "Telugu", "gu": "Gujarati", "kn": "Kannada", "ml": "Malayalam", "pa": "Punjabi", "or": "Odia"}
 HOOK_WORDS = {"how", "why", "what", "secret", "mistake", "mistakes", "never", "best", "worst", "tip", "tips", "stop",
               "truth", "first", "biggest", "easy", "fast", "simple", "nobody", "everyone", "kaise", "kyun", "galti"}
 

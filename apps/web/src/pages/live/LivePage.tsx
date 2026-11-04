@@ -6,7 +6,7 @@ import { useAuthStore } from "@klygenixvideo/auth"
 import { cn } from "@klygenixvideo/ui"
 import { HlsPlayer } from "@klygenixvideo/player"
 import { errStatus, getJson, loginPath, useSignedIn } from "../../lib/api"
-import { compactNumber, longDate, timeAgo } from "../../lib/format"
+import { compactNumber, locale, longDate, timeAgo } from "../../lib/format"
 import { countdown, useLiveRoom, useNow } from "../../lib/live"
 import { useChannelSupport } from "../../lib/support"
 import { useTitle } from "../../lib/title"
@@ -20,6 +20,7 @@ import { ReportDialog, type ReportTarget } from "../../components/ReportDialog"
 import NotFound from "../NotFound"
 import { LiveChat } from "./LiveChat"
 import type { SupportMode } from "./LiveSupportSheet"
+import { useT } from "../../i18n"
 
 const LiveSupportSheet = lazy(() => import("./LiveSupportSheet"))
 
@@ -39,22 +40,23 @@ function pollEvery(d: LiveDetail | undefined): number | false {
 function Scheduled({ stream }: { stream: LiveDetail }) {
   const at = stream.scheduled_at ? Date.parse(stream.scheduled_at) : null
   const now = useNow(1000, Boolean(at))
+  const t = useT("live")
   const left = at ? at - now : 0
   return (
     <div className={STAGE}>
       <ChannelAvatar channel={stream.channel} size={72} />
       <p className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-ink">
-        <CalendarClock size={14} aria-hidden="true" /> Upcoming live
+        <CalendarClock size={14} aria-hidden="true" /> {t("Upcoming live")}
       </p>
       {left > 0 ? (
         <>
-          <p className="text-sm text-muted">Starts in</p>
+          <p className="text-sm text-muted">{t("Starts in")}</p>
           <p className="text-3xl font-bold tabular-nums sm:text-5xl" role="timer">{countdown(left)}</p>
-          <p className="text-xs text-faint">{new Date(at as number).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}</p>
+          <p className="text-xs text-faint">{new Date(at as number).toLocaleString(locale(), { dateStyle: "medium", timeStyle: "short" })}</p>
         </>
       ) : (
         <p className="inline-flex items-center gap-2 text-sm text-muted">
-          <Loader2 size={16} className="animate-spin" aria-hidden="true" /> Waiting for {stream.channel?.name ?? "the creator"} to go live…
+          <Loader2 size={16} className="animate-spin" aria-hidden="true" /> {stream.channel?.name ? t("Waiting for {name} to go live…", { name: stream.channel.name }) : t("Waiting for the creator to go live…")}
         </p>
       )}
     </div>
@@ -63,21 +65,22 @@ function Scheduled({ stream }: { stream: LiveDetail }) {
 
 function Ended({ stream }: { stream: LiveDetail }) {
   const replay = stream.replay
+  const t = useT("live")
   return (
     <div className={STAGE}>
       <Clapperboard size={30} className="text-brand-soft" aria-hidden="true" />
-      <p className="text-lg font-bold">{stream.status === "failed" ? "This stream stopped unexpectedly" : "This live stream has ended"}</p>
-      {stream.ended_at && <p className="text-xs text-faint">Ended {timeAgo(stream.ended_at)}</p>}
+      <p className="text-lg font-bold">{stream.status === "failed" ? t("This stream stopped unexpectedly") : t("This live stream has ended")}</p>
+      {stream.ended_at && <p className="text-xs text-faint">{t("Ended {when}", { when: timeAgo(stream.ended_at) })}</p>}
       {replay?.status === "published" ? (
         <Link to={`/watch/${replay.id}`} className="mt-1 inline-flex h-10 items-center gap-2 rounded-full bg-brand px-5 text-sm font-semibold text-white hover:bg-brand-hover">
-          Watch the replay
+          {t("Watch the replay")}
         </Link>
       ) : stream.replay_enabled && stream.status === "ended" ? (
         <p className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-sm text-ink">
-          <Loader2 size={15} className="animate-spin" aria-hidden="true" /> Replay processing
+          <Loader2 size={15} className="animate-spin" aria-hidden="true" /> {t("Replay processing")}
         </p>
       ) : (
-        <p className="text-sm text-muted">There is no replay for this stream.</p>
+        <p className="text-sm text-muted">{t("There is no replay for this stream.")}</p>
       )}
     </div>
   )
@@ -86,19 +89,23 @@ function Ended({ stream }: { stream: LiveDetail }) {
 function Locked({ stream, canJoin, onJoin }: { stream: LiveDetail; canJoin: boolean; onJoin: () => void }) {
   const signedIn = useSignedIn()
   const rank = stream.locked?.members_rank ?? stream.members_rank
+  const t = useT("live")
+  const who = stream.channel?.name ?? t("channel")
   return (
     <div className={STAGE}>
       <span className="flex h-14 w-14 items-center justify-center rounded-full bg-[#FACC15] text-black"><Lock size={24} aria-hidden="true" /></span>
-      <p className="text-lg font-bold">Members-only live</p>
+      <p className="text-lg font-bold">{t("Members-only live")}</p>
       <p className="max-w-sm text-sm text-muted">
-        This live stream and its chat are for {stream.channel?.name ?? "channel"} members{rank && rank > 1 ? ` at tier ${rank} or above` : ""}.
+        {rank && rank > 1
+          ? t("This live stream and its chat are for {name} members at tier {rank} or above.", { name: who, rank })
+          : t("This live stream and its chat are for {name} members.", { name: who })}
       </p>
       {!signedIn ? (
-        <Link to={loginPath()} className="inline-flex h-10 items-center rounded-full bg-snow px-5 text-sm font-semibold text-black hover:bg-snow/85">Sign in to join</Link>
+        <Link to={loginPath()} className="inline-flex h-10 items-center rounded-full bg-snow px-5 text-sm font-semibold text-black hover:bg-snow/85">{t("Sign in to join")}</Link>
       ) : canJoin ? (
-        <Btn tone="brand" size="lg" onClick={onJoin}>Join membership to watch</Btn>
+        <Btn tone="brand" size="lg" onClick={onJoin}>{t("Join membership to watch")}</Btn>
       ) : (
-        <p className="text-xs text-faint">This channel is not taking new members right now.</p>
+        <p className="text-xs text-faint">{t("This channel is not taking new members right now.")}</p>
       )}
     </div>
   )
@@ -116,6 +123,7 @@ export default function LivePage() {
   const [joinOpen, setJoinOpen] = useState(false)
   const [src, setSrc] = useState<{ url: string; exp: number } | null>(null)
   const [report, setReport] = useState<ReportTarget | null>(null)
+  const t = useT("live")
 
   const detail = useQuery({
     queryKey: ["live", publicId, signedIn],
@@ -204,7 +212,7 @@ export default function LivePage() {
             ) : d.status === "scheduled" ? (
               <Scheduled stream={d} />
             ) : live && src ? (
-              <HlsPlayer key={src.url} src={src.url} live autoPlay className="aspect-video w-full sm:rounded-2xl">
+              <HlsPlayer key={src.url} src={src.url} live autoPlay t={t} className="aspect-video w-full sm:rounded-2xl">
                 <div className="absolute left-2 top-2 flex items-center gap-1.5">
                   <LiveBadge />
                   <span className="rounded-md bg-black/80 px-1.5 py-0.5 text-[11px] font-semibold text-white">{watching(viewers)}</span>
@@ -213,7 +221,7 @@ export default function LivePage() {
             ) : live ? (
               <div className={STAGE}>
                 <Radio size={30} className="text-[#f87171]" aria-hidden="true" />
-                <p className="inline-flex items-center gap-2 text-sm text-muted"><Loader2 size={15} className="animate-spin" aria-hidden="true" /> The stream is starting…</p>
+                <p className="inline-flex items-center gap-2 text-sm text-muted"><Loader2 size={15} className="animate-spin" aria-hidden="true" /> {t("The stream is starting…")}</p>
               </div>
             ) : (
               <Ended stream={d} />
@@ -224,14 +232,14 @@ export default function LivePage() {
             <div>
               <div className="mb-1.5 flex flex-wrap items-center gap-2 text-xs text-muted">
                 {live ? <LiveBadge /> : d.status === "scheduled" ? (
-                  <span className="rounded-md bg-white/10 px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-wide text-ink">Upcoming</span>
+                  <span className="rounded-md bg-white/10 px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-wide text-ink">{t("Upcoming")}</span>
                 ) : (
-                  <span className="rounded-md bg-white/10 px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-wide text-ink">Ended</span>
+                  <span className="rounded-md bg-white/10 px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-wide text-ink">{t("Ended")}</span>
                 )}
-                {live && <span className="inline-flex items-center gap-1"><Users size={13} aria-hidden="true" /> {compactNumber(viewers)} watching</span>}
-                {live && d.started_at && <span>· Started {timeAgo(d.started_at)}</span>}
-                {d.status === "ended" && d.peak_viewers > 0 && <span>Peak {compactNumber(d.peak_viewers)} watching</span>}
-                {d.members_rank ? <span className="inline-flex items-center gap-1 rounded-md bg-[#FACC15] px-1.5 py-0.5 text-[11px] font-bold text-black"><Lock size={11} aria-hidden="true" /> Members only</span> : null}
+                {live && <span className="inline-flex items-center gap-1"><Users size={13} aria-hidden="true" /> {watching(viewers)}</span>}
+                {live && d.started_at && <span>· {t("Started {when}", { when: timeAgo(d.started_at) })}</span>}
+                {d.status === "ended" && d.peak_viewers > 0 && <span>{t("Peak {n} watching", { n: compactNumber(d.peak_viewers) })}</span>}
+                {d.members_rank ? <span className="inline-flex items-center gap-1 rounded-md bg-[#FACC15] px-1.5 py-0.5 text-[11px] font-bold text-black"><Lock size={11} aria-hidden="true" /> {t("Members only")}</span> : null}
               </div>
               <h1 className="text-lg font-bold leading-snug sm:text-xl">{d.title}</h1>
             </div>
@@ -244,28 +252,28 @@ export default function LivePage() {
                   </Link>
                   <div className="min-w-0">
                     <ChannelName channel={d.channel} className="text-sm font-semibold" />
-                    <p className="text-xs text-muted">{compactNumber(d.channel.followers)} {d.channel.followers === 1 ? "follower" : "followers"}</p>
+                    <p className="text-xs text-muted">{t(d.channel.followers === 1 ? "{n} follower" : "{n} followers", { n: compactNumber(d.channel.followers) })}</p>
                   </div>
                 </div>
               )}
               {d.channel && !d.is_owner && <FollowButton handle={d.channel.handle} following={Boolean(channel.data?.following)} />}
               <div className="flex-1" />
               {canPay && (money?.superchat_tiers?.length ?? 0) > 0 && (
-                <Btn tone="soft" onClick={() => openSupport("superchat")}><MessageSquareHeart size={16} className="text-[#FACC15]" aria-hidden="true" /> Super chat</Btn>
+                <Btn tone="soft" onClick={() => openSupport("superchat")}><MessageSquareHeart size={16} className="text-[#FACC15]" aria-hidden="true" /> {t("Super chat")}</Btn>
               )}
               {canPay && (money?.gifts?.length ?? 0) > 0 && (
-                <Btn tone="soft" onClick={() => openSupport("gift")}><Gift size={16} className="text-brand-soft" aria-hidden="true" /> Send a gift</Btn>
+                <Btn tone="soft" onClick={() => openSupport("gift")}><Gift size={16} className="text-brand-soft" aria-hidden="true" /> {t("Send a gift")}</Btn>
               )}
               {!d.is_owner && (
-                <Btn tone="soft" onClick={() => askReport({ type: "live", id: d.id, label: "live stream" })} aria-label="Report live stream">
-                  <Flag size={16} aria-hidden="true" /> <span className="hidden sm:inline">Report</span>
+                <Btn tone="soft" onClick={() => askReport({ type: "live", id: d.id, label: "live stream" })} aria-label={t("Report live stream")}>
+                  <Flag size={16} aria-hidden="true" /> <span className="hidden sm:inline">{t("Report")}</span>
                 </Btn>
               )}
             </div>
 
             {d.description && (
               <div className="rounded-2xl bg-panel p-3 text-sm sm:p-4">
-                {d.scheduled_at && d.status === "scheduled" && <p className="mb-1 font-semibold text-ink">Scheduled for {longDate(d.scheduled_at)}</p>}
+                {d.scheduled_at && d.status === "scheduled" && <p className="mb-1 font-semibold text-ink">{t("Scheduled for {date}", { date: longDate(d.scheduled_at) })}</p>}
                 <p className="whitespace-pre-wrap break-words leading-relaxed text-ink/85">{d.description}</p>
               </div>
             )}
@@ -276,8 +284,8 @@ export default function LivePage() {
           {d.locked ? (
             <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-line bg-panel p-6 text-center">
               <Lock size={22} className="text-brand-soft" aria-hidden="true" />
-              <p className="text-sm font-semibold">Members-only chat</p>
-              <p className="max-w-xs text-xs text-muted">Join the channel's membership to watch and chat.</p>
+              <p className="text-sm font-semibold">{t("Members-only chat")}</p>
+              <p className="max-w-xs text-xs text-muted">{t("Join the channel's membership to watch and chat.")}</p>
             </div>
           ) : (
             <LiveChat
@@ -310,7 +318,7 @@ export default function LivePage() {
       )}
 
       {money && d.channel && (
-        <Sheet open={joinOpen} onClose={() => setJoinOpen(false)} title={`Join ${d.channel.name}`} wide>
+        <Sheet open={joinOpen} onClose={() => setJoinOpen(false)} title={t("Join {name}", { name: d.channel.name })} wide>
           <MembershipTiers
             support={money}
             channelName={d.channel.name}

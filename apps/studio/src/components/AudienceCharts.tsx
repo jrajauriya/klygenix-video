@@ -5,6 +5,7 @@ import { formatMoney } from "@klygenixvideo/client"
 import { compact } from "../lib/format"
 import type { ExternalRow, Revenue, SourceRow } from "../lib/types"
 import { useWidth } from "./DailyChart"
+import { tr, useT } from "../i18n"
 
 const SOURCE_LABEL: Record<string, string> = {
   home: "Home feed",
@@ -27,12 +28,13 @@ const PURPOSE_LABEL: Record<string, string> = {
   series: "Series",
 }
 
-export const sourceLabel = (s: string) => SOURCE_LABEL[s] ?? s.replace(/_/g, " ")
+export const sourceLabel = (s: string) => (SOURCE_LABEL[s] ? tr(SOURCE_LABEL[s]) : s.replace(/_/g, " "))
 
 const HEIGHT = 200
 const PAD = { top: 12, right: 12, bottom: 24, left: 40 }
 
 export function RetentionChart({ points, lengthLabel }: { points: { at_pct: number; audience: number }[]; lengthLabel?: string }) {
+  const t = useT()
   const [box, width] = useWidth<HTMLDivElement>()
   const [hover, setHover] = useState<number | null>(null)
   const plotW = Math.max(0, width - PAD.left - PAD.right)
@@ -46,22 +48,22 @@ export function RetentionChart({ points, lengthLabel }: { points: { at_pct: numb
   const half = points.findIndex((p) => p.audience < 0.5)
 
   if (!points.length) {
-    return <p className="rounded-lg bg-slate-50 px-4 py-10 text-center text-sm text-slate-500">Not enough views yet to draw how long people watch.</p>
+    return <p className="rounded-lg bg-slate-50 px-4 py-10 text-center text-sm text-slate-500">{t("Not enough views yet to draw how long people watch.")}</p>
   }
 
   return (
     <div>
       <div ref={box} className="relative w-full" style={{ height: HEIGHT }} onMouseLeave={() => setHover(null)}>
         {width > 0 && (
-          <svg width={width} height={HEIGHT} role="img" aria-label={`Audience retention: ${Math.round(points[points.length - 1].audience * 100)}% still watching at the end`} className="block">
-            {[0, 0.5, 1].map((t) => (
-              <g key={t}>
-                <line x1={PAD.left} x2={width - PAD.right} y1={y(t)} y2={y(t)} stroke={CHART_RULE} strokeWidth={1} />
-                <text x={PAD.left - 6} y={y(t)} dy="0.32em" textAnchor="end" fontSize={10} fill={CHART_AXIS} className="font-num">{t * 100}%</text>
+          <svg width={width} height={HEIGHT} role="img" aria-label={t("Audience retention: {pct}% still watching at the end", { pct: Math.round(points[points.length - 1].audience * 100) })} className="block">
+            {[0, 0.5, 1].map((tick) => (
+              <g key={tick}>
+                <line x1={PAD.left} x2={width - PAD.right} y1={y(tick)} y2={y(tick)} stroke={CHART_RULE} strokeWidth={1} />
+                <text x={PAD.left - 6} y={y(tick)} dy="0.32em" textAnchor="end" fontSize={10} fill={CHART_AXIS} className="font-num">{tick * 100}%</text>
               </g>
             ))}
-            {[0, 25, 50, 75, 100].map((t) => (
-              <text key={t} x={x(t)} y={HEIGHT - 6} textAnchor={t === 0 ? "start" : t === 100 ? "end" : "middle"} fontSize={10} fill={CHART_AXIS} className="font-num">{t}%</text>
+            {[0, 25, 50, 75, 100].map((tick) => (
+              <text key={tick} x={x(tick)} y={HEIGHT - 6} textAnchor={tick === 0 ? "start" : tick === 100 ? "end" : "middle"} fontSize={10} fill={CHART_AXIS} className="font-num">{tick}%</text>
             ))}
             <path d={area} fill={CHART_LINE} opacity={0.12} />
             <path d={line} fill="none" stroke={CHART_LINE} strokeWidth={2} strokeLinejoin="round" />
@@ -81,17 +83,17 @@ export function RetentionChart({ points, lengthLabel }: { points: { at_pct: numb
         {h && hover !== null && (
           <div className="pointer-events-none absolute top-0 z-10 -translate-x-1/2 whitespace-nowrap rounded-md border border-slate-200 bg-white px-2 py-1 text-xs shadow-md"
             style={{ left: Math.min(Math.max(x(h.at_pct), 60), width - 60) }}>
-            <p className="font-num text-slate-600">{Math.round(h.at_pct)}% in · <b className="text-navy">{Math.round(h.audience * 100)}%</b> still watching</p>
+            <p className="font-num text-slate-600">{t("{pct}% in", { pct: Math.round(h.at_pct) })} · <b className="text-navy">{Math.round(h.audience * 100)}%</b> {t("still watching")}</p>
           </div>
         )}
       </div>
       <p className="mt-1 text-xs text-slate-500">
-        Across: how far into the video{lengthLabel ? ` (${lengthLabel} long)` : ""}. Up: share of viewers still watching.
-        {half > 0 ? ` Half the audience has left by ${Math.round(points[half].at_pct)}% of the way in.` : ""}
+        {lengthLabel ? t("Across: how far into the video ({length} long). Up: share of viewers still watching.", { length: lengthLabel }) : t("Across: how far into the video. Up: share of viewers still watching.")}
+        {half > 0 ? " " + t("Half the audience has left by {pct}% of the way in.", { pct: Math.round(points[half].at_pct) }) : ""}
       </p>
       <table className="sr-only">
-        <caption>Audience retention</caption>
-        <thead><tr><th>Position</th><th>Still watching</th></tr></thead>
+        <caption>{t("Audience retention")}</caption>
+        <thead><tr><th>{t("Position")}</th><th>{t("Still watching")}</th></tr></thead>
         <tbody>{points.map((p) => <tr key={p.at_pct}><td>{p.at_pct}%</td><td>{Math.round(p.audience * 100)}%</td></tr>)}</tbody>
       </table>
     </div>
@@ -130,24 +132,25 @@ function Bars<T>({ rows, label, value, title, format = compact }: {
 }
 
 export function TrafficSources({ sources, external }: { sources: SourceRow[]; external: ExternalRow[] }) {
+  const t = useT()
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <Card className="p-5">
-        <h2 className="text-sm font-bold text-navy">Where views came from</h2>
-        <p className="mb-3 text-xs text-slate-500">The page or feed a viewer was on when they started watching.</p>
+        <h2 className="text-sm font-bold text-navy">{t("Where views came from")}</h2>
+        <p className="mb-3 text-xs text-slate-500">{t("The page or feed a viewer was on when they started watching.")}</p>
         {sources.length ? (
-          <Bars title="Traffic sources" rows={sources} label={(r) => sourceLabel(r.source)} value={(r) => r.views} />
+          <Bars title={t("Traffic sources")} rows={sources} label={(r) => sourceLabel(r.source)} value={(r) => r.views} />
         ) : (
-          <p className="text-sm text-slate-500">No views in these days yet.</p>
+          <p className="text-sm text-slate-500">{t("No views in these days yet.")}</p>
         )}
       </Card>
       <Card className="p-5">
-        <h2 className="text-sm font-bold text-navy">Top other websites</h2>
-        <p className="mb-3 text-xs text-slate-500">Sites that linked or embedded your videos.</p>
+        <h2 className="text-sm font-bold text-navy">{t("Top other websites")}</h2>
+        <p className="mb-3 text-xs text-slate-500">{t("Sites that linked or embedded your videos.")}</p>
         {external.length ? (
-          <Bars title="Top other websites" rows={external} label={(r) => r.host} value={(r) => r.views} />
+          <Bars title={t("Top other websites")} rows={external} label={(r) => r.host} value={(r) => r.views} />
         ) : (
-          <p className="text-sm text-slate-500">No views from other websites in these days.</p>
+          <p className="text-sm text-slate-500">{t("No views from other websites in these days.")}</p>
         )}
       </Card>
     </div>
@@ -155,35 +158,36 @@ export function TrafficSources({ sources, external }: { sources: SourceRow[]; ex
 }
 
 export function RevenueByStream({ revenue, days }: { revenue: Revenue; days: number }) {
+  const t = useT()
   const inr = (n: number) => formatMoney(n, revenue.currency || "INR")
   return (
     <Card className="p-5">
       <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
         <div>
-          <h2 className="text-sm font-bold text-navy">Revenue by stream</h2>
-          <p className="text-xs text-slate-500">Last {days} days, after refunds. Your share is after commission, GST and tax withheld.</p>
+          <h2 className="text-sm font-bold text-navy">{t("Revenue by stream")}</h2>
+          <p className="text-xs text-slate-500">{t("Last {n} days, after refunds. Your share is after commission, GST and tax withheld.", { n: days })}</p>
         </div>
-        <Link to="/earnings" className="text-sm font-semibold text-brand hover:underline">Open Earnings</Link>
+        <Link to="/earnings" className="text-sm font-semibold text-brand hover:underline">{t("Open Earnings")}</Link>
       </div>
       <div className="mb-4 grid grid-cols-2 gap-3 sm:max-w-md">
         <div className="rounded-lg bg-slate-50 px-3 py-2">
-          <p className="text-xs text-slate-500">Viewers paid</p>
+          <p className="text-xs text-slate-500">{t("Viewers paid")}</p>
           <p className="font-num text-lg font-bold text-navy">{inr(revenue.gross_minor)}</p>
         </div>
         <div className="rounded-lg bg-slate-50 px-3 py-2">
-          <p className="text-xs text-slate-500">Your share</p>
+          <p className="text-xs text-slate-500">{t("Your share")}</p>
           <p className="font-num text-lg font-bold text-navy">{inr(revenue.net_minor)}</p>
         </div>
       </div>
       {revenue.by_purpose.length ? (
         <table className="w-full text-sm">
-          <caption className="sr-only">Revenue by stream</caption>
+          <caption className="sr-only">{t("Revenue by stream")}</caption>
           <thead>
             <tr className="border-b border-slate-100 text-left text-xs text-slate-500">
-              <th scope="col" className="py-1.5 font-semibold">Stream</th>
-              <th scope="col" className="py-1.5 text-right font-semibold">Sales</th>
-              <th scope="col" className="py-1.5 text-right font-semibold">Viewers paid</th>
-              <th scope="col" className="py-1.5 text-right font-semibold">Your share</th>
+              <th scope="col" className="py-1.5 font-semibold">{t("Stream|revenue")}</th>
+              <th scope="col" className="py-1.5 text-right font-semibold">{t("Sales")}</th>
+              <th scope="col" className="py-1.5 text-right font-semibold">{t("Viewers paid")}</th>
+              <th scope="col" className="py-1.5 text-right font-semibold">{t("Your share")}</th>
             </tr>
           </thead>
           <tbody>
@@ -192,7 +196,7 @@ export function RevenueByStream({ revenue, days }: { revenue: Revenue; days: num
               return (
                 <tr key={p.purpose} className="border-b border-slate-50">
                   <th scope="row" className="py-2 text-left font-medium text-slate-700">
-                    {PURPOSE_LABEL[p.purpose] ?? p.purpose}
+                    {PURPOSE_LABEL[p.purpose] ? t(PURPOSE_LABEL[p.purpose]) : p.purpose}
                     <div className="mt-1 h-1.5 w-32 overflow-hidden rounded-full bg-slate-100" aria-hidden="true">
                       <div className="h-full rounded-full bg-brand" style={{ width: `${(p.gross_minor / most) * 100}%` }} />
                     </div>
@@ -206,7 +210,7 @@ export function RevenueByStream({ revenue, days }: { revenue: Revenue; days: num
           </tbody>
         </table>
       ) : (
-        <p className="text-sm text-slate-500">No sales in these days. Tips, boosts, memberships and paid videos show here.</p>
+        <p className="text-sm text-slate-500">{t("No sales in these days. Tips, boosts, memberships and paid videos show here.")}</p>
       )}
     </Card>
   )

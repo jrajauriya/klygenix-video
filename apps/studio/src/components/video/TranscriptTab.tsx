@@ -9,8 +9,10 @@ import { clock, detail } from "../../lib/format"
 import type { StudioVideoDetail, TranscriptOut } from "../../lib/types"
 import { PlayerBox } from "./PlayerBox"
 import type { Seek } from "../VideoPreview"
+import { useT } from "../../i18n"
 
 export function TranscriptTab({ video }: { video: StudioVideoDetail }) {
+  const t = useT()
   const qc = useQueryClient()
   const key = ["studio-transcript", video.id]
   const { data, isLoading } = useQuery({
@@ -31,7 +33,7 @@ export function TranscriptTab({ video }: { video: StudioVideoDetail }) {
 
   async function save() {
     if (changed.some((s) => !edits[s.idx].trim())) {
-      toast.error("A line cannot be empty")
+      toast.error(t("A line cannot be empty"))
       return
     }
     setSaving(true)
@@ -41,9 +43,9 @@ export function TranscriptTab({ video }: { video: StudioVideoDetail }) {
       })
       qc.setQueryData(key, next)
       qc.invalidateQueries({ queryKey: ["studio-video", String(video.id)] })
-      toast.success("Transcript saved. Summary, chapters and search update shortly.")
+      toast.success(t("Transcript saved. Summary, chapters and search update shortly."))
     } catch (err) {
-      toast.error(detail(err, "Could not save the transcript"))
+      toast.error(detail(err, t("Could not save the transcript")))
     } finally {
       setSaving(false)
     }
@@ -53,10 +55,10 @@ export function TranscriptTab({ video }: { video: StudioVideoDetail }) {
   if (!data?.transcript) {
     return (
       <EmptyState
-        title="No transcript yet"
+        title={t("No transcript yet")}
         hint={video.source === "embed"
-          ? "Linked videos get a transcript from captions you upload. Add them in the Captions tab."
-          : "The transcript appears here once the video has been transcribed."}
+          ? t("Linked videos get a transcript from captions you upload. Add them in the Captions tab.")
+          : t("The transcript appears here once the video has been transcribed.")}
       />
     )
   }
@@ -66,23 +68,23 @@ export function TranscriptTab({ video }: { video: StudioVideoDetail }) {
       <div className="lg:col-span-2">
         <div className="lg:sticky lg:top-4">
           <PlayerBox playback={video.playback} poster={video.thumbnail} seek={seek} onTime={setNow} vertical={video.kind === "reel"} />
-          <p className="mt-2 text-xs text-slate-500">Click a time to jump the preview there.</p>
+          <p className="mt-2 text-xs text-slate-500">{t("Click a time to jump the preview there.")}</p>
         </div>
       </div>
       <Card className="p-0 lg:col-span-3">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-3">
           <div className="flex items-center gap-2 text-sm">
-            <span className="font-semibold text-navy">{data.segments.length} lines</span>
+            <span className="font-semibold text-navy">{data.segments.length === 1 ? t("1 line") : t("{n} lines", { n: data.segments.length })}</span>
             <Badge color="slate">{data.transcript.language.toUpperCase()}</Badge>
-            {data.transcript.edited && <Badge color="blue">Edited</Badge>}
-            {data.transcript.source === "creator" && <Badge color="purple">From your captions</Badge>}
+            {data.transcript.edited && <Badge color="blue">{t("Edited")}</Badge>}
+            {data.transcript.source === "creator" && <Badge color="purple">{t("From your captions")}</Badge>}
           </div>
           <div className="flex gap-2">
             {changed.length > 0 && (
-              <Button size="sm" variant="ghost" onClick={() => setEdits({})}><Undo2 size={13} /> Undo</Button>
+              <Button size="sm" variant="ghost" onClick={() => setEdits({})}><Undo2 size={13} /> {t("Undo")}</Button>
             )}
             <Button size="sm" onClick={save} disabled={saving || changed.length === 0}>
-              <Save size={13} /> {saving ? "Saving…" : changed.length ? `Save ${changed.length} change${changed.length === 1 ? "" : "s"}` : "Saved"}
+              <Save size={13} /> {saving ? t("Saving…") : changed.length ? (changed.length === 1 ? t("Save 1 change") : t("Save {n} changes", { n: changed.length })) : t("Saved")}
             </Button>
           </div>
         </div>
@@ -103,7 +105,7 @@ export function TranscriptTab({ video }: { video: StudioVideoDetail }) {
                   value={value}
                   rows={Math.max(1, Math.ceil(value.length / 70))}
                   onChange={(e) => setEdits((m) => ({ ...m, [s.idx]: e.target.value }))}
-                  aria-label={`Line at ${clock(s.start_ms)}`}
+                  aria-label={t("Line at {time}", { time: clock(s.start_ms) })}
                   className={cn(
                     "min-w-0 flex-1 resize-y rounded-md border bg-transparent px-2 py-1 text-sm leading-relaxed text-slate-800",
                     value.trim() !== s.text ? "border-amber-400" : "border-transparent hover:border-slate-200 focus:border-brand",

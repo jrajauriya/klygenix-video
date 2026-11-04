@@ -12,6 +12,7 @@ import { sections, topLinks } from "./nav"
 import TwoStep from "../TwoStep"
 import { FeedbackButton } from "../FeedbackButton"
 import { LanguagePicker } from "../LanguagePicker"
+import { NotificationBell } from "./NotificationBell"
 import { useChannel } from "../../lib/hooks"
 import { channelUrl } from "../../lib/format"
 import { useHtmlLang, useT } from "../../i18n"
@@ -80,6 +81,7 @@ export function StudioLayout() {
           right={
             <>
             <FeedbackButton app="studio" label={t("Feedback")} />
+            <NotificationBell />
             {channel && (
               <>
                 <a
@@ -103,7 +105,7 @@ export function StudioLayout() {
           user={{
             name: user.name,
             email: user.email,
-            roleLabel: user.role.replace(/_/g, " "),
+            roleLabel: t(user.role.replace(/_/g, " ")),
             onLogout: logout,
             onTheme: () => setTheming(true),
             extra: (
@@ -143,9 +145,9 @@ export function StudioLayout() {
               setResending(true)
               try {
                 const { data } = await api.post("/api/auth/verify/resend")
-                toast.success(data.message ?? "Link sent")
+                toast.success(data.message ?? t("Link sent"))
               } catch (err: any) {
-                toast.error(err?.response?.data?.detail ?? "The link could not be sent")
+                toast.error(err?.response?.data?.detail ?? t("The link could not be sent"))
               } finally {
                 setResending(false)
               }
@@ -170,7 +172,7 @@ export function StudioLayout() {
         accent="#A21CAF"
         value={isThemeKey(theme.current) ? theme.current : undefined}
         saving={theme.saving}
-        onSelect={(key) => theme.save(key).catch(() => toast.error("Could not save the theme"))}
+        onSelect={(key) => theme.save(key).catch(() => toast.error(t("Could not save the theme")))}
       />
       <ChangePasswordDialog
         open={changing}

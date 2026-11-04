@@ -21,6 +21,7 @@ import Settings from "./pages/Settings"
 import Live from "./pages/Live"
 import GoLive from "./pages/GoLive"
 import NotFound from "./pages/NotFound"
+import Calendar from "./pages/Calendar"
 import Sponsorships from "./pages/Sponsorships"
 import DealDetail from "./pages/DealDetail"
 import BrandProfile from "./pages/brand/BrandProfile"
@@ -49,6 +50,7 @@ export const router = createBrowserRouter([
       { path: "/", element: guard("video.dashboard", <Dashboard />) },
       { path: "/videos", element: guard("video.uploads", <Videos />) },
       { path: "/videos/:id", element: guard("video.uploads", <VideoDetail />) },
+      { path: "/calendar", element: guard("video.uploads", <Calendar />) },
       { path: "/clips", element: guard("video.clips", <Clips />) },
       { path: "/clips/:id", element: guard("video.clips", <ClipEditor />) },
       { path: "/channel", element: guard("video.channels", <ChannelPage />) },

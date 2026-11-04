@@ -5,6 +5,8 @@ import { applyTheme } from "@klygenixvideo/ui"
 import { configureApp } from "@klygenixvideo/client"
 import { api } from "@klygenixvideo/auth"
 import App from "./App"
+import "./i18n"
+import { registerServiceWorker } from "./pwa"
 import "@klygenixvideo/fonts/console.css"
 import "./index.css"
 
@@ -21,3 +23,5 @@ createRoot(document.getElementById("root")!, rootOptions()).render(
     </StrictMode>,
   ),
 )
+
+registerServiceWorker()

@@ -5,6 +5,7 @@ import { ArrowUp, Crown, Loader2, MessageCircleQuestion } from "lucide-react"
 import { api } from "@klygenixvideo/auth"
 import { errStatus, errText, loginPath, useSignedIn } from "../lib/api"
 import type { ScopedAnswer, ScopedCitation } from "../lib/types"
+import { useT } from "../i18n"
 
 const MARK = /\[v:([A-Za-z0-9_-]+) (\d{1,2}:\d{2}(?::\d{2})?)\]/g
 
@@ -61,6 +62,7 @@ function AnswerText({ msg }: { msg: ScopedAnswer }) {
 }
 
 export function ScopedAsk({ endpoint, title, blurb }: { endpoint: string; title: string; blurb: string }) {
+  const t = useT("watchx")
   const signedIn = useSignedIn()
   const [question, setQuestion] = useState("")
   const [pending, setPending] = useState<string | null>(null)
@@ -78,8 +80,8 @@ export function ScopedAsk({ endpoint, title, blurb }: { endpoint: string; title:
       const { data } = await api.post<ScopedAnswer>(endpoint, { question: text })
       setAnswers((a) => [...a, data])
     } catch (err) {
-      if (errStatus(err) === 402) setUpsell(errText(err, "You have used today's questions."))
-      else toast.error(errText(err, "That question could not be answered right now."))
+      if (errStatus(err) === 402) setUpsell(errText(err, t("You have used today's questions.")))
+      else toast.error(errText(err, t("That question could not be answered right now.")))
       setQuestion(text)
     } finally {
       setPending(null)
@@ -94,7 +96,7 @@ export function ScopedAsk({ endpoint, title, blurb }: { endpoint: string; title:
       <h2 className="flex items-center gap-2 text-base font-bold"><MessageCircleQuestion size={18} className="text-brand-soft" aria-hidden="true" /> {title}</h2>
       <p className="mt-1 text-sm text-muted">{blurb}</p>
       {!signedIn ? (
-        <Link to={loginPath()} className="mt-4 inline-flex rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-hover">Sign in to ask</Link>
+        <Link to={loginPath()} className="mt-4 inline-flex rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-hover">{t("Sign in to ask")}</Link>
       ) : (
         <>
           {(answers.length > 0 || pending || upsell) && (
@@ -104,7 +106,7 @@ export function ScopedAsk({ endpoint, title, blurb }: { endpoint: string; title:
                   <div className="ml-auto w-fit max-w-[85%] rounded-2xl rounded-br-md bg-brand px-3 py-2 text-sm text-white">{m.question}</div>
                   <div className="rounded-2xl rounded-bl-md bg-panel-2 px-3 py-2.5">
                     <AnswerText msg={m} />
-                    {m.status === "declined" && <p className="mt-1 text-xs text-muted">Searched {m.videos} {m.videos === 1 ? "video" : "videos"}.</p>}
+                    {m.status === "declined" && <p className="mt-1 text-xs text-muted">{t(m.videos === 1 ? "Searched {n} video." : "Searched {n} videos.", { n: m.videos })}</p>}
                   </div>
                 </div>
               ))}
@@ -112,14 +114,14 @@ export function ScopedAsk({ endpoint, title, blurb }: { endpoint: string; title:
                 <div className="space-y-2">
                   <div className="ml-auto w-fit max-w-[85%] rounded-2xl rounded-br-md bg-brand px-3 py-2 text-sm text-white">{pending}</div>
                   <div className="inline-flex items-center gap-2 rounded-2xl rounded-bl-md bg-panel-2 px-3 py-2.5 text-sm text-muted">
-                    <Loader2 size={14} className="animate-spin" aria-hidden="true" /> Looking through the videos…
+                    <Loader2 size={14} className="animate-spin" aria-hidden="true" /> {t("Looking through the videos…")}
                   </div>
                 </div>
               )}
               {upsell && (
                 <div className="rounded-2xl border border-brand/50 bg-gradient-to-br from-brand/25 to-transparent p-4">
                   <p className="flex items-center gap-2 text-sm font-semibold"><Crown size={16} className="text-brand-soft" aria-hidden="true" /> {upsell}</p>
-                  <Link to="/plans" className="mt-3 inline-flex rounded-full bg-brand px-4 py-1.5 text-sm font-semibold text-white hover:bg-brand-hover">See Viewer Premium</Link>
+                  <Link to="/plans" className="mt-3 inline-flex rounded-full bg-brand px-4 py-1.5 text-sm font-semibold text-white hover:bg-brand-hover">{t("See Viewer Premium")}</Link>
                 </div>
               )}
             </div>
@@ -136,15 +138,15 @@ export function ScopedAsk({ endpoint, title, blurb }: { endpoint: string; title:
                   }
                 }}
                 rows={1}
-                placeholder="Ask a question"
+                placeholder={t("Ask a question")}
                 aria-label={title}
                 className="max-h-28 min-h-9 flex-1 resize-none bg-transparent px-2 py-2 text-sm text-ink placeholder:text-faint outline-none"
               />
-              <button type="submit" disabled={question.trim().length < 2 || !!pending} aria-label="Ask" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand text-white hover:bg-brand-hover disabled:opacity-40">
+              <button type="submit" disabled={question.trim().length < 2 || !!pending} aria-label={t("Ask")} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand text-white hover:bg-brand-hover disabled:opacity-40">
                 <ArrowUp size={17} aria-hidden="true" />
               </button>
             </div>
-            {left !== null && <p className="mt-1.5 text-[11px] text-faint">{left} of {last?.quota?.limit} questions left today</p>}
+            {left !== null && <p className="mt-1.5 text-[11px] text-faint">{t("{left} of {limit} questions left today", { left, limit: last?.quota?.limit ?? 0 })}</p>}
           </form>
         </>
       )}

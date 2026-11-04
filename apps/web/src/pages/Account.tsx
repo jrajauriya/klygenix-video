@@ -2,11 +2,11 @@ import { useEffect, useRef, useState, type FormEvent } from "react"
 import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom"
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
-import { ChevronRight, Crown, Download, FileText, History, ListVideo, LogOut, PlayCircle, Scale, ShieldAlert, ShoppingBag, Trash2, UserX, Users, X } from "lucide-react"
+import { Bell, ChevronRight, Crown, Download, FileText, History, ListVideo, LogOut, PlayCircle, Scale, ShieldAlert, ShoppingBag, Trash2, UserX, Users, X } from "lucide-react"
 import { api, useAuthStore } from "@klygenixvideo/auth"
 import { formatMoney } from "@klygenixvideo/client"
 import { cn, saveBlob, useConfirm } from "@klygenixvideo/ui"
-import { PageShell } from "../components/Layout"
+import { LangSwitch, PageShell } from "../components/Layout"
 import { Btn, ChannelAvatar, Empty, Field, INPUT, Skel, TEXTAREA } from "../components/bits"
 import { FollowButton } from "../components/FollowButton"
 import { TierBadge } from "../components/Support"
@@ -16,11 +16,13 @@ import { LANG_NAMES, compactNumber, longDate, rupees, timeAgo } from "../lib/for
 import { useTitle } from "../lib/title"
 import type { ChannelCard, HistoryItem, Invoice, Membership, Moderation, Purchase } from "../lib/types"
 import type { UserSettings } from "@klygenixvideo/types"
+import { useT } from "../i18n"
 
-type Tab = "profile" | "plans" | "memberships" | "purchases" | "invoices" | "history" | "following" | "notices" | "privacy"
+type Tab = "profile" | "notifications" | "plans" | "memberships" | "purchases" | "invoices" | "history" | "following" | "notices" | "privacy"
 
 const TABS: { key: Tab; label: string }[] = [
   { key: "profile", label: "Profile" },
+  { key: "notifications", label: "Notifications" },
   { key: "plans", label: "Plans & usage" },
   { key: "memberships", label: "Memberships" },
   { key: "purchases", label: "Purchases" },
@@ -46,6 +48,7 @@ function Panel({ title, children, action }: { title: string; children: React.Rea
 }
 
 function Profile() {
+  const t = useT("account")
   const { data: me, isLoading } = useMe()
   const qc = useQueryClient()
   const user = useAuthStore((s) => s.user)
@@ -67,9 +70,9 @@ function Profile() {
       qc.setQueryData(["me"], data)
       const { token, setAuth } = useAuthStore.getState()
       if (token && user) setAuth(token, { ...user, settings: { ...(user.settings ?? {}), language: language as UserSettings["language"] } })
-      toast.success("Profile saved")
+      toast.success(t("Profile saved"))
     } catch (err) {
-      toast.error(errText(err, "Your profile could not be saved."))
+      toast.error(errText(err, t("Your profile could not be saved.")))
     } finally {
       setSaving(false)
     }
@@ -78,38 +81,44 @@ function Profile() {
   if (isLoading || !me) return <Skel className="h-64 w-full rounded-2xl" />
   return (
     <div className="space-y-5">
-      <Panel title="Profile">
+      <Panel title={t("Display language")}>
+        <div className="flex flex-wrap items-center gap-3">
+          <p className="min-w-0 flex-1 text-sm text-muted">{t("The language of menus and buttons on Klygenix Play. Error messages from our servers follow it too.")}</p>
+          <LangSwitch />
+        </div>
+      </Panel>
+      <Panel title={t("Profile")}>
         <form onSubmit={save} className="grid max-w-xl gap-4">
-          <Field label="Display name" hint="Shown next to your comments.">
+          <Field label={t("Display name")} hint={t("Shown next to your comments.")}>
             <input className={INPUT} value={name} onChange={(e) => setName(e.target.value)} maxLength={80} required />
           </Field>
-          <Field label="Language" hint="Used for AI answers and the default subtitle language.">
+          <Field label={t("Content language")} hint={t("Used for AI answers and the default subtitle language.")}>
             <select className={INPUT} value={language} onChange={(e) => setLanguage(e.target.value)}>
               {Object.entries(LANG_NAMES).map(([code, label]) => <option key={code} value={code}>{label}</option>)}
             </select>
           </Field>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Email"><input className={cn(INPUT, "opacity-70")} value={me.user.email} readOnly /></Field>
-            <Field label="Country"><input className={cn(INPUT, "opacity-70")} value={me.profile?.country ?? "—"} readOnly /></Field>
+            <Field label={t("Email")}><input className={cn(INPUT, "opacity-70")} value={me.user.email} readOnly /></Field>
+            <Field label={t("Country")}><input className={cn(INPUT, "opacity-70")} value={me.profile?.country ?? "—"} readOnly /></Field>
           </div>
-          <div><Btn type="submit" tone="brand" disabled={saving || !name.trim()}>{saving ? "Saving…" : "Save changes"}</Btn></div>
+          <div><Btn type="submit" tone="brand" disabled={saving || !name.trim()}>{saving ? t("Saving…") : t("Save changes")}</Btn></div>
         </form>
       </Panel>
-      <Panel title="Creator channel">
+      <Panel title={t("Creator channel")}>
         {me.channel ? (
           <div className="flex flex-wrap items-center gap-3">
             <ChannelAvatar channel={me.channel} size={44} />
             <div className="min-w-0 flex-1">
               <p className="font-semibold">{me.channel.name}</p>
-              <p className="text-xs text-muted">@{me.channel.handle} · {compactNumber(me.channel.followers)} followers</p>
+              <p className="text-xs text-muted">@{me.channel.handle} · {t("{n} followers", { n: compactNumber(me.channel.followers) })}</p>
             </div>
-            <Link to={`/@${me.channel.handle}`} className="rounded-full bg-white/10 px-4 py-2 text-sm font-semibold hover:bg-white/15">View channel</Link>
-            <a href={STUDIO_URL} className="rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-hover">Open Studio</a>
+            <Link to={`/@${me.channel.handle}`} className="rounded-full bg-white/10 px-4 py-2 text-sm font-semibold hover:bg-white/15">{t("View channel")}</Link>
+            <a href={STUDIO_URL} className="rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-hover">{t("Open Studio")}</a>
           </div>
         ) : (
           <div className="flex flex-wrap items-center gap-3">
-            <p className="flex-1 text-sm text-muted">You don't have a channel yet. Open one in Studio to upload videos and reels.</p>
-            <a href={STUDIO_URL} className="rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-hover">Go to Studio</a>
+            <p className="flex-1 text-sm text-muted">{t("You don't have a channel yet. Open one in Studio to upload videos and reels.")}</p>
+            <a href={STUDIO_URL} className="rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-hover">{t("Go to Studio")}</a>
           </div>
         )}
       </Panel>
@@ -117,36 +126,91 @@ function Profile() {
   )
 }
 
+const DIGESTS = [
+  { value: "off", label: "Off", hint: "No email digests." },
+  { value: "daily", label: "Daily", hint: "One email a day with new videos from channels you follow." },
+  { value: "weekly", label: "Weekly", hint: "One email a week with the best of what you missed." },
+] as const
+
+function NotificationSettings() {
+  const t = useT("account")
+  const qc = useQueryClient()
+  const q = useQuery({ queryKey: ["digest"], queryFn: () => getJson<{ frequency: string }>("/api/video/me/digest") })
+  const [saving, setSaving] = useState<string | null>(null)
+
+  async function choose(frequency: string) {
+    setSaving(frequency)
+    try {
+      const { data } = await api.put<{ frequency: string }>("/api/video/me/digest", { frequency })
+      qc.setQueryData(["digest"], data)
+      toast.success(t("Digest setting saved"))
+    } catch (err) {
+      toast.error(errText(err, t("Your digest setting could not be saved.")))
+    } finally {
+      setSaving(null)
+    }
+  }
+
+  return (
+    <div className="space-y-5">
+      <Panel title={t("Email digest")}>
+        {q.isLoading ? (
+          <Skel className="h-32 w-full" />
+        ) : (
+          <fieldset className="max-w-xl space-y-2" disabled={saving !== null}>
+            <legend className="mb-3 text-sm text-muted">{t("How often should we email you a summary of new videos?")}</legend>
+            {DIGESTS.map((d) => (
+              <label key={d.value} className={cn("flex cursor-pointer items-start gap-3 rounded-xl border px-4 py-3", q.data?.frequency === d.value ? "border-brand bg-brand/[0.08]" : "border-line bg-panel-2 hover:border-white/20")}>
+                <input type="radio" name="digest" value={d.value} checked={q.data?.frequency === d.value} onChange={() => void choose(d.value)} className="mt-1 accent-[#C026D3]" />
+                <span>
+                  <span className="block text-sm font-semibold">{t(d.label)}</span>
+                  <span className="block text-xs text-muted">{t(d.hint)}</span>
+                </span>
+              </label>
+            ))}
+          </fieldset>
+        )}
+      </Panel>
+      <Link to="/notifications" className="flex items-center gap-3 rounded-2xl border border-line bg-panel p-4 hover:border-brand/50 sm:px-6">
+        <Bell size={20} className="shrink-0 text-brand-soft" aria-hidden="true" />
+        <span className="min-w-0 flex-1 text-sm font-semibold">{t("See all notifications")}</span>
+        <ChevronRight size={18} className="shrink-0 text-muted" aria-hidden="true" />
+      </Link>
+    </div>
+  )
+}
+
 function PlansUsage() {
+  const t = useT("account")
   const { data: me, isLoading } = useMe()
   if (isLoading || !me) return <Skel className="h-64 w-full rounded-2xl" />
   return (
     <div className="space-y-5">
-      <Panel title="Your plans" action={<Link to="/plans" className="text-sm font-semibold text-brand-soft hover:underline">Change plan</Link>}>
+      <Panel title={t("Your plans")} action={<Link to="/plans" className="text-sm font-semibold text-brand-soft hover:underline">{t("Change plan")}</Link>}>
         <div className="grid gap-3 sm:grid-cols-2">
           {(["viewer", "creator"] as const).map((aud) => {
             const plan = me.plans[aud]
             const sub = me.subscriptions.find((s) => s.audience === aud)
             return (
               <div key={aud} className="rounded-xl bg-panel-2 p-4">
-                <p className="text-xs uppercase tracking-wide text-faint">{aud === "viewer" ? "Watching" : "Creating"}</p>
+                <p className="text-xs uppercase tracking-wide text-faint">{aud === "viewer" ? t("Watching") : t("Creating")}</p>
                 <p className="mt-1 text-lg font-bold">{plan.name}</p>
-                <p className="text-sm text-muted">{plan.free ? "Free" : `${formatMoney(plan.price_minor, plan.currency)} / month`}</p>
-                {sub && <p className="mt-2 text-xs text-muted">{sub.cancel_at_period_end ? "Ends" : "Renews"} on {longDate(sub.current_period_end)}{sub.status === "grace" ? " · payment pending" : ""}</p>}
+                <p className="text-sm text-muted">{plan.free ? t("Free") : t("{price} / month", { price: formatMoney(plan.price_minor, plan.currency) })}</p>
+                {sub && <p className="mt-2 text-xs text-muted">{t(sub.cancel_at_period_end ? "Ends on {date}" : "Renews on {date}", { date: longDate(sub.current_period_end) })}{sub.status === "grace" ? ` · ${t("payment pending")}` : ""}</p>}
               </div>
             )
           })}
         </div>
       </Panel>
-      <Panel title="Usage">
+      <Panel title={t("Usage")}>
         <ul className="space-y-4">
           {me.usage.map((u) => {
             const pct = u.limit ? Math.min(100, (u.used / u.limit) * 100) : 0
             return (
               <li key={u.metric}>
                 <div className="mb-1.5 flex justify-between text-sm">
-                  <span className="font-medium capitalize">{u.label}</span>
-                  <span className="tabular-nums text-muted">{u.used} / {u.limit ?? "∞"} <span className="text-faint">· {u.metric === "ask" ? "today" : "this month"}</span></span>
+                  <span className="font-medium capitalize">{u.label ? t(u.label) : u.metric}</span>
+                  <span className="tabular-nums text-muted">{u.used} / {u.limit ?? "∞"} <span className="text-faint">· {u.metric === "ask" ? t("today") : t("this month")}</span></span>
                 </div>
                 <div className="h-2 overflow-hidden rounded-full bg-white/10">
                   <div className={cn("h-full rounded-full", pct >= 90 ? "bg-[#f97316]" : "bg-brand")} style={{ width: `${pct}%` }} />
@@ -165,6 +229,7 @@ const MEMBER_STATUS: Record<string, string> = {
 }
 
 function Memberships() {
+  const t = useT("account")
   const qc = useQueryClient()
   const confirm = useConfirm()
   const [busy, setBusy] = useState<number | null>(null)
@@ -173,10 +238,10 @@ function Memberships() {
   async function cancel(m: Membership) {
     if (!m.tier) return
     const ok = await confirm({
-      title: `Cancel ${m.tier.name}?`,
-      message: `You keep your membership of ${m.channel_name ?? "this channel"} until ${longDate(m.current_period_end)}. It will not renew after that.`,
-      confirmLabel: "Cancel membership",
-      cancelLabel: "Keep it",
+      title: t("Cancel {name}?", { name: m.tier.name }),
+      message: t("You keep your membership of {channel} until {date}. It will not renew after that.", { channel: m.channel_name ?? t("this channel"), date: longDate(m.current_period_end) }),
+      confirmLabel: t("Cancel membership"),
+      cancelLabel: t("Keep it"),
       variant: "destructive",
     })
     if (!ok) return
@@ -185,20 +250,20 @@ function Memberships() {
       await api.post(`/api/video/me/memberships/${m.tier.id}/cancel`)
       await qc.invalidateQueries({ queryKey: ["memberships"] })
       qc.invalidateQueries({ queryKey: ["support"] })
-      toast.success(`Cancelled. You keep it until ${longDate(m.current_period_end)}.`)
+      toast.success(t("Cancelled. You keep it until {date}.", { date: longDate(m.current_period_end) }))
     } catch (err) {
-      toast.error(errText(err, "The membership could not be cancelled."))
+      toast.error(errText(err, t("The membership could not be cancelled.")))
     } finally {
       setBusy(null)
     }
   }
 
   return (
-    <Panel title="Memberships">
+    <Panel title={t("Memberships")}>
       {q.isLoading ? (
         <Skel className="h-24 w-full" />
       ) : (q.data ?? []).length === 0 ? (
-        <Empty icon={<Crown size={28} />} title="No memberships" body="Join a channel's membership to watch its members-only videos. They show up here." />
+        <Empty icon={<Crown size={28} />} title={t("No memberships")} body={t("Join a channel's membership to watch its members-only videos. They show up here.")} />
       ) : (
         <ul className="divide-y divide-line">
           {(q.data ?? []).map((m, i) => {
@@ -207,17 +272,17 @@ function Memberships() {
               <li key={`${m.tier?.id ?? "x"}-${i}`} className="flex flex-wrap items-center gap-3 py-3">
                 <div className="min-w-0 flex-1">
                   <p className="flex flex-wrap items-center gap-2 text-sm font-semibold">
-                    {m.channel ? <Link to={`/@${m.channel}`} className="hover:underline">{m.channel_name ?? m.channel}</Link> : <span>{m.channel_name ?? "Channel"}</span>}
+                    {m.channel ? <Link to={`/@${m.channel}`} className="hover:underline">{m.channel_name ?? m.channel}</Link> : <span>{m.channel_name ?? t("Channel")}</span>}
                     {m.tier && <TierBadge>{m.tier.badge || m.tier.name}</TierBadge>}
                   </p>
                   <p className="text-xs text-muted">
-                    {m.tier ? `${m.tier.name} · ${rupees(m.tier.price_minor, m.tier.currency)} / month` : "Membership"} · {MEMBER_STATUS[m.status] ?? m.status}
-                    {live && m.current_period_end ? ` · ${m.cancel_at_period_end ? "Ends" : "Renews"} on ${longDate(m.current_period_end)}` : ""}
+                    {m.tier ? `${m.tier.name} · ${t("{price} / month", { price: rupees(m.tier.price_minor, m.tier.currency) })}` : t("Membership")} · {MEMBER_STATUS[m.status] ? t(MEMBER_STATUS[m.status]) : m.status}
+                    {live && m.current_period_end ? ` · ${t(m.cancel_at_period_end ? "Ends on {date}" : "Renews on {date}", { date: longDate(m.current_period_end) })}` : ""}
                   </p>
                 </div>
                 {live && m.status === "active" && !m.cancel_at_period_end && m.tier && (
                   <Btn tone="ghost" size="sm" className="text-muted" onClick={() => cancel(m)} disabled={busy !== null}>
-                    {busy === m.tier.id ? "Cancelling…" : "Cancel"}
+                    {busy === m.tier.id ? t("Cancelling…") : t("Cancel")}
                   </Btn>
                 )}
               </li>
@@ -230,13 +295,14 @@ function Memberships() {
 }
 
 function Purchases() {
+  const t = useT("account")
   const q = useQuery({ queryKey: ["purchases"], queryFn: () => getJson<Purchase[]>("/api/video/me/purchases") })
   return (
-    <Panel title="Purchases">
+    <Panel title={t("Purchases")}>
       {q.isLoading ? (
         <Skel className="h-24 w-full" />
       ) : (q.data ?? []).length === 0 ? (
-        <Empty icon={<ShoppingBag size={28} />} title="Nothing bought yet" body="Videos and series you buy are yours to keep. They show up here." />
+        <Empty icon={<ShoppingBag size={28} />} title={t("Nothing bought yet")} body={t("Videos and series you buy are yours to keep. They show up here.")} />
       ) : (
         <ul className="divide-y divide-line">
           {(q.data ?? []).map((p, i) => {
@@ -245,8 +311,8 @@ function Purchases() {
               <li key={`${p.kind}-${p.id ?? i}`} className="flex items-center gap-3 py-3">
                 {p.kind === "series" ? <ListVideo size={18} className="shrink-0 text-faint" aria-hidden="true" /> : <PlayCircle size={18} className="shrink-0 text-faint" aria-hidden="true" />}
                 <div className="min-w-0 flex-1">
-                  {to ? <Link to={to} className="block truncate text-sm font-semibold hover:underline">{p.title || "Untitled"}</Link> : <p className="truncate text-sm font-semibold">{p.title || "Untitled"}</p>}
-                  <p className="text-xs text-muted">{p.kind === "series" ? "Series" : "Video"} · bought {longDate(p.bought_at)}</p>
+                  {to ? <Link to={to} className="block truncate text-sm font-semibold hover:underline">{p.title || t("Untitled")}</Link> : <p className="truncate text-sm font-semibold">{p.title || t("Untitled")}</p>}
+                  <p className="text-xs text-muted">{p.kind === "series" ? t("Series") : t("Video")} · {t("bought {date}", { date: longDate(p.bought_at) })}</p>
                 </div>
               </li>
             )
@@ -258,6 +324,7 @@ function Purchases() {
 }
 
 function Invoices() {
+  const t = useT("account")
   const q = useQuery({ queryKey: ["invoices"], queryFn: () => getJson<Invoice[]>("/api/video/me/invoices") })
   const [busy, setBusy] = useState<number | null>(null)
 
@@ -267,18 +334,18 @@ function Invoices() {
       const res = await api.get(`/api/video/me/invoices/${inv.id}.pdf`, { responseType: "blob" })
       saveBlob(res.data as Blob, `${inv.number || `invoice-${inv.id}`}.pdf`)
     } catch (err) {
-      toast.error(errText(err, "The invoice could not be downloaded."))
+      toast.error(errText(err, t("The invoice could not be downloaded.")))
     } finally {
       setBusy(null)
     }
   }
 
   return (
-    <Panel title="Invoices">
+    <Panel title={t("Invoices")}>
       {q.isLoading ? (
         <Skel className="h-24 w-full" />
       ) : (q.data ?? []).length === 0 ? (
-        <Empty icon={<FileText size={28} />} title="No invoices yet" body="When you pay for a plan, its tax invoice appears here." />
+        <Empty icon={<FileText size={28} />} title={t("No invoices yet")} body={t("When you pay for a plan, its tax invoice appears here.")} />
       ) : (
         <ul className="divide-y divide-line">
           {(q.data ?? []).map((inv) => (
@@ -286,11 +353,11 @@ function Invoices() {
               <FileText size={18} className="text-faint" />
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-semibold">{inv.number}</p>
-                <p className="text-xs text-muted">{longDate(inv.date)} · {inv.kind === "credit_note" ? "Credit note" : "Tax invoice"}</p>
+                <p className="text-xs text-muted">{longDate(inv.date)} · {inv.kind === "credit_note" ? t("Credit note") : t("Tax invoice")}</p>
               </div>
               <span className="text-sm font-semibold tabular-nums">{formatMoney(inv.total_minor, inv.currency)}</span>
               <Btn size="sm" tone="soft" onClick={() => download(inv)} disabled={!inv.has_pdf || busy === inv.id}>
-                <Download size={14} /> {busy === inv.id ? "…" : "PDF"}
+                <Download size={14} aria-hidden="true" /> {busy === inv.id ? "…" : "PDF"}
               </Btn>
             </li>
           ))}
@@ -301,6 +368,7 @@ function Invoices() {
 }
 
 function WatchHistory() {
+  const t = useT("account")
   const qc = useQueryClient()
   const confirm = useConfirm()
   const [busy, setBusy] = useState<string | null>(null)
@@ -321,9 +389,9 @@ function WatchHistory() {
     try {
       await api.delete(`/api/video/me/history/${h.id}`)
       await qc.invalidateQueries({ queryKey: ["history"] })
-      toast.success("Removed from history")
+      toast.success(t("Removed from history"))
     } catch (err) {
-      toast.error(errText(err, "It could not be removed."))
+      toast.error(errText(err, t("It could not be removed.")))
     } finally {
       setBusy(null)
     }
@@ -331,9 +399,9 @@ function WatchHistory() {
 
   async function clearAll() {
     const ok = await confirm({
-      title: "Clear your watch history?",
-      message: "Every video you watched is removed from this list, and you lose the place you stopped in each one. This cannot be undone.",
-      confirmLabel: "Clear history",
+      title: t("Clear your watch history?"),
+      message: t("Every video you watched is removed from this list, and you lose the place you stopped in each one. This cannot be undone."),
+      confirmLabel: t("Clear history"),
       variant: "destructive",
     })
     if (!ok) return
@@ -341,9 +409,9 @@ function WatchHistory() {
     try {
       await api.delete("/api/video/me/history")
       await qc.invalidateQueries({ queryKey: ["history"] })
-      toast.success("Watch history cleared")
+      toast.success(t("Watch history cleared"))
     } catch (err) {
-      toast.error(errText(err, "Your history could not be cleared."))
+      toast.error(errText(err, t("Your history could not be cleared.")))
     } finally {
       setBusy(null)
     }
@@ -351,13 +419,13 @@ function WatchHistory() {
 
   return (
     <Panel
-      title={total > 0 ? `Watch history · ${total}` : "Watch history"}
-      action={rows.length > 0 ? <Btn tone="ghost" size="sm" onClick={clearAll} disabled={busy !== null}><Trash2 size={14} /> Clear all</Btn> : undefined}
+      title={total > 0 ? `${t("Watch history")} · ${total}` : t("Watch history")}
+      action={rows.length > 0 ? <Btn tone="ghost" size="sm" onClick={clearAll} disabled={busy !== null}><Trash2 size={14} aria-hidden="true" /> {t("Clear all")}</Btn> : undefined}
     >
       {q.isLoading ? (
         <Skel className="h-40 w-full" />
       ) : rows.length === 0 ? (
-        <Empty icon={<History size={28} />} title="Nothing watched yet" body="Videos you watch while signed in show up here so you can pick up where you left off." />
+        <Empty icon={<History size={28} />} title={t("Nothing watched yet")} body={t("Videos you watch while signed in show up here so you can pick up where you left off.")} />
       ) : (
         <>
           <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -368,15 +436,15 @@ function WatchHistory() {
                   <div className="min-w-0">
                     <p className="line-clamp-2 text-sm font-semibold">{h.title}</p>
                     <p className="mt-1 truncate text-xs text-muted">{h.channel?.name}</p>
-                    <p className="text-xs text-faint">{h.completed ? "Watched" : "In progress"}{h.watched_at ? ` · ${timeAgo(h.watched_at)}` : ""}</p>
+                    <p className="text-xs text-faint">{h.completed ? t("Watched") : t("In progress")}{h.watched_at ? ` · ${timeAgo(h.watched_at)}` : ""}</p>
                   </div>
                 </Link>
                 <button
                   type="button"
                   onClick={() => removeOne(h)}
                   disabled={busy !== null}
-                  aria-label={`Remove ${h.title} from history`}
-                  title="Remove from history"
+                  aria-label={t("Remove {title} from history", { title: h.title })}
+                  title={t("Remove from history")}
                   className="absolute right-0 top-0 flex h-8 w-8 items-center justify-center rounded-full text-muted hover:bg-white/10 hover:text-ink disabled:opacity-50"
                 >
                   <X size={16} />
@@ -387,7 +455,7 @@ function WatchHistory() {
           {q.hasNextPage && (
             <div className="mt-5 flex justify-center">
               <Btn tone="soft" size="sm" onClick={() => q.fetchNextPage()} disabled={q.isFetchingNextPage}>
-                {q.isFetchingNextPage ? "Loading…" : "Show more"}
+                {q.isFetchingNextPage ? t("Loading…") : t("Show more")}
               </Btn>
             </div>
           )}
@@ -398,6 +466,7 @@ function WatchHistory() {
 }
 
 function PrivacyData({ onErased }: { onErased: () => void }) {
+  const t = useT("account")
   const { data: me } = useMe()
   const [exporting, setExporting] = useState(false)
   const [typed, setTyped] = useState("")
@@ -410,9 +479,9 @@ function PrivacyData({ onErased }: { onErased: () => void }) {
       const res = await api.post("/api/video/me/export", null, { responseType: "blob" })
       const name = /filename="?([^";]+)"?/.exec(String(res.headers["content-disposition"] ?? ""))?.[1] ?? `klygenix-play-${me?.user.id ?? "data"}.json`
       saveBlob(res.data as Blob, name)
-      toast.success("Your data was downloaded")
+      toast.success(t("Your data was downloaded"))
     } catch (err) {
-      toast.error(errText(err, "Your data could not be exported."))
+      toast.error(errText(err, t("Your data could not be exported.")))
     } finally {
       setExporting(false)
     }
@@ -425,11 +494,11 @@ function PrivacyData({ onErased }: { onErased: () => void }) {
     setBlocked(null)
     try {
       await api.delete("/api/video/me", { data: { confirm: "DELETE" } })
-      toast.success("Your account was deleted")
+      toast.success(t("Your account was deleted"))
       onErased()
     } catch (err) {
-      if (errStatus(err) === 409) setBlocked(errText(err, "Cancel your paid plan before deleting the account."))
-      else toast.error(errText(err, "Your account could not be deleted."))
+      if (errStatus(err) === 409) setBlocked(errText(err, t("Cancel your paid plan before deleting the account.")))
+      else toast.error(errText(err, t("Your account could not be deleted.")))
     } finally {
       setErasing(false)
     }
@@ -437,27 +506,27 @@ function PrivacyData({ onErased }: { onErased: () => void }) {
 
   return (
     <div className="space-y-5">
-      <Panel title="Download my data">
+      <Panel title={t("Download my data")}>
         <p className="mb-4 max-w-2xl text-sm text-muted">
-          A JSON file with your account, profile, channel, follows, likes, watch history, comments, danmaku, questions you asked videos, plans, payments, reports and appeals.
+          {t("A JSON file with your account, profile, channel, follows, likes, watch history, comments, danmaku, questions you asked videos, plans, payments, reports and appeals.")}
         </p>
-        <Btn tone="soft" onClick={exportData} disabled={exporting}><Download size={15} /> {exporting ? "Preparing…" : "Download my data"}</Btn>
+        <Btn tone="soft" onClick={exportData} disabled={exporting}><Download size={15} aria-hidden="true" /> {exporting ? t("Preparing…") : t("Download my data")}</Btn>
       </Panel>
-      <Panel title="Delete my account">
+      <Panel title={t("Delete my account")}>
         <div className="max-w-2xl space-y-3 text-sm text-muted">
-          <p>Deleting your account signs you out for good. We erase your email, name, password and phone, your likes, follows, watch history and questions, and the text of your comments and danmaku.{me?.channel ? " Your channel is closed and its videos are removed." : ""}</p>
-          <p>Invoices and payment records are kept for as long as tax law requires. Cancel any paid plan first.</p>
+          <p>{t("Deleting your account signs you out for good. We erase your email, name, password and phone, your likes, follows, watch history and questions, and the text of your comments and danmaku.")}{me?.channel ? ` ${t("Your channel is closed and its videos are removed.")}` : ""}</p>
+          <p>{t("Invoices and payment records are kept for as long as tax law requires. Cancel any paid plan first.")}</p>
         </div>
         <form onSubmit={erase} className="mt-4 max-w-md space-y-3">
-          <Field label="Type DELETE to confirm">
+          <Field label={t("Type DELETE to confirm")}>
             <input className={INPUT} value={typed} onChange={(e) => setTyped(e.target.value)} autoComplete="off" spellCheck={false} placeholder="DELETE" />
           </Field>
           {blocked && (
             <p role="alert" className="rounded-xl border border-[#f97316]/40 bg-[#7c2d12]/30 px-3 py-2 text-sm text-[#fed7aa]">
-              {blocked} <Link to="/account?tab=plans" className="font-semibold underline">Go to plans</Link>
+              {blocked} <Link to="/account?tab=plans" className="font-semibold underline">{t("Go to plans")}</Link>
             </p>
           )}
-          <Btn type="submit" tone="danger" disabled={typed !== "DELETE" || erasing}><UserX size={15} /> {erasing ? "Deleting…" : "Delete my account"}</Btn>
+          <Btn type="submit" tone="danger" disabled={typed !== "DELETE" || erasing}><UserX size={15} aria-hidden="true" /> {erasing ? t("Deleting…") : t("Delete my account")}</Btn>
         </form>
       </Panel>
     </div>
@@ -465,13 +534,14 @@ function PrivacyData({ onErased }: { onErased: () => void }) {
 }
 
 function Following() {
+  const t = useT("account")
   const q = useQuery({ queryKey: ["following"], queryFn: () => getJson<ChannelCard[]>("/api/video/me/following") })
   return (
-    <Panel title="Channels you follow">
+    <Panel title={t("Channels you follow")}>
       {q.isLoading ? (
         <Skel className="h-32 w-full" />
       ) : (q.data ?? []).length === 0 ? (
-        <Empty icon={<Users size={28} />} title="You don't follow anyone yet" body="Follow channels to see their new videos in your Following feed." />
+        <Empty icon={<Users size={28} />} title={t("You don't follow anyone yet")} body={t("Follow channels to see their new videos in your Subscriptions feed.")} action={<Link to="/" className="text-sm font-semibold text-brand-soft hover:underline">{t("Find channels on Home")}</Link>} />
       ) : (
         <ul className="divide-y divide-line">
           {(q.data ?? []).map((c) => (
@@ -480,7 +550,7 @@ function Following() {
                 <ChannelAvatar channel={c} size={40} />
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold">{c.name}</p>
-                  <p className="text-xs text-muted">@{c.handle} · {compactNumber(c.followers)} followers</p>
+                  <p className="text-xs text-muted">@{c.handle} · {t("{n} followers", { n: compactNumber(c.followers) })}</p>
                 </div>
               </Link>
               <FollowButton handle={c.handle} following size="sm" />
@@ -498,6 +568,7 @@ const ACTION_LABELS: Record<string, string> = {
 }
 
 function Notices() {
+  const t = useT("account")
   const qc = useQueryClient()
   const q = useQuery({ queryKey: ["moderation"], queryFn: () => getJson<Moderation>("/api/video/me/moderation") })
   const [appealFor, setAppealFor] = useState<number | null>(null)
@@ -510,12 +581,12 @@ function Notices() {
     setSending(true)
     try {
       await api.post("/api/video/appeals", { action_id: appealFor, text: text.trim() })
-      toast.success("Appeal sent. We'll review it and let you know.")
+      toast.success(t("Appeal sent. We'll review it and let you know."))
       setAppealFor(null)
       setText("")
       qc.invalidateQueries({ queryKey: ["moderation"] })
     } catch (err) {
-      toast.error(errText(err, "The appeal could not be sent."))
+      toast.error(errText(err, t("The appeal could not be sent.")))
     } finally {
       setSending(false)
     }
@@ -527,38 +598,38 @@ function Notices() {
       <Link to="/account/notices" className="flex items-center gap-3 rounded-2xl border border-line bg-panel p-4 hover:border-brand/50 sm:px-6">
         <Scale size={20} className="shrink-0 text-brand-soft" aria-hidden="true" />
         <span className="min-w-0 flex-1">
-          <span className="block text-sm font-semibold">Copyright notices and counter-notices</span>
-          <span className="block text-xs text-muted">See notices rights holders sent about your content and file a counter-notice.</span>
+          <span className="block text-sm font-semibold">{t("Copyright notices and counter-notices")}</span>
+          <span className="block text-xs text-muted">{t("See notices rights holders sent about your content and file a counter-notice.")}</span>
         </span>
         <ChevronRight size={18} className="shrink-0 text-muted" aria-hidden="true" />
       </Link>
-      <Panel title="Moderation notices">
+      <Panel title={t("Moderation notices")}>
         {q.isLoading ? (
           <Skel className="h-24 w-full" />
         ) : !data || data.actions.length === 0 ? (
-          <Empty icon={<ShieldAlert size={28} />} title="No notices" body="If our team ever takes action on something you posted, it shows up here and you can appeal." />
+          <Empty icon={<ShieldAlert size={28} />} title={t("No notices")} body={t("If our team ever takes action on something you posted, it shows up here and you can appeal.")} />
         ) : (
           <ul className="space-y-3">
             {data.actions.map((a) => (
               <li key={a.id} className="rounded-xl bg-panel-2 p-4">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="rounded-md bg-[#7c2d12]/60 px-2 py-0.5 text-xs font-semibold text-[#fed7aa]">{ACTION_LABELS[a.action] ?? a.action}</span>
+                  <span className="rounded-md bg-[#7c2d12]/60 px-2 py-0.5 text-xs font-semibold text-[#fed7aa]">{ACTION_LABELS[a.action] ? t(ACTION_LABELS[a.action]) : a.action}</span>
                   <span className="text-sm font-semibold capitalize">{a.target_type} #{a.target_id}</span>
                   <span className="ml-auto text-xs text-faint">{timeAgo(a.created_at)}</span>
                 </div>
                 <p className="mt-2 text-sm text-ink/85">{a.reason}</p>
                 {a.appeal ? (
-                  <p className="mt-2 text-xs text-muted">Appeal: <span className="font-semibold capitalize text-ink">{a.appeal.status}</span>{a.appeal.note ? ` — ${a.appeal.note}` : ""}</p>
+                  <p className="mt-2 text-xs text-muted">{t("Appeal:")} <span className="font-semibold capitalize text-ink">{a.appeal.status}</span>{a.appeal.note ? ` — ${a.appeal.note}` : ""}</p>
                 ) : appealFor === a.id ? (
                   <form onSubmit={appeal} className="mt-3 space-y-2">
-                    <textarea className={TEXTAREA} rows={4} minLength={10} maxLength={3000} value={text} onChange={(e) => setText(e.target.value)} placeholder="Tell us why you think this was a mistake (at least 10 characters)." aria-label="Appeal" required />
+                    <textarea className={TEXTAREA} rows={4} minLength={10} maxLength={3000} value={text} onChange={(e) => setText(e.target.value)} placeholder={t("Tell us why you think this was a mistake (at least 10 characters).")} aria-label={t("Appeal")} required />
                     <div className="flex justify-end gap-2">
-                      <Btn tone="ghost" size="sm" onClick={() => setAppealFor(null)}>Cancel</Btn>
-                      <Btn tone="brand" size="sm" type="submit" disabled={sending || text.trim().length < 10}>{sending ? "Sending…" : "Send appeal"}</Btn>
+                      <Btn tone="ghost" size="sm" onClick={() => setAppealFor(null)}>{t("Cancel")}</Btn>
+                      <Btn tone="brand" size="sm" type="submit" disabled={sending || text.trim().length < 10}>{sending ? t("Sending…") : t("Send appeal")}</Btn>
                     </div>
                   </form>
                 ) : (
-                  <Btn tone="soft" size="sm" className="mt-3" onClick={() => { setAppealFor(a.id); setText("") }}>Appeal</Btn>
+                  <Btn tone="soft" size="sm" className="mt-3" onClick={() => { setAppealFor(a.id); setText("") }}>{t("Appeal")}</Btn>
                 )}
               </li>
             ))}
@@ -566,12 +637,12 @@ function Notices() {
         )}
       </Panel>
       {data && data.strikes.length > 0 && (
-        <Panel title="Strikes">
+        <Panel title={t("Strikes")}>
           <ul className="divide-y divide-line">
             {data.strikes.map((s) => (
               <li key={s.id} className="flex items-center gap-3 py-3 text-sm">
                 <span className="flex-1">{s.reason}</span>
-                <span className="text-xs text-muted">{s.lifted ? "Lifted" : `Expires ${longDate(s.expires_at)}`}</span>
+                <span className="text-xs text-muted">{s.lifted ? t("Lifted") : t("Expires {date}", { date: longDate(s.expires_at) })}</span>
               </li>
             ))}
           </ul>
@@ -582,6 +653,7 @@ function Notices() {
 }
 
 export default function AccountPage() {
+  const t = useT("account")
   useTitle("Account")
   const signedIn = useSignedIn()
   const [params, setParams] = useSearchParams()
@@ -602,24 +674,25 @@ export default function AccountPage() {
   return (
     <PageShell className="max-w-5xl">
       <div className="mb-5 flex items-center gap-3">
-        <h1 className="flex-1 text-2xl font-bold">Account</h1>
-        <Btn tone="ghost" size="sm" onClick={signOut}><LogOut size={15} /> Sign out</Btn>
+        <h1 className="flex-1 text-2xl font-bold">{t("Account")}</h1>
+        <Btn tone="ghost" size="sm" onClick={signOut}><LogOut size={15} aria-hidden="true" /> {t("Sign out")}</Btn>
       </div>
       <div role="tablist" className="-mx-3 mb-6 flex gap-1 overflow-x-auto px-3 scrollbar-none sm:mx-0 sm:px-0">
-        {TABS.map((t) => (
+        {TABS.map((tab2) => (
           <button
-            key={t.key}
+            key={tab2.key}
             type="button"
             role="tab"
-            aria-selected={tab === t.key}
-            onClick={() => setParams({ tab: t.key }, { replace: true })}
-            className={cn("h-9 shrink-0 rounded-full px-4 text-sm font-medium", tab === t.key ? "bg-snow text-black" : "bg-white/[0.07] hover:bg-white/15")}
+            aria-selected={tab === tab2.key}
+            onClick={() => setParams({ tab: tab2.key }, { replace: true })}
+            className={cn("h-9 shrink-0 rounded-full px-4 text-sm font-medium", tab === tab2.key ? "bg-snow text-black" : "bg-white/[0.07] hover:bg-white/15")}
           >
-            {t.label}
+            {t(tab2.label)}
           </button>
         ))}
       </div>
       {tab === "profile" && <Profile />}
+      {tab === "notifications" && <NotificationSettings />}
       {tab === "plans" && <PlansUsage />}
       {tab === "memberships" && <Memberships />}
       {tab === "purchases" && <Purchases />}

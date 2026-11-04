@@ -245,3 +245,26 @@ class PushMessage(Base):
     tickets: Mapped[dict | None] = mapped_column(JSONB)
     receipts_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = created()
+
+
+class Notification(Base):
+    __tablename__ = "notifications"
+    __table_args__ = (
+        Index("idx_notifications_user", "user_id", "created_at"),
+        Index("idx_notifications_digest", "digest_sent_at", "read_at"),
+        UniqueConstraint("dedupe_key", name="uq_notifications_dedupe"),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[int] = pk()
+    tenant_id: Mapped[int] = tenant_fk()
+    user_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    kind: Mapped[str] = mapped_column(String(20), nullable=False)
+    title: Mapped[str] = mapped_column(String(160), nullable=False)
+    body: Mapped[str] = mapped_column(String(300), nullable=False, default="", server_default="")
+    url: Mapped[str | None] = mapped_column(String(300))
+    image: Mapped[str | None] = mapped_column(String(500))
+    dedupe_key: Mapped[str | None] = mapped_column(String(120))
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    digest_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = created()

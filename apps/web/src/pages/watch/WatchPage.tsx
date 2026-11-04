@@ -31,12 +31,14 @@ import { useDanmakuTranslation } from "./useDanmakuTranslation"
 import { LockedAi, PreviewBadge } from "./lockBits"
 import { GuestStrip, PartyPanel, partyLink, useParty, usePartySync, type PartyState } from "./Party"
 import { useWatchAds } from "./ads"
+import { useT } from "../../i18n"
 
 const LockedOverlay = lazy(() => import("./Paywall").then((m) => ({ default: m.LockedOverlay })))
 const LockedPanel = lazy(() => import("./Paywall").then((m) => ({ default: m.LockedPanel })))
 const TipSheet = lazy(() => import("../../components/Support").then((m) => ({ default: m.TipSheet })))
 
 function Description({ video }: { video: VideoDetail }) {
+  const t = useT("watch")
   const [open, setOpen] = useState(false)
   const long = (video.description ?? "").length > 220 || (video.description ?? "").split("\n").length > 3
   return (
@@ -48,18 +50,18 @@ function Description({ video }: { video: VideoDetail }) {
       {video.description ? (
         <p className={cn("mt-2 whitespace-pre-wrap break-words leading-relaxed text-ink/85", !open && long && "line-clamp-3")}>{video.description}</p>
       ) : (
-        <p className="mt-2 text-muted">No description.</p>
+        <p className="mt-2 text-muted">{t("No description.")}</p>
       )}
       {video.tags?.length > 0 && (open || !long) && (
         <div className="mt-3 flex flex-wrap gap-1.5">
-          {video.tags.map((t) => (
-            <Link key={t} to={`/search?q=${encodeURIComponent(t)}`} className="rounded-full bg-white/[0.07] px-2.5 py-0.5 text-xs text-brand-soft hover:bg-white/15">#{t}</Link>
+          {video.tags.map((tag) => (
+            <Link key={tag} to={`/search?q=${encodeURIComponent(tag)}`} className="rounded-full bg-white/[0.07] px-2.5 py-0.5 text-xs text-brand-soft hover:bg-white/15">#{tag}</Link>
           ))}
         </div>
       )}
       {long && (
         <button type="button" onClick={() => setOpen(!open)} className="mt-2 text-sm font-semibold text-ink hover:underline">
-          {open ? "Show less" : "Show more"}
+          {open ? t("Show less") : t("Show more")}
         </button>
       )}
     </div>
@@ -67,6 +69,7 @@ function Description({ video }: { video: VideoDetail }) {
 }
 
 function UpNext({ currentId }: { currentId: string }) {
+  const t = useT("watch")
   const signedIn = useSignedIn()
   const q = useQuery({
     queryKey: ["related", currentId, signedIn],
@@ -74,12 +77,12 @@ function UpNext({ currentId }: { currentId: string }) {
   })
   const list = (q.data ?? []).filter((v) => v.id !== currentId)
   return (
-    <section aria-label="Up next">
-      <h2 className="mb-3 text-base font-bold">Up next</h2>
+    <section aria-label={t("Up next")}>
+      <h2 className="mb-3 text-base font-bold">{t("Up next")}</h2>
       {q.isLoading ? (
         <div className="space-y-3">{Array.from({ length: 4 }, (_, i) => <Skel key={i} className="h-24 w-full" />)}</div>
       ) : list.length === 0 ? (
-        <p className="text-sm text-muted">Nothing else to watch yet.</p>
+        <p className="text-sm text-muted">{t("Nothing else to watch yet.")}</p>
       ) : (
         <div className="space-y-3">{list.map((v) => <VideoRowCard key={v.id} video={v} compact />)}</div>
       )}
@@ -101,6 +104,7 @@ function WatchSkeleton() {
 }
 
 export default function WatchPage() {
+  const t = useT("watch")
   const { id = "" } = useParams()
   const [params, setParams] = useSearchParams()
   const signedIn = useSignedIn()
@@ -143,8 +147,8 @@ export default function WatchPage() {
   const [warm, setWarm] = useState<string | null>(null)
   useEffect(() => {
     if (!video?.id) return
-    const t = window.setTimeout(() => setWarm(video.id), 2500)
-    return () => window.clearTimeout(t)
+    const timer = window.setTimeout(() => setWarm(video.id), 2500)
+    return () => window.clearTimeout(timer)
   }, [video?.id])
   const support = useChannelSupport(video?.channel?.handle, Boolean(video) && !embedded && (warm === video?.id || Boolean(lock)))
   async function onUnlocked() {
@@ -174,10 +178,10 @@ export default function WatchPage() {
     progress.onEnded()
     if (playlist?.kind === "series") window.setTimeout(() => qc.invalidateQueries({ queryKey: ["playlist-progress", playlist.id] }), 800)
     if (playlist && nextInList && autoplay && !partyCode) {
-      toast.message(`Up next: ${nextInList.title}`)
+      toast.message(t("Up next: {title}", { title: nextInList.title }))
       navigate(playlistWatchUrl(nextInList.id, playlist.id))
     }
-  }, [progress, playlist, nextInList, autoplay, partyCode, navigate, qc, lock, video])
+  }, [progress, playlist, nextInList, autoplay, partyCode, navigate, qc, lock, video, t])
 
   const playback = video?.playback ?? null
   const hosted = playback?.type === "hls"
@@ -203,9 +207,9 @@ export default function WatchPage() {
     const src = (l: string) => apiUrl(`/api/video/videos/${video.id}/captions/${l}.vtt`)
     return [
       ...own.map((l) => ({ lang: l, label: langName(l), src: src(l) })),
-      ...auto.map((l) => ({ lang: l, label: `${langName(l)} (auto-translated)`, src: src(l) })),
+      ...auto.map((l) => ({ lang: l, label: t("{language} (auto-translated)", { language: langName(l) }), src: src(l) })),
     ]
-  }, [video?.id, video?.captions, Boolean(lock)])
+  }, [video?.id, video?.captions, Boolean(lock), t])
 
   const onTime = useCallback((ms: number) => {
     setCurrentMs(ms)
@@ -232,7 +236,7 @@ export default function WatchPage() {
   if (q.isLoading) return <WatchSkeleton />
   if (q.isError || !video) {
     if (errStatus(q.error) === 404 || !video) return <NotFound what="video" />
-    return <div className="p-10 text-center text-sm text-muted">{errText(q.error, "This video did not load.")}</div>
+    return <div className="p-10 text-center text-sm text-muted">{errText(q.error, t("This video did not load."))}</div>
   }
 
   const like = liked && liked.id === video.id ? liked : { id: video.id, on: video.liked, count: video.likes }
@@ -249,7 +253,7 @@ export default function WatchPage() {
       else await api.delete(`/api/video/videos/${video!.id}/like`)
     } catch (err) {
       setLiked(like)
-      toast.error(errText(err, "That did not work. Try again."))
+      toast.error(errText(err, t("That did not work. Try again.")))
     }
   }
 
@@ -262,7 +266,7 @@ export default function WatchPage() {
     }
     try {
       await navigator.clipboard.writeText(url)
-      toast.success(at ? `Link copied. It starts at ${clock(at)}.` : "Link copied")
+      toast.success(at ? t("Link copied. It starts at {time}.", { time: clock(at) }) : t("Link copied"))
     } catch {
       toast.message(url)
     }
@@ -279,12 +283,12 @@ export default function WatchPage() {
       setParams(next, { replace: true })
       try {
         await navigator.clipboard.writeText(partyLink(video!.id, data.code))
-        toast.success(`Party ${data.code} started. The link is copied.`)
+        toast.success(t("Party {code} started. The link is copied.", { code: data.code }))
       } catch {
-        toast.success(`Party ${data.code} started`)
+        toast.success(t("Party {code} started", { code: data.code }))
       }
     } catch (err) {
-      toast.error(errText(err, "The watch party could not start."))
+      toast.error(errText(err, t("The watch party could not start.")))
     } finally {
       setStarting(false)
     }
@@ -305,10 +309,10 @@ export default function WatchPage() {
   const rail = embedPlayback && (
     <div className="flex h-56 flex-col overflow-hidden rounded-2xl border border-line bg-panel lg:h-[340px]">
       <div className="flex items-center justify-between border-b border-line px-3 py-2 text-xs font-semibold text-muted">
-        <span>Danmaku</span>
-        {bilibili ? <span className="font-normal text-faint">Not synced to playback</span> : danmaku.watchers > 0 && <span className="font-normal">{danmaku.watchers} watching</span>}
+        <span>{t("Danmaku")}</span>
+        {bilibili ? <span className="font-normal text-faint">{t("Not synced to playback")}</span> : danmaku.watchers > 0 && <span className="font-normal">{t("{n} watching", { n: danmaku.watchers })}</span>}
       </div>
-      <DanmakuRail className="flex-1" items={shownDanmaku.items} currentMs={bilibili ? null : currentMs} blocked={prefs.blocked} onSeek={bilibili ? undefined : seek} />
+      <DanmakuRail className="flex-1" emptyText={t("No danmaku yet. Be the first.")} items={shownDanmaku.items} currentMs={bilibili ? null : currentMs} blocked={prefs.blocked} onSeek={bilibili ? undefined : seek} />
     </div>
   )
   const partyPanel = partyCode && (
@@ -359,6 +363,7 @@ export default function WatchPage() {
                 onEnded={onEnded}
                 onDanmakuToggle={() => setPrefs({ enabled: !prefs.enabled })}
                 className="aspect-video w-full sm:rounded-t-2xl"
+                t={t}
               >
                 <DanmakuLayer
                   items={shownDanmaku.items}
@@ -386,7 +391,7 @@ export default function WatchPage() {
             ) : playback?.type === "bilibili" ? (
               <BilibiliEmbed key={video.id} src={playback.url} title={video.title} className="aspect-video w-full sm:rounded-t-2xl" />
             ) : (
-              <div className="flex aspect-video w-full items-center justify-center bg-panel-2 text-sm text-muted sm:rounded-t-2xl">{lock ? "" : "This video is not ready to play yet."}</div>
+              <div className="flex aspect-video w-full items-center justify-center bg-panel-2 text-sm text-muted sm:rounded-t-2xl">{lock ? "" : t("This video is not ready to play yet.")}</div>
             )}
             {hosted && ads.overlay}
             {lock && !paywallUp && <PreviewBadge lock={lock} className="pointer-events-none absolute left-2 top-2 z-10" />}
@@ -402,17 +407,17 @@ export default function WatchPage() {
             onTranslateLang={setTLang}
             translateOff={shownDanmaku.off}
             boost={canBoost && money ? { videoId: video.id, tiers: money.boost_tiers, positionMs: () => (videoRef.current ? Math.round(videoRef.current.currentTime * 1000) : currentMs) } : undefined}
-            disabledReason={bilibili ? "Bilibili does not share its playback time, so new danmaku can't be placed on this video." : undefined}
+            disabledReason={bilibili ? t("Bilibili does not share its playback time, so new danmaku can't be placed on this video.") : undefined}
           />
 
           {embedPlayback && (
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 pt-3 text-xs text-muted sm:px-0">
-              <span>Playing from {embedPlayback.credit}.</span>
+              <span>{t("Playing from {source}.", { source: embedPlayback.credit })}</span>
               <a href={embedPlayback.source_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-semibold text-brand-soft hover:underline">
-                Watch on {embedPlayback.credit} <ExternalLink size={12} />
+                {t("Watch on {source}", { source: embedPlayback.credit })} <ExternalLink size={12} />
               </a>
               {video.embed?.owner_verified && (
-                <span className="inline-flex items-center gap-1 text-faint"><ShieldCheck size={13} /> Shared by the channel that owns it</span>
+                <span className="inline-flex items-center gap-1 text-faint"><ShieldCheck size={13} /> {t("Shared by the channel that owns it")}</span>
               )}
             </div>
           )}
@@ -436,10 +441,10 @@ export default function WatchPage() {
                   <Link to={`/@${video.channel.handle}`} aria-label={video.channel.name}><ChannelAvatar channel={video.channel} size={40} /></Link>
                   <div className="min-w-0">
                     <ChannelName channel={video.channel} className="font-semibold text-ink" />
-                    <p className="text-xs text-muted">{compactNumber(video.channel.followers)} {video.channel.followers === 1 ? "follower" : "followers"}</p>
+                    <p className="text-xs text-muted">{t(video.channel.followers === 1 ? "{n} follower" : "{n} followers", { n: compactNumber(video.channel.followers) })}</p>
                   </div>
                   {video.is_owner ? (
-                    <a href={STUDIO_URL} className="ml-1 inline-flex h-9 items-center rounded-full bg-white/10 px-4 text-sm font-semibold hover:bg-white/15">Edit in Studio</a>
+                    <a href={STUDIO_URL} className="ml-1 inline-flex h-9 items-center rounded-full bg-white/10 px-4 text-sm font-semibold hover:bg-white/15">{t("Edit in Studio")}</a>
                   ) : (
                     <FollowButton
                       handle={video.channel.handle}
@@ -451,23 +456,23 @@ export default function WatchPage() {
                 </div>
               )}
               <div className="flex w-full items-center gap-2 overflow-x-auto scrollbar-none sm:w-auto sm:flex-1 sm:justify-end">
-                <Btn tone={like.on ? "brand" : "soft"} onClick={toggleLike} aria-pressed={like.on} aria-label={`${like.on ? "Unlike" : "Like"}, ${compactNumber(like.count)}`}>
+                <Btn tone={like.on ? "brand" : "soft"} onClick={toggleLike} aria-pressed={like.on} aria-label={t(like.on ? "Unlike, {n}" : "Like, {n}", { n: compactNumber(like.count) })}>
                   <Heart size={16} fill={like.on ? "currentColor" : "none"} aria-hidden="true" />
                   {compactNumber(like.count)}
                 </Btn>
-                <Btn tone="soft" onClick={share}><Share2 size={16} aria-hidden="true" /> Share</Btn>
+                <Btn tone="soft" onClick={share}><Share2 size={16} aria-hidden="true" /> {t("Share")}</Btn>
                 {canTip && (
                   <Btn tone="soft" onClick={() => requireSignIn(() => setTipOpen(true))}>
-                    <Coins size={16} aria-hidden="true" /> Tip
+                    <Coins size={16} aria-hidden="true" /> {t("Tip")}
                   </Btn>
                 )}
                 {signedIn && hosted && !partyCode && !lock && (
                   <Btn tone="soft" onClick={watchTogether} disabled={starting}>
-                    <PartyPopper size={16} aria-hidden="true" /> {starting ? "Starting…" : "Watch together"}
+                    <PartyPopper size={16} aria-hidden="true" /> {starting ? t("Starting…") : t("Watch together")}
                   </Btn>
                 )}
-                <Btn tone="soft" onClick={() => requireSignIn(() => setReport({ type: "video", id: video.id, label: "video" }))} aria-label="Report video">
-                  <Flag size={16} aria-hidden="true" /> <span className="hidden sm:inline">Report</span>
+                <Btn tone="soft" onClick={() => requireSignIn(() => setReport({ type: "video", id: video.id, label: "video" }))} aria-label={t("Report video")}>
+                  <Flag size={16} aria-hidden="true" /> <span className="hidden sm:inline">{t("Report")}</span>
                 </Btn>
               </div>
             </div>
@@ -478,7 +483,7 @@ export default function WatchPage() {
             {video.products && video.products.items.length > 0 && <ProductStrip products={video.products} />}
             <Description video={video} />
             <div className="pt-2">
-              <Comments videoId={video.id} count={video.comments} onReport={(t) => requireSignIn(() => setReport(t))} />
+              <Comments videoId={video.id} count={video.comments} onReport={(target) => requireSignIn(() => setReport(target))} />
             </div>
             {!desktop && <div className="pt-4"><UpNext currentId={video.id} /></div>}
           </div>
@@ -501,7 +506,7 @@ export default function WatchPage() {
           open={tipOpen}
           onClose={() => setTipOpen(false)}
           support={money}
-          name={video.channel?.name ?? "the creator"}
+          name={video.channel?.name ?? t("the creator")}
           videoId={video.id}
           onPaid={() => qc.invalidateQueries({ queryKey: ["comments", video.id] })}
         />

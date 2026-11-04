@@ -34,7 +34,7 @@ class Transient(LlmFailed):
 
 BREAKER = "llm"
 RETRYABLE = {408, 409, 429, 500, 502, 503, 504}
-PURPOSES = {"ask": (45, 1), "insights": (90, 2), "translate": (90, 2), "drafts": (45, 1), "clips": (60, 1)}
+PURPOSES = {"ask": (45, 1), "insights": (90, 2), "translate": (90, 2), "drafts": (45, 1), "clips": (60, 1), "repurpose": (90, 1)}
 BACKOFF = (1.5, 4.0)
 MAX_WAIT = 20.0
 

@@ -11,10 +11,12 @@ import { AiStatusBadge, VideoStatusPill } from "../components/StatusChips"
 import { UsageMeters } from "../components/UsageMeters"
 import { DailyChart } from "../components/DailyChart"
 import { OnboardingChecklist } from "../components/OnboardingChecklist"
+import { useT } from "../i18n"
 
 const BUSY = ["uploading", "processing", "scanning"]
 
 export default function Dashboard() {
+  const t = useT()
   const navigate = useNavigate()
   const { data: channel } = useChannel()
   const { data: me } = useMe()
@@ -37,19 +39,19 @@ export default function Dashboard() {
   return (
     <>
       <PageHeader
-        title="Dashboard"
-        subtitle={channel ? `Welcome back. Here is how ${channel.name} is doing.` : undefined}
-        actions={<Button onClick={() => navigate("/videos?upload=1")}><Upload size={15} /> Upload a video</Button>}
+        title={t("Dashboard")}
+        subtitle={channel ? t("Welcome back. Here is how {name} is doing.", { name: channel.name }) : undefined}
+        actions={<Button onClick={() => navigate("/videos?upload=1")}><Upload size={15} /> {t("Upload a video")}</Button>}
       />
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-        <StatCard size="sm" label="Views" value={totals ? compact(totals.views) : "—"} icon={<Eye size={16} />} accent="brand" />
-        <StatCard size="sm" label="Watch time" value={totals ? watchTime(totals.watch_ms) : "—"} icon={<Clock size={16} />} accent="blue" />
-        <StatCard size="sm" label="Likes" value={totals ? compact(totals.likes) : "—"} icon={<Heart size={16} />} accent="red" />
-        <StatCard size="sm" label="Comments" value={totals ? compact(totals.comments) : "—"} icon={<MessageCircle size={16} />} accent="green" />
-        <StatCard size="sm" label="Danmaku" value={totals ? compact(totals.danmaku) : "—"} icon={<MessagesSquare size={16} />} accent="amber" />
+        <StatCard size="sm" label={t("Views")} value={totals ? compact(totals.views) : "—"} icon={<Eye size={16} />} accent="brand" />
+        <StatCard size="sm" label={t("Watch time")} value={totals ? watchTime(totals.watch_ms) : "—"} icon={<Clock size={16} />} accent="blue" />
+        <StatCard size="sm" label={t("Likes")} value={totals ? compact(totals.likes) : "—"} icon={<Heart size={16} />} accent="red" />
+        <StatCard size="sm" label={t("Comments")} value={totals ? compact(totals.comments) : "—"} icon={<MessageCircle size={16} />} accent="green" />
+        <StatCard size="sm" label={t("Danmaku")} value={totals ? compact(totals.danmaku) : "—"} icon={<MessagesSquare size={16} />} accent="amber" />
       </div>
-      <p className="mt-2 text-xs text-slate-500">All-time totals for every video on your channel.</p>
+      <p className="mt-2 text-xs text-slate-500">{t("All-time totals for every video on your channel.")}</p>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-3">
         <div className="min-w-0 space-y-4 lg:col-span-2">
@@ -59,14 +61,14 @@ export default function Dashboard() {
                 <img src={latestLong.thumbnail} alt="" className="aspect-video w-full max-w-xs rounded-lg object-cover sm:w-44" />
               )}
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-semibold text-brand">Make clips</p>
+                <p className="text-xs font-semibold text-brand">{t("Make clips")}</p>
                 <p className="truncate text-base font-bold text-navy">{latestLong.title}</p>
                 <p className="mt-0.5 text-sm text-slate-600">
-                  {ideas} clip {ideas === 1 ? "idea is" : "ideas are"} ready from this video. Turn the best moments into vertical reels with captions.
+                  {ideas === 1 ? t("1 clip idea is ready from this video. Turn the best moments into vertical reels with captions.") : t("{n} clip ideas are ready from this video. Turn the best moments into vertical reels with captions.", { n: ideas })}
                 </p>
               </div>
               <Button onClick={() => navigate(`/videos/${latestLong.id}?tab=clips`)}>
-                <Clapperboard size={15} /> See clip ideas
+                <Clapperboard size={15} /> {t("See clip ideas")}
               </Button>
             </Card>
           )}
@@ -74,18 +76,18 @@ export default function Dashboard() {
           <Card className="p-5">
             <div className="mb-3 flex items-center justify-between gap-2">
               <div>
-                <h2 className="text-sm font-bold text-navy">Views in the last 28 days</h2>
-                {stats && <p className="text-xs text-slate-500">{compact(stats.period.views)} views · {compact(stats.period.followers_gained)} new followers</p>}
+                <h2 className="text-sm font-bold text-navy">{t("Views in the last 28 days")}</h2>
+                {stats && <p className="text-xs text-slate-500">{t("{views} views · {followers} new followers", { views: compact(stats.period.views), followers: compact(stats.period.followers_gained) })}</p>}
               </div>
-              <Link to="/analytics" className="text-sm font-semibold text-brand hover:underline">Analytics</Link>
+              <Link to="/analytics" className="text-sm font-semibold text-brand hover:underline">{t("Analytics")}</Link>
             </div>
             {stats ? <DailyChart days={stats.days} showMetricPicker={false} /> : <div className="h-[180px] animate-pulse rounded-lg bg-slate-100" />}
           </Card>
 
           <Card className="p-5">
-            <h2 className="mb-3 text-sm font-bold text-navy">Processing now</h2>
+            <h2 className="mb-3 text-sm font-bold text-navy">{t("Processing now")}</h2>
             {working.length === 0 ? (
-              <p className="text-sm text-slate-500">Nothing is processing. New uploads show their progress here.</p>
+              <p className="text-sm text-slate-500">{t("Nothing is processing. New uploads show their progress here.")}</p>
             ) : (
               <ul className="divide-y divide-slate-100">
                 {working.map((v) => (
@@ -106,12 +108,12 @@ export default function Dashboard() {
 
           <Card className="p-5">
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-sm font-bold text-navy">Latest videos</h2>
-              <Link to="/videos" className="text-sm font-semibold text-brand hover:underline">All videos</Link>
+              <h2 className="text-sm font-bold text-navy">{t("Latest videos")}</h2>
+              <Link to="/videos" className="text-sm font-semibold text-brand hover:underline">{t("All videos")}</Link>
             </div>
             {videos.length === 0 ? (
-              <EmptyState title="No videos yet" hint="Upload your first video and we will make a transcript, chapters and clip ideas from it."
-                action={<Button onClick={() => navigate("/videos?upload=1")}><Upload size={15} /> Upload</Button>} />
+              <EmptyState title={t("No videos yet")} hint={t("Upload your first video and we will make a transcript, chapters and clip ideas from it.")}
+                action={<Button onClick={() => navigate("/videos?upload=1")}><Upload size={15} /> {t("Upload")}</Button>} />
             ) : (
               <ul className="divide-y divide-slate-100">
                 {videos.slice(0, 5).map((v) => (
@@ -122,7 +124,7 @@ export default function Dashboard() {
                         <span className="absolute bottom-0 right-0 rounded-tl bg-black/70 px-1 font-num text-[10px] text-white">{clock(v.duration_ms)}</span>
                       </div>
                       <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-800">{v.title}</span>
-                      <span className="hidden font-num text-xs text-slate-500 sm:inline">{compact(v.views)} views</span>
+                      <span className="hidden font-num text-xs text-slate-500 sm:inline">{t("{n} views", { n: compact(v.views) })}</span>
                       <VideoStatusPill video={v} />
                     </Link>
                   </li>
@@ -141,25 +143,25 @@ export default function Dashboard() {
                 <p className="truncate text-base font-bold text-navy">{channel.name}</p>
                 <p className="truncate text-sm text-slate-500">@{channel.handle}</p>
                 <p className="mt-1 text-sm text-slate-600">
-                  <span className="font-num font-semibold">{compact(channel.followers)}</span> followers ·{" "}
-                  <span className="font-num font-semibold">{channel.video_count}</span> videos
+                  <span className="font-num font-semibold">{compact(channel.followers)}</span> {t("followers")} ·{" "}
+                  <span className="font-num font-semibold">{channel.video_count}</span> {t("videos")}
                 </p>
                 <a href={channelUrl(channel.handle)} target="_blank" rel="noopener noreferrer"
                   className="mt-1 inline-flex items-center gap-1 text-sm font-semibold text-brand hover:underline">
-                  Open your public page <ExternalLink size={13} />
+                  {t("Open your public page")} <ExternalLink size={13} />
                 </a>
               </div>
             </Card>
           )}
           <Card className="p-5">
             <div className="mb-3 flex items-center justify-between gap-2">
-              <h2 className="text-sm font-bold text-navy">Your plan</h2>
+              <h2 className="text-sm font-bold text-navy">{t("Your plan")}</h2>
               {plan && <Badge color={plan.free ? "slate" : "brand"}>{plan.name}</Badge>}
             </div>
             {plan && <p className="mb-4 text-sm text-slate-600">{plan.description}</p>}
             {me && <UsageMeters usage={me.usage} />}
             <Link to="/billing" className="mt-4 inline-block text-sm font-semibold text-brand hover:underline">
-              {plan?.free ? "Upgrade for more AI minutes and renders" : "Manage your plan"}
+              {plan?.free ? t("Upgrade for more AI minutes and renders") : t("Manage your plan")}
             </Link>
           </Card>
         </div>

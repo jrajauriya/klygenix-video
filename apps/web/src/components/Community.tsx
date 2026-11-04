@@ -9,8 +9,10 @@ import { errText, getJson, loginPath, useSignedIn } from "../lib/api"
 import { timeAgo } from "../lib/format"
 import type { ChannelCard, CommunityPost } from "../lib/types"
 import { Btn, ChannelAvatar, Empty, Skel } from "./bits"
+import { useT } from "../i18n"
 
 function Poll({ post, onVoted }: { post: CommunityPost; onVoted: (p: CommunityPost) => void }) {
+  const t = useT("channel")
   const signedIn = useSignedIn()
   const navigate = useNavigate()
   const [busy, setBusy] = useState<number | null>(null)
@@ -28,7 +30,7 @@ function Poll({ post, onVoted }: { post: CommunityPost; onVoted: (p: CommunityPo
       const { data } = await api.post<CommunityPost>(`/api/video/posts/${post.id}/vote`, { option_id: optionId })
       onVoted(data)
     } catch (err) {
-      toast.error(errText(err, "Your vote could not be counted."))
+      toast.error(errText(err, t("Your vote could not be counted.")))
     } finally {
       setBusy(null)
     }
@@ -44,7 +46,7 @@ function Poll({ post, onVoted }: { post: CommunityPost; onVoted: (p: CommunityPo
             <div className={cn("absolute inset-y-0 left-0", mine ? "bg-brand/30" : "bg-white/[0.07]")} style={{ width: `${pct}%` }} aria-hidden="true" />
             <div className="relative flex items-center gap-2 text-sm">
               {mine && <Check size={14} className="text-brand-soft" aria-hidden="true" />}
-              <span className="flex-1">{o.label}{mine ? " (your vote)" : ""}</span>
+              <span className="flex-1">{o.label}{mine ? ` ${t("(your vote)")}` : ""}</span>
               <span className="font-semibold tabular-nums">{pct}%</span>
             </div>
           </div>
@@ -60,12 +62,13 @@ function Poll({ post, onVoted }: { post: CommunityPost; onVoted: (p: CommunityPo
           </button>
         )
       })}
-      <p className="text-xs text-muted">{poll.total} {poll.total === 1 ? "vote" : "votes"}{showResults ? "" : " · tap an option to vote"}</p>
+      <p className="text-xs text-muted">{t(poll.total === 1 ? "{n} vote" : "{n} votes", { n: poll.total })}{showResults ? "" : ` · ${t("tap an option to vote")}`}</p>
     </div>
   )
 }
 
 export function CommunityPosts({ handle, channel, onJoin }: { handle: string; channel: Pick<ChannelCard, "name" | "handle" | "avatar">; onJoin?: () => void }) {
+  const t = useT("channel")
   const signedIn = useSignedIn()
   const qc = useQueryClient()
   const key = ["channel", handle, "posts", signedIn]
@@ -77,7 +80,7 @@ export function CommunityPosts({ handle, channel, onJoin }: { handle: string; ch
 
   if (q.isLoading) return <div className="space-y-3">{Array.from({ length: 3 }, (_, i) => <Skel key={i} className="h-28 w-full rounded-2xl" />)}</div>
   const posts = q.data ?? []
-  if (!posts.length) return <Empty icon={<Megaphone size={30} />} title="No posts yet" body="Updates, polls and pictures from this channel will show up here." />
+  if (!posts.length) return <Empty icon={<Megaphone size={30} />} title={t("No posts yet")} body={t("Updates, polls and pictures from this channel will show up here.")} />
 
   return (
     <ul className="mx-auto max-w-2xl space-y-4">
@@ -87,17 +90,17 @@ export function CommunityPosts({ handle, channel, onJoin }: { handle: string; ch
             <ChannelAvatar channel={channel} size={32} />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold">{channel.name}</p>
-              <p className="text-xs text-muted">{timeAgo(p.created_at)}{p.members_rank ? " · Members only" : ""}</p>
+              <p className="text-xs text-muted">{timeAgo(p.created_at)}{p.members_rank ? ` · ${t("Members only")}` : ""}</p>
             </div>
           </div>
           {p.locked ? (
             <div className="mt-3 flex flex-col items-center gap-2 rounded-xl bg-panel-2 px-4 py-6 text-center">
               <Lock size={20} className="text-brand-soft" aria-hidden="true" />
-              <p className="text-sm font-semibold">This post is for members</p>
+              <p className="text-sm font-semibold">{t("This post is for members")}</p>
               {signedIn ? (
-                onJoin && <Btn tone="brand" size="sm" onClick={onJoin}>Join to see it</Btn>
+                onJoin && <Btn tone="brand" size="sm" onClick={onJoin}>{t("Join to see it")}</Btn>
               ) : (
-                <Link to={loginPath()} className="inline-flex h-8 items-center rounded-full bg-snow px-3 text-xs font-semibold text-black hover:bg-snow/85">Sign in to join</Link>
+                <Link to={loginPath()} className="inline-flex h-8 items-center rounded-full bg-snow px-3 text-xs font-semibold text-black hover:bg-snow/85">{t("Sign in to join")}</Link>
               )}
             </div>
           ) : (

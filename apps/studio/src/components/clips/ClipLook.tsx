@@ -1,6 +1,7 @@
 import { Monitor, RectangleVertical, Square } from "lucide-react"
 import { cn } from "@klygenixvideo/ui"
 import type { Aspect, CaptionStyle } from "../../lib/types"
+import { useT } from "../../i18n"
 
 export const ASPECTS: { value: Aspect; label: string; hint: string; icon: typeof Square; ratio: number }[] = [
   { value: "9:16", label: "9:16", hint: "Reels, Shorts", icon: RectangleVertical, ratio: 9 / 16 },
@@ -16,26 +17,30 @@ export const STYLES: { value: CaptionStyle; label: string }[] = [
 ]
 
 export function CaptionSample({ style, small = false }: { style: CaptionStyle; small?: boolean }) {
+  const t = useT()
   const size = small ? "text-[10px]" : "text-sm"
+  const sample = t("Say it once")
+  const [first, middle, ...rest] = sample.split(" ")
   if (style === "none") return <span className={cn(size, "text-slate-400")}>—</span>
   if (style === "clean") {
-    return <span className={cn(size, "rounded bg-black/60 px-1.5 py-0.5 font-medium text-white")}>Say it once</span>
+    return <span className={cn(size, "rounded bg-black/60 px-1.5 py-0.5 font-medium text-white")}>{sample}</span>
   }
   if (style === "bold") {
     return (
       <span className={cn(size, "font-black uppercase text-white")} style={{ WebkitTextStroke: "0.6px #000", textShadow: "0 2px 0 #000" }}>
-        Say it once
+        {sample}
       </span>
     )
   }
   return (
     <span className={cn(size, "font-extrabold text-white")} style={{ textShadow: "0 1px 2px #000" }}>
-      Say <span className="rounded bg-brand px-0.5 text-white">it</span> once
+      {first} <span className="rounded bg-brand px-0.5 text-white">{middle}</span> {rest.join(" ")}
     </span>
   )
 }
 
 export function AspectPicker({ value, onChange, disabled }: { value: Aspect; onChange: (a: Aspect) => void; disabled?: boolean }) {
+  const t = useT()
   return (
     <div className="grid grid-cols-3 gap-2">
       {ASPECTS.map((a) => {
@@ -47,7 +52,7 @@ export function AspectPicker({ value, onChange, disabled }: { value: Aspect; onC
               on ? "border-brand bg-brand-50 text-brand" : "border-slate-200 text-slate-600 hover:border-slate-300")}>
             <Icon size={18} />
             <span className="text-sm font-semibold">{a.label}</span>
-            <span className="text-[11px] text-slate-500">{a.hint}</span>
+            <span className="text-[11px] text-slate-500">{t(a.hint)}</span>
           </button>
         )
       })}
@@ -56,6 +61,7 @@ export function AspectPicker({ value, onChange, disabled }: { value: Aspect; onC
 }
 
 export function StylePicker({ value, onChange, disabled }: { value: CaptionStyle; onChange: (s: CaptionStyle) => void; disabled?: boolean }) {
+  const t = useT()
   return (
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
       {STYLES.map((s) => {
@@ -67,7 +73,7 @@ export function StylePicker({ value, onChange, disabled }: { value: CaptionStyle
             <div className="flex h-12 items-end justify-center bg-gradient-to-b from-slate-500 to-slate-800 pb-1.5">
               <CaptionSample style={s.value} small />
             </div>
-            <p className={cn("px-2 py-1 text-xs font-semibold", on ? "text-brand" : "text-slate-700")}>{s.label}</p>
+            <p className={cn("px-2 py-1 text-xs font-semibold", on ? "text-brand" : "text-slate-700")}>{t(s.label)}</p>
           </button>
         )
       })}

@@ -41,6 +41,8 @@ interface Campaign {
 interface Payout {
   tenant_id: number
   period: string
+  kind?: "ad_share" | "view_pool" | string
+  watch_ms?: number
   impressions: number
   spend_minor: number
   share_bps?: number
@@ -57,7 +59,60 @@ interface AdReport {
   share_bps: number
 }
 
+interface Ivt {
+  reasons: Record<string, number>
+  billable: number
+  invalid: number
+  campaigns: { id: string; name: string; impressions: number; invalid: number }[]
+}
+
+interface PoolPreview {
+  period: string
+  ad_spend_minor: number
+  creator_ad_share_minor: number
+  net_ad_revenue_minor: number
+  pool_bps: number
+  pool_minor: number
+  allocated_minor: number
+  min_minutes: number
+  below_floor: number
+  creators: { tenant_id: number; qualified_ms: number; share_bps: number; amount_minor: number; payouts_ready: boolean }[]
+}
+
+interface PoolRow {
+  tenant_id: number
+  period: string
+  watch_ms: number
+  share_bps: number
+  share_minor: number
+  status: string
+  note: string | null
+}
+
 const KEY = "admin-ads-campaigns"
+
+const IVT_REASON: Record<string, string> = {
+  bot_ua: "Bot or crawler user agent",
+  too_fast: "Events faster than a person can watch",
+  complete_too_fast: "Completed before the ad could finish",
+  viewer_mismatch: "Viewer changed mid-ad",
+  no_start: "Impression with no start",
+  datacentre: "Data-centre network",
+  burst: "Burst from one viewer",
+  after_invalid: "After an invalid event",
+}
+
+const KIND: Record<string, Tone> = {
+  ad_share: { label: "Ad share", color: "blue" },
+  view_pool: { label: "View pool", color: "purple" },
+}
+
+const pct = (part: number, whole: number) => (whole ? `${((part / whole) * 100).toFixed(2).replace(/\.00$/, "")}%` : "—")
+
+const watchHours = (ms: number | null | undefined) => {
+  const h = (ms ?? 0) / 3_600_000
+  return h >= 10 ? `${num(Math.round(h))} h` : `${h.toFixed(1)} h`
+}
 
 const CAMPAIGN_STATUS: Record<string, Tone> = {
   draft: { label: "Draft", color: "slate" },
@@ -81,6 +136,8 @@ const TABS = [
   { key: "campaigns", label: "Campaigns" },
   { key: "report", label: "Monthly report" },
   { key: "payouts", label: "Creator payouts" },
+  { key: "ivt", label: "Invalid traffic" },
+  { key: "pool", label: "View pool" },
 ]
 
 function ReviewDrawer({ c, onClose }: { c: Campaign; onClose: () => void }) {
@@ -325,7 +382,7 @@ function Payouts() {
         label="Creator ad payouts"
         loading={isLoading}
         rows={rows}
-        rowKey={(r) => `${r.tenant_id}-${r.period}`}
+        rowKey={(r) => `${r.tenant_id}-${r.period}-${r.kind ?? "ad_share"}`}
         unitLabel="payouts"
         emptyTitle="No payouts"
         toolbarRight={
@@ -334,7 +391,13 @@ function Payouts() {
         columns={[
           { key: "tenant", header: "Account", render: (r) => <span className="font-num">#{r.tenant_id}</span> },
           { key: "period", header: "Month", render: (r) => <span className="font-num">{r.period}</span> },
-          { key: "imp", header: "Ads shown", align: "right", render: (r) => <span className="font-num">{num(r.impressions)}</span> },
+          { key: "kind", header: "Kind", render: (r) => <Status map={KIND} status={r.kind ?? "ad_share"} /> },
+          {
+            key: "imp",
+            header: "Ads shown / watch time",
+            align: "right",
+            render: (r) => <span className="font-num">{r.kind === "view_pool" ? watchHours(r.watch_ms) : num(r.impressions)}</span>,
+          },
           { key: "spend", header: "Spend", align: "right", render: (r) => <span className="font-num">{inr(r.spend_minor)}</span> },
           { key: "share", header: "Creator share", align: "right", render: (r) => <span className="font-num font-semibold text-navy">{inr(r.share_minor)}</span> },
           {
@@ -353,6 +416,180 @@ function Payouts() {
   )
 }
 
+function InvalidTraffic() {
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["admin-ads-ivt"],
+    queryFn: async () => (await api.get<Ivt>(`${VIDEO_ADMIN}/ads/ivt`)).data,
+    retry: false,
+  })
+  if (isError) return <Card className="p-5 text-sm text-red-700">Invalid traffic figures could not be loaded.</Card>
+  const total = (data?.billable ?? 0) + (data?.invalid ?? 0)
+  const reasons = Object.entries(data?.reasons ?? {})
+    .map(([reason, n]) => ({ reason, n }))
+    .sort((a, b) => b.n - a.n)
+  const flagged = reasons.reduce((s, r) => s + r.n, 0)
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <StatCard size="sm" label="Billable impressions" value={data ? num(data.billable) : "—"} accent="green" />
+        <StatCard size="sm" label="Invalid impressions" value={data ? num(data.invalid) : "—"} accent="red" />
+        <StatCard size="sm" label="Invalid share" value={data ? pct(data.invalid, total) : "—"} accent="navy" />
+        <StatCard size="sm" label="Reasons flagged" value={data ? num(flagged) : "—"} accent="blue" />
+      </div>
+      <p className="text-xs text-slate-500">Invalid impressions are never billed to the brand and never count towards a creator's share. One impression can carry more than one reason.</p>
+      <div className="grid gap-4 lg:grid-cols-2 [&>*]:min-w-0">
+        <DataTable
+          label="Why impressions were invalid"
+          loading={isLoading}
+          rows={reasons}
+          rowKey={(r) => r.reason}
+          unitLabel="reasons"
+          emptyTitle="No invalid traffic"
+          columns={[
+            {
+              key: "reason",
+              header: "Reason",
+              render: (r) => (
+                <span className="block min-w-0">
+                  <span className="block font-medium text-navy">{IVT_REASON[r.reason] ?? humanise(r.reason)}</span>
+                  <span className="block font-mono text-xs text-slate-500">{r.reason}</span>
+                </span>
+              ),
+            },
+            { key: "n", header: "Count", align: "right", render: (r) => <span className="font-num">{num(r.n)}</span> },
+            { key: "share", header: "Of flagged", align: "right", render: (r) => <span className="font-num">{pct(r.n, flagged)}</span> },
+          ]}
+        />
+        <DataTable
+          label="Campaigns with the most invalid traffic"
+          loading={isLoading}
+          rows={data?.campaigns ?? []}
+          rowKey={(r) => r.id}
+          unitLabel="campaigns"
+          emptyTitle="No campaigns have shown ads yet"
+          columns={[
+            { key: "name", header: "Campaign", render: (r) => <span className="block max-w-xs truncate font-medium text-navy">{r.name}</span> },
+            { key: "imp", header: "Billable", align: "right", render: (r) => <span className="font-num">{num(r.impressions)}</span> },
+            { key: "inv", header: "Invalid", align: "right", render: (r) => <span className="font-num">{num(r.invalid)}</span> },
+            { key: "share", header: "Invalid share", align: "right", render: (r) => <span className="font-num font-semibold text-navy">{pct(r.invalid, r.invalid + r.impressions)}</span> },
+          ]}
+        />
+      </div>
+    </div>
+  )
+}
+
+const POOL_STATUS: Record<string, Tone> = {
+  ...PAYOUT_STATUS,
+  held: { label: "Held", color: "amber" },
+}
+
+function ViewPool() {
+  const qc = useQueryClient()
+  const confirm = useConfirm()
+  const canAct = useCanAct("admin.ads")
+  const [period, setPeriod] = useState(lastMonth())
+  const [ran, setRan] = useState<PoolRow[] | null>(null)
+  const valid = /^\d{4}-\d{2}$/.test(period)
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["admin-ads-pool", period],
+    queryFn: async () => (await api.get<PoolPreview>(`${VIDEO_ADMIN}/ads/view-pool/preview`, { params: { period } })).data,
+    enabled: valid,
+    retry: false,
+  })
+  const run = useMutation({
+    mutationFn: async () => (await api.post<PoolRow[]>(`${VIDEO_ADMIN}/ads/view-pool/run`, { period })).data,
+    onSuccess: (rows) => {
+      setRan(rows)
+      toast.success(`${rows.length} view pool payout${rows.length === 1 ? "" : "s"} for ${period}`)
+      qc.invalidateQueries({ queryKey: ["admin-ads-payouts"] })
+      qc.invalidateQueries({ queryKey: ["admin-ads-pool", period] })
+    },
+    onError: (err) => toast.error(detail(err, "The view pool could not be paid")),
+  })
+
+  async function ask() {
+    const ok = await confirm({
+      title: `Pay the view pool for ${period}?`,
+      message: `${data ? inr(data.allocated_minor) : "The pool"} is split between ${data?.creators.length ?? 0} creators by qualified watch time. Creators without active payouts are held. Running it again for the same month does not pay twice.`,
+      confirmLabel: "Pay the view pool",
+    })
+    if (ok) run.mutate()
+  }
+
+  return (
+    <div className="space-y-4">
+      <Card className="flex flex-wrap items-end gap-3 p-4">
+        <Field label="Month" className="w-44">
+          <Input type="month" value={period} max={thisMonth()} onChange={(e) => { setPeriod(e.target.value); setRan(null) }} />
+        </Field>
+        {canAct && (
+          <Button onClick={ask} disabled={run.isPending || !valid || !data || data.creators.length === 0}>
+            <Play size={14} /> {run.isPending ? "Paying…" : "Pay the view pool"}
+          </Button>
+        )}
+        <p className="min-w-0 flex-1 text-xs text-slate-500">
+          The pool is a share of net ad revenue, paid only from what brands actually spent. It is split by qualified watch time on free, hosted videos; never per view.
+        </p>
+      </Card>
+      {isError && <Card className="p-5 text-sm text-red-700">The view pool preview could not be loaded.</Card>}
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <StatCard size="sm" label="Brands spent" value={data ? inr(data.ad_spend_minor) : "—"} accent="navy" />
+        <StatCard size="sm" label="Net ad revenue" value={data ? inr(data.net_ad_revenue_minor) : "—"} hint={data ? `After ${inr(data.creator_ad_share_minor)} ad share` : undefined} accent="blue" />
+        <StatCard size="sm" label="View pool" value={data ? inr(data.pool_minor) : "—"} hint={data ? `${data.pool_bps / 100}% of net` : undefined} accent="brand" />
+        <StatCard size="sm" label="Allocated" value={data ? inr(data.allocated_minor) : "—"} hint={data ? `${num(data.below_floor)} below the ${data.min_minutes}-minute floor` : undefined} accent="green" />
+      </div>
+      {ran ? (
+        <DataTable
+          label="View pool payouts just run"
+          rows={ran}
+          rowKey={(r) => `${r.tenant_id}-${r.period}`}
+          unitLabel="payouts"
+          emptyTitle="No creator qualified"
+          toolbarRight={<Button variant="outline" size="sm" onClick={() => setRan(null)}>Back to the preview</Button>}
+          columns={[
+            { key: "tenant", header: "Account", render: (r) => <span className="font-num">#{r.tenant_id}</span> },
+            { key: "watch", header: "Qualified watch time", align: "right", render: (r) => <span className="font-num">{watchHours(r.watch_ms)}</span> },
+            { key: "bps", header: "Share", align: "right", render: (r) => <span className="font-num">{(r.share_bps / 100).toFixed(2)}%</span> },
+            { key: "amount", header: "Amount", align: "right", render: (r) => <span className="font-num font-semibold text-navy">{inr(r.share_minor)}</span> },
+            {
+              key: "status",
+              header: "Status",
+              render: (r) => (
+                <span className="inline-flex flex-col gap-0.5">
+                  <Status map={POOL_STATUS} status={r.status} />
+                  {r.note && <span className="text-xs text-slate-500">{r.note}</span>}
+                </span>
+              ),
+            },
+          ]}
+        />
+      ) : (
+        <DataTable
+          label="Creators in the pool"
+          loading={isLoading}
+          rows={data?.creators ?? []}
+          rowKey={(r) => String(r.tenant_id)}
+          unitLabel="creators"
+          emptyTitle="No creator qualifies this month"
+          emptyDescription={data ? `A creator needs at least ${data.min_minutes} minutes of qualified watch time.` : undefined}
+          columns={[
+            { key: "tenant", header: "Account", render: (r) => <span className="font-num">#{r.tenant_id}</span> },
+            { key: "watch", header: "Qualified watch time", align: "right", render: (r) => <span className="font-num">{watchHours(r.qualified_ms)}</span> },
+            { key: "bps", header: "Share", align: "right", render: (r) => <span className="font-num">{(r.share_bps / 100).toFixed(2)}%</span> },
+            { key: "amount", header: "Amount", align: "right", render: (r) => <span className="font-num font-semibold text-navy">{inr(r.amount_minor)}</span> },
+            {
+              key: "ready",
+              header: "Payouts",
+              render: (r) => (r.payouts_ready ? <Badge color="green">Active</Badge> : <Badge color="amber">Not set up, held</Badge>),
+            },
+          ]}
+        />
+      )}
+    </div>
+  )
+}
+
 export default function Advertising() {
   const [params, setParams] = useSearchParams()
   const tab = TABS.some((t) => t.key === params.get("tab")) ? params.get("tab")! : "campaigns"
@@ -364,6 +601,8 @@ export default function Advertising() {
         {tab === "campaigns" && <Campaigns />}
         {tab === "report" && <Report />}
         {tab === "payouts" && <Payouts />}
+        {tab === "ivt" && <InvalidTraffic />}
+        {tab === "pool" && <ViewPool />}
       </div>
     </>
   )

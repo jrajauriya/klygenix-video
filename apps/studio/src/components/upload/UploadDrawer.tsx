@@ -14,6 +14,7 @@ import type { StudioVideo, UploadTicket, Visibility } from "../../lib/types"
 import { VisibilityField } from "../VisibilityField"
 import { AiStatusBadge } from "../StatusChips"
 import { Pipeline } from "./Pipeline"
+import { useT } from "../../i18n"
 
 const FINAL = ["published", "in_review", "blocked", "failed"]
 const RIGHTS = "I own or have licensed everything in this video, including music"
@@ -21,6 +22,7 @@ const RIGHTS = "I own or have licensed everything in this video, including music
 const titleFrom = (name: string) => name.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").trim().slice(0, 200)
 
 export function UploadDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const t = useT()
   const navigate = useNavigate()
   const confirm = useConfirm()
   const qc = useQueryClient()
@@ -73,10 +75,10 @@ export function UploadDrawer({ open, onClose }: { open: boolean; onClose: () => 
   async function close() {
     if (sending) {
       const ok = await confirm({
-        title: "Stop this upload?",
-        message: "The file has not finished uploading. Stopping now discards what was sent.",
-        confirmLabel: "Stop upload",
-        cancelLabel: "Keep uploading",
+        title: t("Stop this upload?"),
+        message: t("The file has not finished uploading. Stopping now discards what was sent."),
+        confirmLabel: t("Stop upload"),
+        cancelLabel: t("Keep uploading"),
         variant: "destructive",
       })
       if (!ok) return
@@ -90,7 +92,7 @@ export function UploadDrawer({ open, onClose }: { open: boolean; onClose: () => 
     if (!file) return
     const at = visibility === "scheduled" ? fromLocalInput(publishAt) : null
     if (visibility === "scheduled" && !at) {
-      toast.error("Pick a date and time to publish")
+      toast.error(t("Pick a date and time to publish"))
       return
     }
     setError(null)
@@ -115,10 +117,10 @@ export function UploadDrawer({ open, onClose }: { open: boolean; onClose: () => 
       qc.invalidateQueries({ queryKey: ["studio-videos"] })
       setSending(false)
     } catch (err) {
-      const msg = err instanceof Error && !("response" in (err as object)) ? err.message : detail(err, "The upload could not start")
+      const msg = err instanceof Error && !("response" in (err as object)) ? err.message : detail(err, t("The upload could not start"))
       setError(msg)
       setSending(false)
-      if (msg !== "Upload cancelled") toast.error(msg)
+      if (msg !== t("Upload cancelled")) toast.error(msg)
     }
   }
 
@@ -131,16 +133,16 @@ export function UploadDrawer({ open, onClose }: { open: boolean; onClose: () => 
       open={open}
       onClose={close}
       width="lg"
-      title={started ? title || "Uploading" : "Upload a video"}
-      subtitle={started ? "You can close this panel; processing carries on." : "Long videos and vertical reels up to 90 seconds."}
+      title={started ? title || t("Uploading") : t("Upload a video")}
+      subtitle={started ? t("You can close this panel; processing carries on.") : t("Long videos and vertical reels up to 90 seconds.")}
       footer={
         started ? (
           <DrawerFooter
-            secondary={finished ? [{ label: "Upload another", onClick: reset }] : undefined}
+            secondary={finished ? [{ label: t("Upload another"), onClick: reset }] : undefined}
             onCancel={close}
-            cancelLabel={sending ? "Stop upload" : "Close"}
+            cancelLabel={sending ? t("Stop upload") : t("Close")}
             save={{
-              label: "Open video",
+              label: t("Open video"),
               disabled: sending,
               onClick: () => {
                 const id = videoId
@@ -151,7 +153,7 @@ export function UploadDrawer({ open, onClose }: { open: boolean; onClose: () => 
             }}
           />
         ) : (
-          <DrawerFooter onCancel={close} save={{ label: "Upload", icon: <Upload size={15} />, disabled: !canStart, onClick: start }} />
+          <DrawerFooter onCancel={close} save={{ label: t("Upload"), icon: <Upload size={15} />, disabled: !canStart, onClick: start }} />
         )
       }
     >
@@ -167,7 +169,7 @@ export function UploadDrawer({ open, onClose }: { open: boolean; onClose: () => 
           )}
           {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
           {finished && live?.status === "published" && (
-            <p className="text-sm text-slate-600">Your video is live. The transcript, chapters and clip ideas appear on its page once the AI step is ready.</p>
+            <p className="text-sm text-slate-600">{t("Your video is live. The transcript, chapters and clip ideas appear on its page once the AI step is ready.")}</p>
           )}
         </div>
       ) : (
@@ -181,37 +183,37 @@ export function UploadDrawer({ open, onClose }: { open: boolean; onClose: () => 
               if (!title) setTitle(titleFrom(f.name))
             }}
             onRemove={() => setFile(null)}
-            title="Drop a video file here, or click to choose"
-            hint="MP4, MOV or WebM, up to 4 GB"
+            title={t("Drop a video file here, or click to choose")}
+            hint={t("MP4, MOV or WebM, up to 4 GB")}
           />
-          <Field label="Title" required>
+          <Field label={t("Title")} required>
             <Input value={title} maxLength={200} onChange={(e) => setTitle(e.target.value)} />
           </Field>
-          <Field label="Description">
+          <Field label={t("Description")}>
             <Textarea rows={4} value={description} onChange={(e) => setDescription(e.target.value)} />
           </Field>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Language spoken">
+            <Field label={t("Language spoken")}>
               <Select value={language} onChange={setLanguage} options={LANGUAGES} />
             </Field>
-            <Field label="Tags" hint="Separate with commas, up to 12">
-              <Input value={tags} onChange={(e) => setTags(e.target.value)} placeholder="git, coding, tips" />
+            <Field label={t("Tags")} hint={t("Separate with commas, up to 12")}>
+              <Input value={tags} onChange={(e) => setTags(e.target.value)} placeholder={t("git, coding, tips")} />
             </Field>
           </div>
-          <Field label="Visibility">
+          <Field label={t("Visibility")}>
             <VisibilityField value={visibility} publishAt={publishAt} onChange={setVisibility} onPublishAt={setPublishAt} />
           </Field>
           <ToggleField
-            label="AI-generated content"
-            hint="Turn on if realistic people, places or events in this video were made or changed with AI. Viewers see a label."
+            label={t("AI-generated content")}
+            hint={t("Turn on if realistic people, places or events in this video were made or changed with AI. Viewers see a label.")}
             checked={aiGenerated}
             onChange={setAiGenerated}
           />
           <label className="flex items-start gap-2 rounded-lg border border-slate-200 p-3 text-sm">
             <input type="checkbox" className="mt-0.5 h-4 w-4 accent-[#A21CAF]" checked={rights} onChange={(e) => setRights(e.target.checked)} />
             <span>
-              <span className="font-semibold text-slate-800">{RIGHTS}</span>
-              <span className="mt-0.5 block text-xs text-slate-500">Required. Videos with music or clips you do not have rights to are taken down and can earn a strike.</span>
+              <span className="font-semibold text-slate-800">{t(RIGHTS)}</span>
+              <span className="mt-0.5 block text-xs text-slate-500">{t("Required. Videos with music or clips you do not have rights to are taken down and can earn a strike.")}</span>
             </span>
           </label>
         </div>

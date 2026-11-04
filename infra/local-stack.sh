@@ -4,9 +4,12 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 INFRA="$ROOT/infra"
-ENV_FILE="$INFRA/.env.staging"
-export KV_STAGING_DIR="$INFRA/build/staging"
-PROJECT="klygenix-video-staging"
+export KV_STACK="${KV_STACK:-staging}"
+ENV_FILE="$INFRA/.env.$KV_STACK"
+EXAMPLE="$INFRA/.env.$KV_STACK.example"
+[[ -f "$EXAMPLE" ]] || EXAMPLE="$INFRA/.env.staging.example"
+export KV_STAGING_DIR="$INFRA/build/$KV_STACK"
+PROJECT="klygenix-video-$KV_STACK"
 APP_UID=10001
 export SENTRY_RELEASE="${SENTRY_RELEASE:-klygenix-video@$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || echo local)}"
 export VITE_SENTRY_RELEASE="${VITE_SENTRY_RELEASE:-$SENTRY_RELEASE}"
@@ -20,8 +23,8 @@ say() { printf '\n== %s\n' "$*"; }
 
 ensure_env() {
   if [[ ! -f "$ENV_FILE" ]]; then
-    say "Creating infra/.env.staging from the example (random secrets)"
-    python3 - "$INFRA/.env.staging.example" "$ENV_FILE" <<'PY'
+    say "Creating $ENV_FILE from the example (random secrets)"
+    python3 - "$EXAMPLE" "$ENV_FILE" <<'PY'
 import re, secrets, sys
 text = open(sys.argv[1]).read()
 tokens = {t: secrets.token_hex(24) for t in set(re.findall(r"CHANGE_ME_[A-Z_]+", text))}
@@ -51,7 +54,7 @@ check_ports() {
   local port
   for port in "$(value STAGING_HTTPS_PORT)" "$(value STAGING_HTTP_PORT)" "$(value STAGING_MAIL_UI_PORT)"; do
     [[ -z "$port" ]] && continue
-    if lsof -nP -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1 && ! docker ps --format '{{.Names}}' | grep -q "^klygenix-video-staging-"; then
+    if lsof -nP -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1 && ! docker ps --format '{{.Names}}' | grep -q "^klygenix-video-$KV_STACK-"; then
       echo "Port $port is already in use by something else; change it in $ENV_FILE"; exit 1
     fi
   done
@@ -60,7 +63,7 @@ check_ports() {
 wait_healthy() {
   local service="$1" tries=60 state
   while (( tries-- > 0 )); do
-    state="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "klygenix-video-staging-$service" 2>/dev/null || true)"
+    state="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "klygenix-video-$KV_STACK-$service" 2>/dev/null || true)"
     [[ "$state" == "healthy" ]] && return 0
     sleep 2
   done

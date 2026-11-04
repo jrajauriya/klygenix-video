@@ -165,6 +165,11 @@ server {
     }
 
     location ~ ^/(favicon\.svg|manifest\.webmanifest|robots\.txt|icon.*\.(svg|png))$ { root /var/www/web; }
+    location = /sw.js {
+        root /var/www/web;
+        add_header Cache-Control "no-cache" always;
+        include /etc/nginx/snippets/headers-web.conf;
+    }
 
     location / {
         proxy_pass http://$kv_backend/api/video/render?path=$uri;

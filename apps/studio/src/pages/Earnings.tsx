@@ -7,6 +7,7 @@ import { Memberships } from "../components/earnings/Memberships"
 import { Activity } from "../components/earnings/Activity"
 import { Statements } from "../components/earnings/Statements"
 import { Ads } from "../components/earnings/Ads"
+import { useT } from "../i18n"
 
 const TABS = [
   { key: "overview", label: "Overview" },
@@ -18,12 +19,13 @@ const TABS = [
 ]
 
 export default function Earnings() {
+  const t = useT()
   const [params, setParams] = useSearchParams()
-  const tab = TABS.some((t) => t.key === params.get("tab")) ? params.get("tab")! : "overview"
+  const tab = TABS.some((x) => x.key === params.get("tab")) ? params.get("tab")! : "overview"
   const { data, isLoading, isError } = useEarnings()
 
   if (isLoading) return <Spinner />
-  if (isError || !data) return <EmptyState title="Earnings could not be loaded" hint="Try again in a moment." />
+  if (isError || !data) return <EmptyState title={t("Earnings could not be loaded")} hint={t("Try again in a moment.")} />
 
   const off = !data.can_take_money
   const suspended = data.problem === "channel_cannot_take_money"
@@ -31,20 +33,20 @@ export default function Earnings() {
   return (
     <div className="pb-8">
       <PageHeader
-        title="Earnings"
-        subtitle="What viewers paid you, what is on its way to your bank, and your payout setup."
-        actions={<span className="flex items-center gap-2 text-sm text-slate-500">Payouts <AccountStatusPill status={data.account?.status} /></span>}
+        title={t("Earnings")}
+        subtitle={t("What viewers paid you, what is on its way to your bank, and your payout setup.")}
+        actions={<span className="flex items-center gap-2 text-sm text-slate-500">{t("Payouts")} <AccountStatusPill status={data.account?.status} /></span>}
       />
       {off && (
         <PayoutsOff action={tab !== "payouts" && !suspended}>
           {suspended
-            ? "Your channel cannot take money while it is suspended. Tips, memberships and paid videos are off."
+            ? t("Your channel cannot take money while it is suspended. Tips, memberships and paid videos are off.")
             : data.account?.status === "needs_clarification"
-              ? "The payment partner needs a few changes to your payout details. Tips, memberships and paid videos stay off until payouts are active."
+              ? t("The payment partner needs a few changes to your payout details. Tips, memberships and paid videos stay off until payouts are active.")
               : undefined}
         </PayoutsOff>
       )}
-      <Tabs tabs={TABS} active={tab} onChange={(k) => setParams(k === "overview" ? {} : { tab: k }, { replace: true })} />
+      <Tabs tabs={TABS.map((x) => ({ ...x, label: t(x.label) }))} active={tab} onChange={(k) => setParams(k === "overview" ? {} : { tab: k }, { replace: true })} />
       <div>
         {tab === "overview" && <Overview data={data} />}
         {tab === "payouts" && <PayoutSetup key={data.account?.status ?? "none"} data={data} />}

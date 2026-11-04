@@ -33,6 +33,8 @@ class Video(Base):
         Index("idx_videos_feed", "status", "visibility", "published_at"),
         Index("idx_videos_channel", "channel_id", "published_at"),
         Index("idx_videos_search", "search", postgresql_using="gin"),
+        Index("idx_videos_search_roman", "search_roman", postgresql_using="gin"),
+        Index("idx_videos_roman_trgm", "roman", postgresql_using="gin", postgresql_ops={"roman": "gin_trgm_ops"}),
         UniqueConstraint("provider", "provider_video_id", name="uq_videos_provider_id"),
         {"schema": SCHEMA},
     )
@@ -66,6 +68,9 @@ class Video(Base):
     preview_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=60, server_default="60")
     dubbing_allowed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
     ads_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
+    made_for_kids: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    thumbnail_ai: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    safety_labels: Mapped[list | None] = mapped_column(JSONB)
     sponsor_deal_id: Mapped[int | None] = mapped_column(BigInteger)
     tags: Mapped[list] = mapped_column(JSONB, nullable=False, default=list, server_default="[]")
     ai_generated: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
@@ -87,6 +92,8 @@ class Video(Base):
         TSVECTOR,
         Computed("to_tsvector('simple', coalesce(title,'') || ' ' || coalesce(description,''))", persisted=True),
     )
+    roman: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
+    search_roman = mapped_column(TSVECTOR, Computed("to_tsvector('simple', roman)", persisted=True))
     created_at: Mapped[datetime] = created()
     updated_at: Mapped[datetime] = updated()
     is_deleted: Mapped[bool] = deleted()

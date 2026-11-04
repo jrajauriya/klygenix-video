@@ -6,6 +6,7 @@ import { api } from "@klygenixvideo/auth"
 import { StatusPill } from "@klygenixvideo/ui"
 import { formatMoney, toMinor } from "@klygenixvideo/client"
 import { STUDIO } from "../../lib/hooks"
+import { tr, useT } from "../../i18n"
 import type { Earnings, MembershipTier } from "../../lib/types"
 
 export const inr = (minor: number | null | undefined) => formatMoney(minor, "INR")
@@ -20,8 +21,8 @@ export function parseRupees(text: string): number | null {
 }
 
 export function priceProblem(minor: number | null): string | null {
-  if (minor === null) return "Enter a price in rupees, like 49 or 99.50."
-  if (minor < PRICE_MIN || minor > PRICE_MAX) return `The price must be between ${inr(PRICE_MIN)} and ${inr(PRICE_MAX)}.`
+  if (minor === null) return tr("Enter a price in rupees, like 49 or 99.50.")
+  if (minor < PRICE_MIN || minor > PRICE_MAX) return tr("The price must be between {min} and {max}.", { min: inr(PRICE_MIN), max: inr(PRICE_MAX) })
   return null
 }
 
@@ -49,7 +50,10 @@ export const PURPOSES: { key: string; label: string; hint: string }[] = [
   { key: "series", label: "Series", hint: "Whole-series purchases" },
 ]
 
-export const purposeLabel = (key: string) => PURPOSES.find((p) => p.key === key)?.label ?? key.replace(/_/g, " ")
+export const purposeLabel = (key: string) => {
+  const label = PURPOSES.find((p) => p.key === key)?.label
+  return label ? tr(label) : key.replace(/_/g, " ")
+}
 
 const ACCOUNT_STATUS: Record<string, { label: string; hex: string }> = {
   draft: { label: "Not submitted", hex: "#475569" },
@@ -62,8 +66,9 @@ const ACCOUNT_STATUS: Record<string, { label: string; hex: string }> = {
 }
 
 export function AccountStatusPill({ status }: { status: string | null | undefined }) {
+  const t = useT()
   const s = status ? ACCOUNT_STATUS[status] ?? { label: status.replace(/_/g, " "), hex: "#475569" } : { label: "Not set up", hex: "#475569" }
-  return <StatusPill label={s.label} hex={s.hex} />
+  return <StatusPill label={t(s.label)} hex={s.hex} />
 }
 
 const TRANSFER_STATUS: Record<string, { label: string; hex: string }> = {
@@ -76,8 +81,9 @@ const TRANSFER_STATUS: Record<string, { label: string; hex: string }> = {
 }
 
 export function TransferStatusPill({ status }: { status: string }) {
+  const t = useT()
   const s = TRANSFER_STATUS[status] ?? { label: status.replace(/_/g, " "), hex: "#475569" }
-  return <StatusPill label={s.label} hex={s.hex} />
+  return <StatusPill label={t(s.label)} hex={s.hex} />
 }
 
 export const TRANSFER_KIND: Record<string, string> = {
@@ -92,16 +98,17 @@ export const TRANSFER_FILTERS = [
 ]
 
 export function PayoutsOff({ children, action = true }: { children?: ReactNode; action?: boolean }) {
+  const t = useT()
   return (
     <div role="status" className="mb-4 flex gap-2.5 rounded-lg border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-sm text-amber-900">
       <AlertTriangle size={16} className="mt-0.5 shrink-0 text-amber-700" aria-hidden="true" />
       <div className="min-w-0">
         <p>
-          {children ?? "Tips, danmaku boosts, memberships, paid videos and paid series are off until your payouts are active."}
+          {children ?? t("Tips, danmaku boosts, memberships, paid videos and paid series are off until your payouts are active.")}
           {action && (
             <>
               {" "}
-              <Link to="/earnings?tab=payouts" className="font-semibold underline">Set up payouts</Link>
+              <Link to="/earnings?tab=payouts" className="font-semibold underline">{t("Set up payouts")}</Link>
             </>
           )}
         </p>

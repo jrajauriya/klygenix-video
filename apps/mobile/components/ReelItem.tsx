@@ -2,6 +2,7 @@ import { useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { router } from "expo-router"
 import { Image, Linking, Pressable, StyleSheet, Text, View } from "react-native"
+import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 import { api } from "../lib/api"
 import { useAuth } from "../lib/auth"
@@ -10,6 +11,7 @@ import { colour } from "../lib/theme"
 import type { VideoCard, VideoDetail } from "../lib/types"
 import { AccessBadge } from "./AccessBadge"
 import { LockCard } from "./LockCard"
+import { PaidPartnership } from "./PaidPartnership"
 import { ReelPlayer } from "./ReelPlayer"
 
 interface Props {
@@ -33,6 +35,7 @@ function Action({ label, value, onPress, on }: { label: string; value: string; o
 
 export function ReelItem({ video, height, active, muted, onToggleMute }: Props) {
   const { user } = useAuth()
+  const insets = useSafeAreaInsets()
   const [liked, setLiked] = useState(video.liked ?? false)
   const [likes, setLikes] = useState(video.likes)
   const [following, setFollowing] = useState(video.following ?? false)
@@ -113,7 +116,7 @@ export function ReelItem({ video, height, active, muted, onToggleMute }: Props) 
       <Pressable style={StyleSheet.absoluteFill} onPress={hls ? onToggleMute : undefined} accessibilityLabel="Toggle sound" />
 
       {hls && !showLock && (
-        <Pressable onPress={onToggleMute} style={st.mute} accessibilityRole="button" accessibilityLabel={muted ? "Turn sound on" : "Turn sound off"}>
+        <Pressable onPress={onToggleMute} style={[st.mute, { top: insets.top + 56 }]} accessibilityRole="button" accessibilityLabel={muted ? "Turn sound on" : "Turn sound off"}>
           <Text style={st.muteText}>{muted ? "Sound off" : "Sound on"}</Text>
         </Pressable>
       )}
@@ -152,6 +155,11 @@ export function ReelItem({ video, height, active, muted, onToggleMute }: Props) 
           )}
           <AccessBadge access={video.access} priceMinor={video.price_minor} dark />
         </View>
+        {video.paid_partnership ? (
+          <View style={{ marginTop: 6 }}>
+            <PaidPartnership deal={video.paid_partnership} dark />
+          </View>
+        ) : null}
       </Pressable>
     </View>
   )
@@ -177,7 +185,7 @@ const st = StyleSheet.create({
   lock: { position: "absolute", left: 16, right: 80, top: "22%" },
   ai: { alignSelf: "flex-start", borderRadius: 6, backgroundColor: "rgba(162,28,175,0.85)", paddingHorizontal: 8, paddingVertical: 3 },
   aiText: { color: colour.white, fontSize: 11, fontWeight: "700" },
-  mute: { position: "absolute", top: 56, right: 12, borderRadius: 999, backgroundColor: "rgba(0,0,0,0.5)", paddingHorizontal: 12, paddingVertical: 6 },
+  mute: { position: "absolute", right: 12, borderRadius: 999, backgroundColor: "rgba(0,0,0,0.5)", paddingHorizontal: 12, paddingVertical: 6 },
   muteText: { color: colour.white, fontSize: 12, fontWeight: "600" },
   embed: { position: "absolute", left: 16, right: 16, top: "40%", alignItems: "center" },
   embedText: { color: colour.white, fontSize: 13, textAlign: "center" },

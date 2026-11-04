@@ -7,28 +7,30 @@ import { Badge, Button, Card, Pager, Select, Spinner, useConfirm } from "@klygen
 import { formatMoney } from "@klygenixvideo/client"
 import { clock, detail, when } from "../../lib/format"
 import type { Comment, Danmaku } from "../../lib/types"
+import { useT } from "../../i18n"
 
 const WINDOW_MS = 120_000
 const PAGE = 20
 
 export function useRemover() {
+  const t = useT()
   const confirm = useConfirm()
   const qc = useQueryClient()
   return async (kind: "comment" | "danmaku", id: number, text: string) => {
     const ok = await confirm({
-      title: kind === "comment" ? "Delete this comment?" : "Delete this danmaku?",
-      message: `“${text.slice(0, 140)}” is removed for everyone.`,
-      confirmLabel: "Delete",
+      title: kind === "comment" ? t("Delete this comment?") : t("Delete this danmaku?"),
+      message: t("“{text}” is removed for everyone.", { text: text.slice(0, 140) }),
+      confirmLabel: t("Delete"),
       variant: "destructive",
     })
     if (!ok) return
     try {
       await api.delete(kind === "comment" ? `/api/video/comments/${id}` : `/api/video/danmaku/${id}`)
-      toast.success("Deleted")
+      toast.success(t("Deleted"))
       qc.invalidateQueries({ queryKey: [kind === "comment" ? "video-comments" : "video-danmaku"] })
       qc.invalidateQueries({ queryKey: ["studio-inbox"] })
     } catch (err) {
-      toast.error(detail(err, "Could not delete it"))
+      toast.error(detail(err, t("Could not delete it")))
     }
   }
 }
@@ -43,6 +45,7 @@ export function CommentsPanel({ publicId, durationMs }: { publicId: string; dura
 }
 
 function Comments({ publicId }: { publicId: string }) {
+  const t = useT()
   const [page, setPage] = useState(1)
   const { data, isLoading } = useQuery({
     queryKey: ["video-comments", publicId, page],
@@ -56,13 +59,13 @@ function Comments({ publicId }: { publicId: string }) {
   return (
     <Card className="p-0">
       <div className="border-b border-slate-100 px-4 py-3">
-        <h3 className="text-sm font-bold text-navy">Comments</h3>
-        <p className="text-xs text-slate-500">{data ? `${data.total} top-level comments` : "Loading…"}</p>
+        <h3 className="text-sm font-bold text-navy">{t("Comments")}</h3>
+        <p className="text-xs text-slate-500">{data ? (data.total === 1 ? t("1 top-level comment") : t("{n} top-level comments", { n: data.total })) : t("Loading…")}</p>
       </div>
       {isLoading ? (
         <Spinner />
       ) : !data?.rows.length ? (
-        <p className="px-4 py-6 text-sm text-slate-500">No comments yet.</p>
+        <p className="px-4 py-6 text-sm text-slate-500">{t("No comments yet.")}</p>
       ) : (
         <ul className="divide-y divide-slate-100">
           {data.rows.map((c) => <CommentRow key={c.id} comment={c} publicId={publicId} />)}
@@ -78,6 +81,7 @@ function Comments({ publicId }: { publicId: string }) {
 }
 
 function CommentRow({ comment, publicId, reply = false }: { comment: Comment; publicId: string; reply?: boolean }) {
+  const t = useT()
   const remove = useRemover()
   const [open, setOpen] = useState(false)
   const { data: replies } = useQuery({
@@ -92,16 +96,16 @@ function CommentRow({ comment, publicId, reply = false }: { comment: Comment; pu
         <div className="min-w-0 flex-1">
           <p className="text-xs text-slate-500">
             <span className="font-semibold text-slate-700">{comment.author}</span> · {when(comment.created_at, true)}
-            {comment.paid_minor ? <Badge color="green" className="ml-1.5">Tip {formatMoney(comment.paid_minor, "INR")}</Badge> : null}
+            {comment.paid_minor ? <Badge color="green" className="ml-1.5">{t("Tip {amount}", { amount: formatMoney(comment.paid_minor, "INR") })}</Badge> : null}
           </p>
           <p className="mt-0.5 whitespace-pre-wrap break-words text-sm text-slate-800">{comment.body}</p>
           {!reply && comment.replies > 0 && (
             <button type="button" onClick={() => setOpen((o) => !o)} className="mt-1 inline-flex items-center gap-0.5 text-xs font-semibold text-brand">
-              {open ? <ChevronDown size={13} /> : <ChevronRight size={13} />} {comment.replies} {comment.replies === 1 ? "reply" : "replies"}
+              {open ? <ChevronDown size={13} /> : <ChevronRight size={13} />} {comment.replies === 1 ? t("1 reply") : t("{n} replies", { n: comment.replies })}
             </button>
           )}
         </div>
-        <Button size="icon" variant="ghost" aria-label="Delete comment" onClick={() => remove("comment", comment.id, comment.body)}>
+        <Button size="icon" variant="ghost" aria-label={t("Delete comment")} onClick={() => remove("comment", comment.id, comment.body)}>
           <Trash2 size={15} />
         </Button>
       </div>
@@ -115,6 +119,7 @@ function CommentRow({ comment, publicId, reply = false }: { comment: Comment; pu
 }
 
 function DanmakuList({ publicId, durationMs }: { publicId: string; durationMs: number }) {
+  const t = useT()
   const remove = useRemover()
   const windows = Math.max(1, Math.ceil((durationMs || WINDOW_MS) / WINDOW_MS))
   const [win, setWin] = useState("0")
@@ -133,15 +138,15 @@ function DanmakuList({ publicId, durationMs }: { publicId: string; durationMs: n
     <Card className="p-0">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-3">
         <div>
-          <h3 className="text-sm font-bold text-navy">Danmaku</h3>
-          <p className="text-xs text-slate-500">Comments that fly over the video at a moment</p>
+          <h3 className="text-sm font-bold text-navy">{t("Danmaku")}</h3>
+          <p className="text-xs text-slate-500">{t("Comments that fly over the video at a moment")}</p>
         </div>
         {windows > 1 && <Select value={win} onChange={setWin} options={options} className="w-44" />}
       </div>
       {isLoading ? (
         <Spinner />
       ) : !data?.length ? (
-        <p className="px-4 py-6 text-sm text-slate-500">No danmaku in this part of the video.</p>
+        <p className="px-4 py-6 text-sm text-slate-500">{t("No danmaku in this part of the video.")}</p>
       ) : (
         <ul className="max-h-[60vh] divide-y divide-slate-100 overflow-y-auto">
           {data.map((d) => (
@@ -150,10 +155,10 @@ function DanmakuList({ publicId, durationMs }: { publicId: string; durationMs: n
               <span className="h-3 w-3 shrink-0 rounded-full border border-slate-300" style={{ background: d.color }} title={d.color} />
               <span className="min-w-0 flex-1 truncate text-sm text-slate-800">{d.text}</span>
               {d.boost_tier || d.paid_minor ? (
-                <Badge color="purple">Boost{d.paid_minor ? ` ${formatMoney(d.paid_minor, "INR")}` : ""}</Badge>
+                <Badge color="purple">{d.paid_minor ? t("Boost {amount}", { amount: formatMoney(d.paid_minor, "INR") }) : t("Boost")}</Badge>
               ) : null}
               {d.mode !== "scroll" && <span className="text-[11px] text-slate-400">{d.mode}</span>}
-              <Button size="icon" variant="ghost" aria-label="Delete danmaku" onClick={() => remove("danmaku", d.id, d.text)}>
+              <Button size="icon" variant="ghost" aria-label={t("Delete danmaku")} onClick={() => remove("danmaku", d.id, d.text)}>
                 <Trash2 size={15} />
               </Button>
             </li>

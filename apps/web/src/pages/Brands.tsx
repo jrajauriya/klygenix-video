@@ -6,6 +6,8 @@ import { Skel } from "../components/bits"
 import { STUDIO_URL, getJson } from "../lib/api"
 import { compactNumber } from "../lib/format"
 import { useTitle } from "../lib/title"
+import { useT } from "../i18n"
+import { rich } from "../i18n/rich"
 
 interface BrandsInfo {
   open_briefs: number
@@ -35,7 +37,8 @@ function Stat({ value, label, loading }: { value: number | undefined; label: str
 }
 
 export default function BrandsPage() {
-  useTitle("For brands")
+  const t = useT("plans")
+  useTitle(t("For brands"))
   const q = useQuery({ queryKey: ["brands-info"], queryFn: () => getJson<BrandsInfo>("/api/video/brands"), staleTime: 60_000 })
   const studio = `${STUDIO_URL.replace(/\/$/, "")}/brand`
 
@@ -44,53 +47,53 @@ export default function BrandsPage() {
       <section className="relative overflow-hidden rounded-3xl border border-line bg-[radial-gradient(circle_at_20%_10%,#4a044e,#0b0b12_65%)] px-6 py-12 sm:px-12 sm:py-16">
         <div className="pointer-events-none absolute -right-24 -top-24 h-80 w-80 rounded-full bg-brand/30 blur-[100px]" />
         <p className="relative inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-brand-soft">
-          <Clapperboard size={14} aria-hidden="true" /> Klygenix Play for brands
+          <Clapperboard size={14} aria-hidden="true" /> {t("Klygenix Play for brands")}
         </p>
-        <h1 className="relative mt-4 max-w-3xl text-3xl font-bold leading-tight sm:text-5xl">Reach people who are actually watching</h1>
+        <h1 className="relative mt-4 max-w-3xl text-3xl font-bold leading-tight sm:text-5xl">{t("Reach people who are actually watching")}</h1>
         <p className="relative mt-4 max-w-2xl text-base text-ink/85 sm:text-lg">
-          Run video ads on long videos from creators who opted in, or sponsor creators directly. Everything is set up, funded and reported in Klygenix Studio.
+          {t("Run video ads on long videos from creators who opted in, or sponsor creators directly. Everything is set up, funded and reported in Klygenix Studio.")}
         </p>
         <div className="relative mt-8 flex flex-wrap gap-3">
           <a href={studio} className="inline-flex h-11 items-center gap-2 rounded-full bg-brand px-6 text-sm font-semibold text-white hover:bg-brand-hover">
-            Open your brand profile <ArrowRight size={16} aria-hidden="true" />
+            {t("Open your brand profile")} <ArrowRight size={16} aria-hidden="true" />
           </a>
-          <a href="#how" className="inline-flex h-11 items-center rounded-full bg-white/10 px-6 text-sm font-semibold text-ink hover:bg-white/15">How it works</a>
+          <a href="#how" className="inline-flex h-11 items-center rounded-full bg-white/10 px-6 text-sm font-semibold text-ink hover:bg-white/15">{t("How it works")}</a>
         </div>
         <div className="relative mt-10 grid max-w-md grid-cols-2 gap-3">
-          <Stat value={q.data?.open_briefs} label="Open briefs right now" loading={q.isLoading} />
-          <Stat value={q.data?.brands} label="Brands on Klygenix Play" loading={q.isLoading} />
+          <Stat value={q.data?.open_briefs} label={t("Open briefs right now")} loading={q.isLoading} />
+          <Stat value={q.data?.brands} label={t("Brands on Klygenix Play")} loading={q.isLoading} />
         </div>
       </section>
 
       <div className="mt-8 grid gap-5 md:grid-cols-2">
         <section aria-labelledby="ads-title" className="rounded-3xl border border-line bg-panel p-6 sm:p-8">
           <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#FACC15] text-black"><MonitorPlay size={22} aria-hidden="true" /></span>
-          <h2 id="ads-title" className="mt-4 text-xl font-bold">Video ads</h2>
+          <h2 id="ads-title" className="mt-4 text-xl font-bold">{t("Video ads")}</h2>
           <ul className="mt-4 space-y-3">
             {ADS.map((a) => (
               <li key={a.text} className="flex gap-3 text-sm text-ink/90">
-                <a.icon size={18} className="mt-0.5 shrink-0 text-brand-soft" aria-hidden="true" /> {a.text}
+                <a.icon size={18} className="mt-0.5 shrink-0 text-brand-soft" aria-hidden="true" /> {t(a.text)}
               </li>
             ))}
           </ul>
-          <p className="mt-5 text-xs text-muted">Ads never run on members-only or paid videos, on videos embedded from other platforms, or for Premium viewers.</p>
+          <p className="mt-5 text-xs text-muted">{t("Ads never run on members-only or paid videos, on videos embedded from other platforms, or for Premium viewers.")}</p>
         </section>
         <section aria-labelledby="deals-title" className="rounded-3xl border border-line bg-panel p-6 sm:p-8">
           <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-brand text-white"><Handshake size={22} aria-hidden="true" /></span>
-          <h2 id="deals-title" className="mt-4 text-xl font-bold">Creator sponsorships</h2>
+          <h2 id="deals-title" className="mt-4 text-xl font-bold">{t("Creator sponsorships")}</h2>
           <ul className="mt-4 space-y-3">
             {DEALS.map((a) => (
               <li key={a.text} className="flex gap-3 text-sm text-ink/90">
-                <a.icon size={18} className="mt-0.5 shrink-0 text-brand-soft" aria-hidden="true" /> {a.text}
+                <a.icon size={18} className="mt-0.5 shrink-0 text-brand-soft" aria-hidden="true" /> {t(a.text)}
               </li>
             ))}
           </ul>
-          <p className="mt-5 text-xs text-muted">Creators decide which briefs to take. Sponsored content follows the same community guidelines as everything else.</p>
+          <p className="mt-5 text-xs text-muted">{t("Creators decide which briefs to take. Sponsored content follows the same community guidelines as everything else.")}</p>
         </section>
       </div>
 
       <section id="how" aria-labelledby="how-title" className="mt-8 scroll-mt-20 rounded-3xl border border-line bg-panel p-6 sm:p-8">
-        <h2 id="how-title" className="text-xl font-bold">How it works</h2>
+        <h2 id="how-title" className="text-xl font-bold">{t("How it works")}</h2>
         {q.isLoading ? (
           <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{Array.from({ length: 4 }, (_, i) => <Skel key={i} className="h-24" />)}</div>
         ) : (
@@ -105,9 +108,9 @@ export default function BrandsPage() {
         )}
         <div className="mt-6 flex flex-wrap items-center gap-3 border-t border-line pt-6">
           <Globe2 size={18} className="text-muted" aria-hidden="true" />
-          <p className="flex-1 text-sm text-muted">Brand payments are in Indian rupees for now. Brands abroad can <Link to="/waitlist?role=brand" className="font-semibold text-brand-soft hover:underline">join the waitlist</Link>.</p>
+          <p className="flex-1 text-sm text-muted">{rich(t("Brand payments are in Indian rupees for now. Brands abroad can {link}."), { link: <Link to="/waitlist?role=brand" className="font-semibold text-brand-soft hover:underline">{t("join the waitlist")}</Link> })}</p>
           <a href={studio} className="inline-flex h-10 items-center gap-2 rounded-full bg-snow px-5 text-sm font-semibold text-black hover:bg-snow/85">
-            Get started in Studio <ArrowRight size={16} aria-hidden="true" />
+            {t("Get started in Studio")} <ArrowRight size={16} aria-hidden="true" />
           </a>
         </div>
       </section>

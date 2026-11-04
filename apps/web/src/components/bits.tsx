@@ -4,6 +4,7 @@ import { BadgeCheck, Sparkles } from "lucide-react"
 import { cn } from "@klygenixvideo/ui"
 import type { ChannelCard } from "../lib/types"
 import { hue, initials } from "../lib/format"
+import { useT } from "../i18n"
 
 type Tone = "brand" | "ghost" | "soft" | "danger" | "light"
 
@@ -51,20 +52,22 @@ export function ChannelAvatar({ channel, size = 36, className }: { channel: Pick
 }
 
 export function ChannelName({ channel, className }: { channel: ChannelCard | null | undefined; className?: string }) {
+  const t = useT()
   if (!channel) return null
   return (
     <Link to={`/@${channel.handle}`} className={cn("inline-flex min-w-0 items-center gap-1 hover:text-ink", className)}>
       <span className="truncate">{channel.name}</span>
-      {channel.verified && <BadgeCheck size={14} className="shrink-0 text-brand-soft" aria-label="Verified" />}
+      {channel.verified && <BadgeCheck size={14} className="shrink-0 text-brand-soft" aria-label={t("Verified")} />}
     </Link>
   )
 }
 
 export function AiBadge({ className }: { className?: string }) {
+  const t = useT()
   return (
     <span className={cn("inline-flex items-center gap-1 rounded-md bg-brand/20 px-1.5 py-0.5 text-[11px] font-semibold text-brand-soft ring-1 ring-brand/40", className)}>
       <Sparkles size={11} aria-hidden="true" />
-      AI-generated
+      {t("AI-generated")}
     </span>
   )
 }

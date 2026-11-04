@@ -4,6 +4,7 @@ import { ExternalLink, ShoppingBag } from "lucide-react"
 import { api } from "@klygenixvideo/auth"
 import { errText } from "../../lib/api"
 import type { ProductLink } from "../../lib/types"
+import { useT } from "../../i18n"
 
 function openOut(url: string, pending: Window | null) {
   if (pending && !pending.closed) {
@@ -21,6 +22,7 @@ function openOut(url: string, pending: Window | null) {
 }
 
 export function ProductStrip({ products }: { products: { disclosure: string; items: ProductLink[] } }) {
+  const t = useT("watchx", products.items.length > 0)
   const [busy, setBusy] = useState<number | null>(null)
   const items = [...products.items].sort((a, b) => a.position - b.position || a.id - b.id)
   if (!items.length) return null
@@ -33,15 +35,15 @@ export function ProductStrip({ products }: { products: { disclosure: string; ite
       openOut(data.url, pending)
     } catch (err) {
       pending?.close()
-      toast.error(errText(err, "That link could not be opened."))
+      toast.error(errText(err, t("That link could not be opened.")))
     } finally {
       setBusy(null)
     }
   }
 
   return (
-    <section aria-label="Products" className="rounded-2xl bg-panel p-3 sm:p-4">
-      <h2 className="flex items-center gap-2 text-sm font-bold"><ShoppingBag size={15} className="text-brand-soft" aria-hidden="true" /> Products</h2>
+    <section aria-label={t("Products")} className="rounded-2xl bg-panel p-3 sm:p-4">
+      <h2 className="flex items-center gap-2 text-sm font-bold"><ShoppingBag size={15} className="text-brand-soft" aria-hidden="true" /> {t("Products")}</h2>
       <p className="mt-1 text-xs text-muted">{products.disclosure}</p>
       <ul className="mt-3 flex gap-2 overflow-x-auto pb-1 scrollbar-none">
         {items.map((p) => (

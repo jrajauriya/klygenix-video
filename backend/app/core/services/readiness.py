@@ -377,6 +377,14 @@ def evaluate(s: Settings, *, mode: str = "app", env: dict | None = None) -> list
     add(Check("youtube.oauth", "YouTube channel connection", "Integrations", WARN, yt_ok,
               "Configured." if yt_ok else "YOUTUBE_PROVIDER is sandbox: Connect YouTube imports a sample channel.",
               f"Google Cloud → OAuth client (web) with redirect {s.YOUTUBE_OAUTH_REDIRECT}; submit the consent screen for verification (sensitive scopes) and request a YouTube API quota extension."))
+    reg = s.REGION
+    reg_ok = reg in ("in", "us") and (reg != "us" or bool(s.LEMONSQUEEZY_STORE_ID and s.LEMONSQUEEZY_API_KEY)) and \
+        (not s.REGION_ENFORCE or all(r in (s.REGION_URLS or "") for r in ("in=", "us=")))
+    add(Check("region.config", "Region and data residency", "Infrastructure", WARN, reg_ok,
+              f"REGION={reg}, enforced={s.REGION_ENFORCE}." if reg_ok else
+              f"REGION={reg!r} is not ready: the US host sells through Lemon Squeezy and an enforced region needs both URLs.",
+              "Set REGION to in or us; on the US host configure LEMONSQUEEZY_*; with REGION_ENFORCE=true set "
+              "REGION_URLS=in=https://api.play.klygenix.com,us=https://api.us.play.klygenix.com."))
     cf_need = [k for k in ("CF_ACCOUNT_ID", "CF_STREAM_TOKEN", "CF_STREAM_CUSTOMER_HOST", "CF_STREAM_SIGNING_KEY_ID",
                            "CF_STREAM_SIGNING_KEY", "CF_STREAM_WEBHOOK_SECRET", "CF_NOTIFY_SECRET") if not getattr(s, k)]
     live_ok = s.LIVE_PROVIDER == "cloudflare" and not cf_need

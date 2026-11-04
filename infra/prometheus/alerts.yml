@@ -206,6 +206,27 @@ groups:
           summary: "The active recommendation model is {{ $value | humanize }} hours old: nightly training is not promoting"
           runbook: "infra/METRICS.md#kvrecomodelstale"
 
+  - name: klygenix-video-run5
+    rules:
+      - alert: KvAdInvalidTrafficHigh
+        expr: |
+          sum(increase(kv_ads_viewable_total{outcome="invalid"}[1h]))
+            / sum(increase(kv_ads_viewable_total[1h])) > 0.2
+          and sum(increase(kv_ads_viewable_total{outcome="invalid"}[1h])) > 20
+        for: 30m
+        labels: {severity: warning}
+        annotations:
+          summary: "{{ $value | humanizePercentage }} of viewable ad impressions in the last hour were invalid traffic"
+          runbook: "infra/METRICS.md#kvadinvalidtraffichigh"
+
+      - alert: KvDigestNotSent
+        expr: kv_digest_last_run_age_hours > 26
+        for: 30m
+        labels: {severity: warning}
+        annotations:
+          summary: "The notification digest last ran {{ $value | humanize }} hours ago"
+          runbook: "infra/METRICS.md#kvdigestnotsent"
+
   - name: klygenix-video-host
     rules:
       - alert: KvDiskSpaceLow

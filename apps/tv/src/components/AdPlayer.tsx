@@ -3,8 +3,10 @@ import type HlsType from "hls.js"
 import { api, sameOrigin } from "../lib/api"
 import { focusEl } from "../lib/focus"
 import { clock, host } from "../lib/format"
+import { slot, useT } from "../lib/i18n"
 import type { Ad } from "../lib/types"
 
+const VIEWABLE_MS = 2000
 const QUARTILES: [number, string][] = [[0.25, "q1"], [0.5, "mid"], [0.75, "q3"]]
 
 export function AdPlayer({ ad, onDone }: { ad: Ad; onDone: () => void }) {
@@ -17,6 +19,7 @@ export function AdPlayer({ ad, onDone }: { ad: Ad; onDone: () => void }) {
   const [pos, setPos] = useState(0)
   const [started, setStarted] = useState(false)
   const [length, setLength] = useState(ad.duration_ms || 0)
+  const t = useT()
 
   const send = (event: string) => {
     if (sent.current.has(event)) return
@@ -84,6 +87,14 @@ export function AdPlayer({ ad, onDone }: { ad: Ad; onDone: () => void }) {
     }
   }, [ad.playback?.url])
 
+  useEffect(() => {
+    if (!started) return
+    const viewable = window.setTimeout(() => {
+      if (!finished.current) sendRef.current("q0")
+    }, VIEWABLE_MS)
+    return () => window.clearTimeout(viewable)
+  }, [started])
+
   const skipAfter = Math.max(0, ad.skip_after_seconds ?? 0) * 1000
   const canSkip = started && pos >= skipAfter
 
@@ -92,7 +103,7 @@ export function AdPlayer({ ad, onDone }: { ad: Ad; onDone: () => void }) {
   }, [canSkip])
 
   return (
-    <div data-focus-scope role="region" aria-label={`Advertisement from ${ad.brand}`} className="fixed inset-0 z-50 bg-black text-white">
+    <div data-focus-scope role="region" aria-label={t("Advertisement from {brand}", { brand: ad.brand })} className="fixed inset-0 z-50 bg-black text-white">
       <video
         ref={video}
         className="absolute inset-0 h-full w-full object-contain"
@@ -115,22 +126,22 @@ export function AdPlayer({ ad, onDone }: { ad: Ad; onDone: () => void }) {
         onError={() => finishRef.current("error")}
       />
       <div className="absolute left-[6rem] top-[3.375rem] flex items-center gap-4">
-        <span className="rounded-lg bg-[#facc15] px-4 py-2 text-2xl font-extrabold text-black">Ad · {ad.brand}</span>
+        <span className="rounded-lg bg-[#facc15] px-4 py-2 text-2xl font-extrabold text-black">{t("Ad · {brand}", { brand: ad.brand })}</span>
         <span className="rounded-lg bg-black/80 px-4 py-2 text-2xl font-semibold" role="timer" aria-live="off">
-          {length > 0 ? `Ends in ${clock(Math.max(0, length - pos))}` : "Playing"}
+          {length > 0 ? t("Ends in {time}", { time: clock(Math.max(0, length - pos)) }) : t("Playing")}
         </span>
       </div>
       <div className="absolute inset-x-[6rem] bottom-[3.375rem] flex items-end justify-between gap-8">
         <p className="max-w-[60%] rounded-lg bg-black/80 px-5 py-3 text-2xl">
-          Learn more at <span className="font-semibold text-[#fde68a]">{host(ad.click_url)}</span>
+          {slot(t("Learn more at {site}"), "site", <span className="font-semibold text-[#fde68a]">{host(ad.click_url)}</span>)}
         </p>
         {canSkip ? (
           <button ref={skipRef} type="button" onClick={() => finishRef.current("skip")} className="rounded-xl bg-white px-10 py-4 text-3xl font-bold text-black">
-            Skip ad ›
+            {t("Skip ad")} ›
           </button>
         ) : (
           <p className="rounded-xl bg-black/80 px-8 py-4 text-2xl font-semibold">
-            {started ? `Skip ad in ${Math.ceil((skipAfter - pos) / 1000)}` : "Ad starting…"}
+            {started ? t("Skip ad in {n}", { n: Math.ceil((skipAfter - pos) / 1000) }) : t("Ad starting…")}
           </p>
         )}
       </div>

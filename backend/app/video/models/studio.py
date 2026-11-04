@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import BigInteger, Boolean, CheckConstraint, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import BigInteger, Boolean, CheckConstraint, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -49,7 +49,7 @@ class PublishTarget(Base):
     __tablename__ = "publish_targets"
     __table_args__ = (
         CheckConstraint("platform IN ('youtube','instagram')", name="ck_publish_targets_platform"),
-        CheckConstraint("status IN ('queued','publishing','published','failed')", name="ck_publish_targets_status"),
+        CheckConstraint("status IN ('scheduled','queued','publishing','published','failed','cancelled')", name="ck_publish_targets_status"),
         UniqueConstraint("clip_id", "platform", name="uq_publish_targets"),
         {"schema": SCHEMA},
     )
@@ -63,6 +63,7 @@ class PublishTarget(Base):
     external_id: Mapped[str | None] = mapped_column(String(80))
     external_url: Mapped[str | None] = mapped_column(String(300))
     error: Mapped[str | None] = mapped_column(Text)
+    scheduled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = created()
     updated_at: Mapped[datetime] = updated()
 

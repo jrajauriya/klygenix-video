@@ -1,5 +1,9 @@
 const compact = new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 })
 
+export function compactNumber(n: number): string {
+  return compact.format(n)
+}
+
 export function views(n: number | null | undefined): string {
   const v = n ?? 0
   return `${compact.format(v)} ${v === 1 ? "view" : "views"}`
@@ -13,11 +17,11 @@ export function clock(ms: number): string {
   return h ? `${h}:${String(m).padStart(2, "0")}:${s}` : `${String(m).padStart(2, "0")}:${s}`
 }
 
-export function when(iso: string | null | undefined): string {
+export function when(iso: string | null | undefined, lang = "en"): string {
   if (!iso) return ""
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return ""
-  return d.toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })
+  return d.toLocaleString(lang === "hi" ? "hi-IN" : "en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })
 }
 
 export function host(url: string): string {

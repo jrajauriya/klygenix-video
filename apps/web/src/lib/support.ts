@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query"
 import { getJson, useSignedIn } from "./api"
 import type { ChannelSupport } from "./types"
+import { tr } from "../i18n"
 
 export function useChannelSupport(handle: string | null | undefined, enabled = true) {
   const signedIn = useSignedIn()
@@ -13,7 +14,7 @@ export function useChannelSupport(handle: string | null | undefined, enabled = t
 
 export function feeText(support: Pick<ChannelSupport, "commission_bps"> | null | undefined): string {
   const bps = support?.commission_bps
-  if (typeof bps !== "number") return "a platform fee"
+  if (typeof bps !== "number") return tr("a platform fee")
   const pct = bps / 100
-  return `a ${Number.isInteger(pct) ? pct : pct.toFixed(1)}% platform fee`
+  return tr("a {pct}% platform fee", { pct: Number.isInteger(pct) ? pct : pct.toFixed(1) })
 }

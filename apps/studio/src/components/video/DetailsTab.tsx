@@ -9,11 +9,14 @@ import { STUDIO } from "../../lib/hooks"
 import { LANGUAGES, clock, detail, fromLocalInput, splitTags, toLocalInput } from "../../lib/format"
 import type { StudioVideoDetail, Visibility } from "../../lib/types"
 import { VisibilityField } from "../VisibilityField"
+import { categoryLabel } from "../../lib/market"
 import { PlayerBox } from "./PlayerBox"
 import { ThumbnailCard } from "./ThumbnailCard"
 import type { Seek } from "../VideoPreview"
+import { useT } from "../../i18n"
 
 export function DetailsTab({ video }: { video: StudioVideoDetail }) {
+  const t = useT()
   const qc = useQueryClient()
   const navigate = useNavigate()
   const confirm = useConfirm()
@@ -24,6 +27,7 @@ export function DetailsTab({ video }: { video: StudioVideoDetail }) {
   const [visibility, setVisibility] = useState<Visibility>(video.visibility)
   const [publishAt, setPublishAt] = useState(toLocalInput(video.publish_at))
   const [aiGenerated, setAiGenerated] = useState(video.ai_generated)
+  const [madeForKids, setMadeForKids] = useState(Boolean(video.made_for_kids))
   const [saving, setSaving] = useState(false)
   const [rerunning, setRerunning] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -38,7 +42,7 @@ export function DetailsTab({ video }: { video: StudioVideoDetail }) {
   async function save() {
     const at = visibility === "scheduled" ? fromLocalInput(publishAt) : null
     if (visibility === "scheduled" && !at) {
-      toast.error("Pick a date and time to publish")
+      toast.error(t("Pick a date and time to publish"))
       return
     }
     setSaving(true)
@@ -51,11 +55,12 @@ export function DetailsTab({ video }: { video: StudioVideoDetail }) {
         visibility,
         publish_at: at,
         ai_generated: aiGenerated,
+        made_for_kids: madeForKids,
       })
-      toast.success("Saved")
+      toast.success(t("Saved"))
       refresh()
     } catch (err) {
-      toast.error(detail(err, "Could not save the changes"))
+      toast.error(detail(err, t("Could not save the changes")))
     } finally {
       setSaving(false)
     }
@@ -65,10 +70,10 @@ export function DetailsTab({ video }: { video: StudioVideoDetail }) {
     setRerunning(true)
     try {
       await api.post(`${STUDIO}/videos/${video.id}/reprocess`)
-      toast.success("AI is running again. New drafts appear here in a minute or two.")
+      toast.success(t("AI is running again. New drafts appear here in a minute or two."))
       refresh()
     } catch (err) {
-      toast.error(detail(err, "Could not start the AI again"))
+      toast.error(detail(err, t("Could not start the AI again")))
     } finally {
       setRerunning(false)
     }
@@ -76,20 +81,20 @@ export function DetailsTab({ video }: { video: StudioVideoDetail }) {
 
   async function remove() {
     const ok = await confirm({
-      title: "Delete this video?",
-      message: "The video, its transcript, comments and danmaku are removed for everyone. Clips already published as reels stay.",
-      confirmLabel: "Delete video",
+      title: t("Delete this video?"),
+      message: t("The video, its transcript, comments and danmaku are removed for everyone. Clips already published as reels stay."),
+      confirmLabel: t("Delete video"),
       variant: "destructive",
     })
     if (!ok) return
     setDeleting(true)
     try {
       await api.delete(`${STUDIO}/videos/${video.id}`)
-      toast.success("Video deleted")
+      toast.success(t("Video deleted"))
       qc.invalidateQueries({ queryKey: ["studio-videos"] })
       navigate("/videos")
     } catch (err) {
-      toast.error(detail(err, "Could not delete the video"))
+      toast.error(detail(err, t("Could not delete the video")))
       setDeleting(false)
     }
   }
@@ -108,27 +113,27 @@ export function DetailsTab({ video }: { video: StudioVideoDetail }) {
 
         <Card className="p-4">
           <div className="mb-3 flex items-center justify-between gap-2">
-            <h3 className="flex items-center gap-1.5 text-sm font-bold text-navy"><Sparkles size={15} className="text-brand" /> AI drafts</h3>
+            <h3 className="flex items-center gap-1.5 text-sm font-bold text-navy"><Sparkles size={15} className="text-brand" /> {t("AI drafts")}</h3>
             <Button size="sm" variant="outline" onClick={rerun} disabled={rerunning || !["published", "in_review"].includes(video.status)}>
-              <RefreshCw size={13} /> {rerunning ? "Starting…" : "Re-run AI"}
+              <RefreshCw size={13} /> {rerunning ? t("Starting…") : t("Re-run AI")}
             </Button>
           </div>
           {!insight ? (
             <p className="text-sm text-slate-500">
               {video.ai_status === "no_captions"
-                ? "AI needs captions for this video. Upload them in the Captions tab."
-                : "Title ideas, hashtags, a summary and chapters appear here once the AI step is ready."}
+                ? t("AI needs captions for this video. Upload them in the Captions tab.")
+                : t("Title ideas, hashtags, a summary and chapters appear here once the AI step is ready.")}
             </p>
           ) : (
             <div className="space-y-4 text-sm">
               {insight.title_ideas?.length > 0 && (
                 <div>
-                  <p className="mb-1.5 text-xs font-semibold text-slate-500">Title ideas · click to use</p>
+                  <p className="mb-1.5 text-xs font-semibold text-slate-500">{t("Title ideas · click to use")}</p>
                   <div className="flex flex-wrap gap-1.5">
-                    {insight.title_ideas.map((t) => (
-                      <button key={t} type="button" onClick={() => setTitle(t.slice(0, 200))}
+                    {insight.title_ideas.map((idea) => (
+                      <button key={idea} type="button" onClick={() => setTitle(idea.slice(0, 200))}
                         className="rounded-full border border-brand-100 bg-brand-50 px-2.5 py-1 text-left text-xs font-medium text-brand hover:border-brand">
-                        {t}
+                        {idea}
                       </button>
                     ))}
                   </div>
@@ -136,7 +141,7 @@ export function DetailsTab({ video }: { video: StudioVideoDetail }) {
               )}
               {insight.hashtags?.length > 0 && (
                 <div>
-                  <p className="mb-1.5 text-xs font-semibold text-slate-500">Hashtags · click to add as a tag</p>
+                  <p className="mb-1.5 text-xs font-semibold text-slate-500">{t("Hashtags · click to add as a tag")}</p>
                   <div className="flex flex-wrap gap-1.5">
                     {insight.hashtags.map((h) => (
                       <button key={h} type="button" onClick={() => addTag(h)}
@@ -149,13 +154,13 @@ export function DetailsTab({ video }: { video: StudioVideoDetail }) {
               )}
               {insight.summary && (
                 <div>
-                  <p className="mb-1 text-xs font-semibold text-slate-500">Summary</p>
+                  <p className="mb-1 text-xs font-semibold text-slate-500">{t("Summary")}</p>
                   <p className="leading-relaxed text-slate-700">{insight.summary}</p>
                 </div>
               )}
               {insight.chapters?.length > 0 && (
                 <div>
-                  <p className="mb-1 text-xs font-semibold text-slate-500">Chapters</p>
+                  <p className="mb-1 text-xs font-semibold text-slate-500">{t("Chapters")}</p>
                   <ul className="space-y-1">
                     {insight.chapters.map((c) => (
                       <li key={c.start_ms}>
@@ -175,35 +180,48 @@ export function DetailsTab({ video }: { video: StudioVideoDetail }) {
       </div>
 
       <Card className="space-y-4 p-5 lg:col-span-3">
-        <Field label="Title" required>
+        <Field label={t("Title")} required>
           <Input value={title} maxLength={200} onChange={(e) => setTitle(e.target.value)} />
         </Field>
-        <Field label="Description">
+        <Field label={t("Description")}>
           <Textarea rows={6} value={description} onChange={(e) => setDescription(e.target.value)} />
         </Field>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Tags" hint="Separate with commas, up to 12">
+          <Field label={t("Tags")} hint={t("Separate with commas, up to 12")}>
             <Input value={tags} onChange={(e) => setTags(e.target.value)} />
           </Field>
-          <Field label="Language spoken">
+          <Field label={t("Language spoken")}>
             <Select value={language} onChange={setLanguage} options={LANGUAGES} />
           </Field>
         </div>
-        <Field label="Visibility">
+        <Field label={t("Visibility")}>
           <VisibilityField value={visibility} publishAt={publishAt} onChange={setVisibility} onPublishAt={setPublishAt} />
         </Field>
         <ToggleField
-          label="AI-generated content"
-          hint="Viewers see an AI-generated label on this video."
+          label={t("AI-generated content")}
+          hint={t("Viewers see an AI-generated label on this video.")}
           checked={aiGenerated}
           onChange={setAiGenerated}
         />
+        <div>
+          <ToggleField
+            label={t("Made for kids")}
+            hint={t("Turn this on if the video is made for children. Kids videos never show ads, whatever your channel's ad setting.")}
+            checked={madeForKids}
+            onChange={setMadeForKids}
+          />
+          {(video.safety_labels?.length ?? 0) > 0 && (
+            <p className="mt-1 text-xs text-slate-500">
+              {t("Topics found by the safety check: {topics}. Brands can choose not to show their ads on some topics.", { topics: video.safety_labels!.map(categoryLabel).join(", ") })}
+            </p>
+          )}
+        </div>
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-4">
           <Button variant="outline" className="text-red-600" onClick={remove} disabled={deleting}>
-            <Trash2 size={14} /> {deleting ? "Deleting…" : "Delete video"}
+            <Trash2 size={14} /> {deleting ? t("Deleting…") : t("Delete video")}
           </Button>
           <Button onClick={save} disabled={saving || !title.trim()}>
-            <Save size={14} /> {saving ? "Saving…" : "Save changes"}
+            <Save size={14} /> {saving ? t("Saving…") : t("Save changes")}
           </Button>
         </div>
       </Card>

@@ -2,6 +2,7 @@ import { useState } from "react"
 import { Link, useParams } from "react-router-dom"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { api, errStatus, errText, getJson, useSignedIn } from "../lib/api"
+import { useT } from "../lib/i18n"
 import type { ChannelDetail, LiveStreamCard, VideoCard } from "../lib/types"
 import { LiveTile, Phone, Row, Status, VideoTile } from "../components/Tiles"
 
@@ -11,6 +12,7 @@ export default function Channel() {
   const qc = useQueryClient()
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState("")
+  const t = useT()
   const channel = useQuery({
     queryKey: ["channel", handle, signedIn],
     queryFn: () => getJson<ChannelDetail>(`/api/video/channels/${handle}`),
@@ -21,12 +23,12 @@ export default function Channel() {
   const live = useQuery({ queryKey: ["channel", handle, "live"], queryFn: () => getJson<LiveStreamCard[]>(`/api/video/channels/${handle}/live`) })
   const c = channel.data
 
-  if (channel.isLoading) return <Status>Loading channel…</Status>
+  if (channel.isLoading) return <Status>{t("Loading channel…")}</Status>
   if (channel.isError || !c) {
     return (
       <div className="safe-x">
-        <h1 className="text-5xl font-bold">{errStatus(channel.error) === 404 ? "This channel isn't here" : "The channel did not load"}</h1>
-        <p className="mt-4 text-2xl text-muted">{errText(channel.error, "Try again in a moment.")}</p>
+        <h1 className="text-5xl font-bold">{errStatus(channel.error) === 404 ? t("This channel isn't here") : t("The channel did not load")}</h1>
+        <p className="mt-4 text-2xl text-muted">{errText(channel.error, t("Try again in a moment."))}</p>
       </div>
     )
   }
@@ -40,7 +42,7 @@ export default function Channel() {
       else await api.post(`/api/video/channels/${c.handle}/follow`)
       await qc.invalidateQueries({ queryKey: ["channel", handle] })
     } catch (err) {
-      setNote(errText(err, "That did not work. Try again."))
+      setNote(errText(err, t("That did not work. Try again.")))
     } finally {
       setBusy(false)
     }
@@ -57,34 +59,34 @@ export default function Channel() {
         </div>
         <div className="min-w-0 flex-1">
           <h1 className="text-5xl font-bold">{c.name}</h1>
-          <p className="mt-2 text-2xl text-muted">@{c.handle} · {c.followers} followers</p>
+          <p className="mt-2 text-2xl text-muted">@{c.handle} · {t("{n} followers", { n: c.followers })}</p>
           {c.about && <p className="mt-3 line-clamp-2 max-w-[80rem] text-2xl">{c.about}</p>}
           <div className="mt-6 flex flex-wrap items-center gap-6" data-focus-group>
             {signedIn ? (
               <button type="button" onClick={follow} disabled={busy} data-autofocus aria-pressed={c.following}
                 className={`rounded-full px-10 py-4 text-2xl font-semibold ${c.following ? "bg-panel-3 text-ink" : "bg-brand text-white"}`}>
-                {c.following ? "Following" : "Follow"}
+                {c.following ? t("Following") : t("Follow")}
               </button>
             ) : (
-              <Link to="/login" data-autofocus className="rounded-full bg-brand px-10 py-4 text-2xl font-semibold text-white">Sign in to follow</Link>
+              <Link to="/login" data-autofocus className="rounded-full bg-brand px-10 py-4 text-2xl font-semibold text-white">{t("Sign in to follow")}</Link>
             )}
             {note && <p role="alert" className="text-2xl text-[#fda4af]">{note}</p>}
           </div>
           <div className="mt-6 max-w-[70rem]">
-            <Phone what="Memberships, tips and paid videos are bought on the web." />
+            <Phone what={t("Memberships, tips and paid videos are bought on the web.")} />
           </div>
         </div>
       </div>
       {streams.length > 0 && (
-        <Row id="ch-live" title="Live">
+        <Row id="ch-live" title={t("Live")}>
           {streams.map((s) => <LiveTile key={s.id} stream={s} group="ch-live" />)}
         </Row>
       )}
-      <Row id="ch-videos" title="Videos">
-        {longs.length ? longs.map((v) => <VideoTile key={v.id} video={v} group="ch-videos" src="channel" />) : <p className="px-2 text-2xl text-muted">{videos.isLoading ? "Loading…" : "No videos yet."}</p>}
+      <Row id="ch-videos" title={t("Videos")}>
+        {longs.length ? longs.map((v) => <VideoTile key={v.id} video={v} group="ch-videos" src="channel" />) : <p className="px-2 text-2xl text-muted">{videos.isLoading ? t("Loading…") : t("No videos yet.")}</p>}
       </Row>
       {shorts.length > 0 && (
-        <Row id="ch-reels" title="Reels">
+        <Row id="ch-reels" title={t("Reels")}>
           {shorts.map((v) => <VideoTile key={v.id} video={v} group="ch-reels" src="channel" />)}
         </Row>
       )}

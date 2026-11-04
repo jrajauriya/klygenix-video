@@ -1,6 +1,7 @@
 import { Check, CircleAlert, Loader2, ShieldAlert } from "lucide-react"
 import { cn } from "@klygenixvideo/ui"
 import type { VideoStatus } from "../../lib/types"
+import { useT } from "../../i18n"
 
 type StepState = "done" | "now" | "todo" | "bad" | "held"
 
@@ -15,6 +16,7 @@ function finalStep(status: VideoStatus | null): { label: string; state: StepStat
 }
 
 export function Pipeline({ status, uploading, progress }: { status: VideoStatus | null; uploading: boolean; progress: number }) {
+  const t = useT()
   const at = uploading ? 0 : status ? ORDER.indexOf(status) : -1
   const finished = status !== null && !ORDER.includes(status)
   const steps: { label: string; state: StepState; note?: string }[] = [
@@ -46,7 +48,7 @@ export function Pipeline({ status, uploading, progress }: { status: VideoStatus 
             {s.state === "done" ? <Check size={15} /> : s.state === "now" ? <Loader2 size={15} className="animate-spin" />
               : s.state === "bad" ? <CircleAlert size={15} /> : s.state === "held" ? <ShieldAlert size={15} /> : i + 1}
           </span>
-          <span className={cn("text-sm", s.state === "todo" ? "text-slate-400" : "font-medium text-slate-800")}>{s.label}</span>
+          <span className={cn("text-sm", s.state === "todo" ? "text-slate-400" : "font-medium text-slate-800")}>{t(s.label)}</span>
           {s.note && <span className="font-num text-xs text-slate-500">{s.note}</span>}
         </li>
       ))}

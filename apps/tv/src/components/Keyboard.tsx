@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react"
+import { useT } from "../lib/i18n"
 
 const LETTERS = ["1234567890", "qwertyuiop", "asdfghjkl'", "zxcvbnm,.?"]
 
@@ -30,6 +31,7 @@ export function Keyboard({ value, onChange, onSubmit, submitLabel, max = 200, la
     return () => window.removeEventListener("keydown", onKey, true)
   }, [max])
 
+  const t = useT()
   const type = (ch: string) => {
     if (value.length < max) onChange(value + ch)
   }
@@ -45,7 +47,7 @@ export function Keyboard({ value, onChange, onSubmit, submitLabel, max = 200, la
               className={key}
               onClick={() => type(ch)}
               data-autofocus={auto && r === 1 && i === 0 ? true : undefined}
-              aria-label={ch === "'" ? "apostrophe" : ch === "," ? "comma" : ch === "." ? "full stop" : ch === "?" ? "question mark" : ch}
+              aria-label={ch === "'" ? t("apostrophe") : ch === "," ? t("comma") : ch === "." ? t("full stop") : ch === "?" ? t("question mark") : ch}
             >
               {ch}
             </button>
@@ -53,12 +55,12 @@ export function Keyboard({ value, onChange, onSubmit, submitLabel, max = 200, la
         </div>
       ))}
       <div className="grid grid-cols-10 gap-3">
-        <button type="button" className={`${key} col-span-4`} onClick={() => type(" ")}>Space</button>
-        <button type="button" className={`${key} col-span-2`} onClick={() => onChange(value.slice(0, -1))}>Delete</button>
-        <button type="button" className={`${key} col-span-2`} onClick={() => onChange("")}>Clear</button>
+        <button type="button" className={`${key} col-span-4`} onClick={() => type(" ")}>{t("Space")}</button>
+        <button type="button" className={`${key} col-span-2`} onClick={() => onChange(value.slice(0, -1))}>{t("Delete")}</button>
+        <button type="button" className={`${key} col-span-2`} onClick={() => onChange("")}>{t("Clear")}</button>
         {onSubmit && (
           <button type="button" className={`${key} col-span-2 bg-brand text-white hover:bg-brand-hover`} onClick={onSubmit}>
-            {submitLabel ?? "Done"}
+            {submitLabel ?? t("Done")}
           </button>
         )}
       </div>

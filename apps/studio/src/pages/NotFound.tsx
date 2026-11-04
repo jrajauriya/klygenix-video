@@ -8,9 +8,9 @@ export default function NotFound() {
     <>
       <PageHeader title={t("Page not found")} />
       <EmptyState
-        title="Nothing lives at this address"
-        hint="The link may be old, or the page may have moved."
-        action={<Link to="/" className="text-sm font-semibold text-brand underline">Go to the dashboard</Link>}
+        title={t("Nothing lives at this address")}
+        hint={t("The link may be old, or the page may have moved.")}
+        action={<Link to="/" className="text-sm font-semibold text-brand underline">{t("Go to the dashboard")}</Link>}
       />
     </>
   )

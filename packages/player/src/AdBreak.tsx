@@ -4,7 +4,7 @@ import { cx, formatClock } from "./format"
 import { ChevronIcon, MuteIcon, PauseIcon, PlayIcon, VolumeIcon } from "./icons"
 import type { HttpClient } from "./types"
 
-export type AdEvent = "start" | "q1" | "mid" | "q3" | "complete" | "skip" | "click"
+export type AdEvent = "start" | "q0" | "q1" | "mid" | "q3" | "complete" | "skip" | "click"
 
 export type AdOutcome = "complete" | "skip" | "error"
 
@@ -27,6 +27,13 @@ export interface AdBreakProps {
   muted?: boolean
   startTimeoutMs?: number
   className?: string
+  t?: (text: string, vars?: Record<string, string | number>) => string
+}
+
+const VIEWABLE_MS = 2000
+
+function interpolate(text: string, vars?: Record<string, string | number>): string {
+  return vars ? text.replace(/\{(\w+)\}/g, (all, k: string) => (k in vars ? String(vars[k]) : all)) : text
 }
 
 const QUARTILES: [number, AdEvent][] = [[0.25, "q1"], [0.5, "mid"], [0.75, "q3"]]
@@ -40,7 +47,7 @@ function safeUrl(raw: string): string | null {
   }
 }
 
-export function AdBreak({ ad, http, onDone, muted: startMuted = false, startTimeoutMs = 8000, className }: AdBreakProps) {
+export function AdBreak({ ad, http, onDone, muted: startMuted = false, startTimeoutMs = 8000, className, t = interpolate }: AdBreakProps) {
   const video = useRef<HTMLVideoElement | null>(null)
   const sent = useRef(new Set<AdEvent>())
   const finished = useRef(false)
@@ -94,16 +101,18 @@ export function AdBreak({ ad, http, onDone, muted: startMuted = false, startTime
   useEffect(() => {
     if (!started) return
     const left = leftSec
-    if (canSkip && !sent.current.has("skip")) setSaid((s) => (s.startsWith("You can skip") ? s : "You can skip the ad now."))
-    else if (left > 0 && left % 5 === 0) setSaid(`Ad ends in ${left} seconds.`)
-  }, [started, leftSec, canSkip])
+    if (canSkip && !sent.current.has("skip")) setSaid(t("You can skip the ad now."))
+    else if (left > 0 && left % 5 === 0) setSaid(t("Ad ends in {n} seconds.", { n: left }))
+  }, [started, leftSec, canSkip, t])
 
   function onTime(ms: number) {
     setCurrent(ms)
     const v = video.current
     const total = v && Number.isFinite(v.duration) && v.duration > 0 ? v.duration * 1000 : duration
     if (v && Number.isFinite(v.duration) && v.duration > 0 && Math.abs(v.duration * 1000 - duration) > 250) setDuration(v.duration * 1000)
-    if (!total || !sent.current.has("start")) return
+    if (!sent.current.has("start")) return
+    if (ms >= VIEWABLE_MS) send("q0")
+    if (!total || !sent.current.has("q0")) return
     for (const [at, event] of QUARTILES) if (ms >= total * at) send(event)
   }
 
@@ -111,7 +120,7 @@ export function AdBreak({ ad, http, onDone, muted: startMuted = false, startTime
     setPaused(false)
     if (!started) {
       setStarted(true)
-      setSaid(`Ad from ${ad.brand}.${skipAfter !== null ? ` You can skip it in ${skipAfter} seconds.` : ""}`)
+      setSaid(`${t("Ad from {brand}.", { brand: ad.brand })}${skipAfter !== null ? ` ${t("You can skip it in {n} seconds.", { n: skipAfter })}` : ""}`)
     }
     send("start")
   }
@@ -136,14 +145,14 @@ export function AdBreak({ ad, http, onDone, muted: startMuted = false, startTime
   }
 
   function visit() {
-    send("click")
+    if (sent.current.has("q0")) send("click")
     video.current?.pause()
   }
 
   const fill = duration > 0 ? Math.min(100, (current / duration) * 100) : 0
 
   return (
-    <section aria-label={`${ad.label || "Ad"} from ${ad.brand}`} className={cx("absolute inset-0 z-20 overflow-hidden bg-black text-white", className)}>
+    <section aria-label={t("{label} from {brand}", { label: ad.label || t("Ad"), brand: ad.brand })} className={cx("absolute inset-0 z-20 overflow-hidden bg-black text-white", className)}>
       {src && (
         <HlsPlayer
           src={src}
@@ -167,7 +176,7 @@ export function AdBreak({ ad, http, onDone, muted: startMuted = false, startTime
       <p className="sr-only" aria-live="polite" aria-atomic="true">{said}</p>
 
       <div className="absolute left-2 top-2 flex max-w-[70%] items-center gap-2 rounded-md bg-black/80 px-2 py-1 text-xs font-semibold sm:left-3 sm:top-3 sm:text-sm">
-        <span className="rounded bg-[#FACC15] px-1.5 py-px text-[11px] font-bold text-black">{ad.label || "Ad"}</span>
+        <span className="rounded bg-[#FACC15] px-1.5 py-px text-[11px] font-bold text-black">{ad.label || t("Ad")}</span>
         <span className="truncate">{ad.brand}</span>
         {started && duration > 0 && <span className="tabular-nums text-white/85" aria-hidden="true">· {formatClock(remaining)}</span>}
       </div>
@@ -176,7 +185,7 @@ export function AdBreak({ ad, http, onDone, muted: startMuted = false, startTime
         <button
           type="button"
           onClick={togglePlay}
-          aria-label={paused ? "Play ad" : "Pause ad"}
+          aria-label={paused ? t("Play ad") : t("Pause ad")}
           className="flex h-9 w-9 items-center justify-center rounded-full bg-black/80 hover:bg-black focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E879F9]"
         >
           {paused ? <PlayIcon /> : <PauseIcon />}
@@ -184,7 +193,7 @@ export function AdBreak({ ad, http, onDone, muted: startMuted = false, startTime
         <button
           type="button"
           onClick={toggleMute}
-          aria-label={muted ? "Unmute ad" : "Mute ad"}
+          aria-label={muted ? t("Unmute ad") : t("Mute ad")}
           className="flex h-9 w-9 items-center justify-center rounded-full bg-black/80 hover:bg-black focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E879F9]"
         >
           {muted ? <MuteIcon /> : <VolumeIcon />}
@@ -197,7 +206,7 @@ export function AdBreak({ ad, http, onDone, muted: startMuted = false, startTime
             onClick={visit}
             className="inline-flex h-9 items-center gap-1 rounded-full bg-black/80 px-3 text-xs font-semibold hover:bg-black focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E879F9] sm:text-sm"
           >
-            Visit advertiser<span className="sr-only"> (opens in a new tab)</span>
+            {t("Visit advertiser")}<span className="sr-only"> {t("(opens in a new tab)")}</span>
           </a>
         )}
       </div>
@@ -209,11 +218,11 @@ export function AdBreak({ ad, http, onDone, muted: startMuted = false, startTime
             onClick={skip}
             className="inline-flex h-10 items-center gap-1.5 rounded-l-md border border-r-0 border-white/60 bg-black/85 px-4 text-sm font-semibold hover:bg-black focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E879F9]"
           >
-            Skip ad <ChevronIcon />
+            {t("Skip ad")} <ChevronIcon />
           </button>
         ) : skipIn !== null && started ? (
           <span className="inline-flex h-10 items-center rounded-l-md bg-black/80 px-4 text-sm tabular-nums text-white/90">
-            Skip in {skipIn}
+            {t("Skip in {n}", { n: skipIn })}
           </span>
         ) : null}
       </div>

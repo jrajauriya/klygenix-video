@@ -4,6 +4,7 @@ import Home from "./pages/Home"
 import Watch from "./pages/Watch"
 import Live from "./pages/Live"
 import Search from "./pages/Search"
+import Subscriptions from "./pages/Subscriptions"
 import Channel from "./pages/Channel"
 import Profile from "./pages/Profile"
 import SignIn from "./pages/SignIn"
@@ -20,6 +21,7 @@ export const router = createBrowserRouter([
         element: <Shell />,
         children: [
           { path: "/", element: <Home /> },
+          { path: "/subscriptions", element: <Subscriptions /> },
           { path: "/search", element: <Search /> },
           { path: "/channel/:handle", element: <Channel /> },
           { path: "/profile", element: <Profile /> },

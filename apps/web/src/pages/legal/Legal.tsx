@@ -8,6 +8,7 @@ import { Btn, Field, INPUT, TEXTAREA } from "../../components/bits"
 import { errText } from "../../lib/api"
 import { longDate } from "../../lib/format"
 import { useTitle } from "../../lib/title"
+import { useLang, useT } from "../../i18n"
 
 const NAV = [
   { to: "/legal/terms", label: "Terms of Service" },
@@ -32,12 +33,13 @@ function L({ to, children }: { to: string; children: ReactNode }) {
 }
 
 function DraftBanner() {
+  const t = useT("legal")
   return (
     <div role="note" className="mt-4 flex gap-3 rounded-2xl border border-[#FACC15]/60 bg-[#422006] p-4 text-sm text-[#fef3c7]">
       <FileWarning size={20} className="mt-0.5 shrink-0 text-[#FACC15]" aria-hidden="true" />
       <div>
-        <p className="font-bold text-[#fde68a]">Draft — pending legal review</p>
-        <p className="mt-1 leading-relaxed">This text has not yet been reviewed by a lawyer and may change before Klygenix Play launches. It describes how the product works today. Items marked <span className="rounded bg-[#FACC15] px-1 font-semibold text-black">[PLACEHOLDER]</span> are still to be decided or filled in.</p>
+        <p className="font-bold text-[#fde68a]">{t("Draft — pending legal review")}</p>
+        <p className="mt-1 leading-relaxed">{t("This text has not yet been reviewed by a lawyer and may change before Klygenix Play launches. It describes how the product works today. Items marked")} <span lang="en" className="rounded bg-[#FACC15] px-1 font-semibold text-black">[PLACEHOLDER]</span> {t("are still to be decided or filled in.")}</p>
       </div>
     </div>
   )
@@ -69,27 +71,31 @@ function Table({ head, rows }: { head: [string, string]; rows: [ReactNode, React
   )
 }
 
-function LegalShell({ title, children }: { title: string; children: ReactNode }) {
+function LegalShell({ title: raw, children }: { title: string; children: ReactNode }) {
+  const t = useT("legal")
+  const hindi = useLang() === "hi"
+  const title = t(raw)
   useTitle(title)
   return (
     <PageShell className="max-w-6xl">
       <div className="grid gap-8 lg:grid-cols-[230px_minmax(0,1fr)]">
-        <nav aria-label="Legal" className="-mx-3 flex gap-1 overflow-x-auto px-3 scrollbar-none lg:mx-0 lg:flex-col lg:px-0">
+        <nav aria-label={t("Legal")} className="-mx-3 flex gap-1 overflow-x-auto px-3 scrollbar-none lg:mx-0 lg:flex-col lg:px-0">
           {NAV.map((n) => (
             <NavLink
               key={n.to}
               to={n.to}
               className={({ isActive }) => cn("shrink-0 rounded-full px-3.5 py-2 text-sm lg:rounded-xl", isActive ? "bg-brand/25 font-semibold text-white" : "text-muted hover:bg-white/5 hover:text-ink")}
             >
-              {n.label}
+              {t(n.label)}
             </NavLink>
           ))}
         </nav>
         <article className="min-w-0 max-w-3xl">
           <h1 className="text-2xl font-bold sm:text-3xl">{title}</h1>
-          <p className="mt-1 text-xs text-faint">Draft of {DRAFTED} · Effective date: <Ph>effective date</Ph></p>
+          <p className="mt-1 text-xs text-faint">{t("Draft of {date}", { date: DRAFTED })} · {t("Effective date:")} <Ph>effective date</Ph></p>
           <DraftBanner />
-          <div className="mt-6 space-y-7 text-[15px] leading-relaxed text-ink/85 [&_h2]:mb-2 [&_h2]:text-lg [&_h2]:font-bold [&_h2]:text-ink [&_h3]:mt-3 [&_h3]:font-semibold [&_h3]:text-ink [&_ul>li]:ml-5 [&_ul>li]:list-disc [&_ul>li]:pl-1 [&_ul]:space-y-1.5">
+          {hindi && <p role="note" className="mt-4 rounded-2xl border border-line bg-panel px-4 py-3 text-sm text-ink">हिन्दी अनुवाद जल्द — नीचे का पाठ अंग्रेज़ी में है।</p>}
+          <div lang={hindi ? "en" : undefined} className="mt-6 space-y-7 text-[15px] leading-relaxed text-ink/85 [&_h2]:mb-2 [&_h2]:text-lg [&_h2]:font-bold [&_h2]:text-ink [&_h3]:mt-3 [&_h3]:font-semibold [&_h3]:text-ink [&_ul>li]:ml-5 [&_ul>li]:list-disc [&_ul>li]:pl-1 [&_ul]:space-y-1.5">
             {children}
           </div>
         </article>
@@ -398,6 +404,8 @@ const KINDS = [
 ]
 
 export function CopyrightPage() {
+  const t = useT("legal")
+  const lang = useLang()
   const [form, setForm] = useState({ kind: "copyright", complainant_name: "", complainant_email: "", target_url: "", details: "", sworn: false })
   const [pending, setPending] = useState(false)
   const [error, setError] = useState("")
@@ -411,7 +419,7 @@ export function CopyrightPage() {
       const { data } = await api.post("/api/video/takedowns", { ...form, target_url: form.target_url.trim(), details: form.details.trim() })
       setDone(data)
     } catch (err) {
-      setError(errText(err, "The notice could not be filed. Check the fields and try again."))
+      setError(errText(err, t("The notice could not be filed. Check the fields and try again.")))
     } finally {
       setPending(false)
     }
@@ -433,39 +441,39 @@ export function CopyrightPage() {
       </S>
 
       {done ? (
-        <div className="rounded-2xl border border-[#166534] bg-[#052e16]/60 p-5">
-          <p className="flex items-center gap-2 font-semibold text-[#bbf7d0]"><CheckCircle2 size={18} aria-hidden="true" /> Notice received</p>
-          <p className="mt-2 text-sm">Your reference is <span className="rounded-md bg-white/10 px-2 py-0.5 font-mono font-semibold">{done.reference}</span>. Keep it for any follow-up.</p>
-          <p className="mt-2 text-sm text-muted">We will acknowledge it by {longDate(done.ack_due_at)} and resolve it by {longDate(done.resolve_due_at)}.</p>
-          <Btn tone="soft" size="sm" className="mt-4" onClick={() => { setDone(null); setForm({ ...form, target_url: "", details: "", sworn: false }) }}>File another notice</Btn>
+        <div lang={lang} className="rounded-2xl border border-[#166534] bg-[#052e16]/60 p-5">
+          <p className="flex items-center gap-2 font-semibold text-[#bbf7d0]"><CheckCircle2 size={18} aria-hidden="true" /> {t("Notice received")}</p>
+          <p className="mt-2 text-sm">{t("Your reference is")} <span className="rounded-md bg-white/10 px-2 py-0.5 font-mono font-semibold">{done.reference}</span>. {t("Keep it for any follow-up.")}</p>
+          <p className="mt-2 text-sm text-muted">{t("We will acknowledge it by {ack} and resolve it by {resolve}.", { ack: longDate(done.ack_due_at), resolve: longDate(done.resolve_due_at) })}</p>
+          <Btn tone="soft" size="sm" className="mt-4" onClick={() => { setDone(null); setForm({ ...form, target_url: "", details: "", sworn: false }) }}>{t("File another notice")}</Btn>
         </div>
       ) : (
-        <form onSubmit={submit} aria-label="Takedown notice" className="space-y-4 rounded-2xl border border-line bg-panel p-4 sm:p-6">
-          <Field label="Type of notice">
+        <form onSubmit={submit} lang={lang} aria-label={t("Takedown notice")} className="space-y-4 rounded-2xl border border-line bg-panel p-4 sm:p-6">
+          <Field label={t("Type of notice")}>
             <select className={INPUT} value={form.kind} onChange={(e) => setForm({ ...form, kind: e.target.value })}>
-              {KINDS.map((k) => <option key={k.key} value={k.key}>{k.label}</option>)}
+              {KINDS.map((k) => <option key={k.key} value={k.key}>{t(k.label)}</option>)}
             </select>
           </Field>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Your full name">
+            <Field label={t("Your full name")}>
               <input className={INPUT} value={form.complainant_name} onChange={(e) => setForm({ ...form, complainant_name: e.target.value })} required maxLength={120} autoComplete="name" />
             </Field>
-            <Field label="Your email">
+            <Field label={t("Your email")}>
               <input className={INPUT} type="email" value={form.complainant_email} onChange={(e) => setForm({ ...form, complainant_email: e.target.value })} required autoComplete="email" />
             </Field>
           </div>
-          <Field label="Link to the content on Klygenix Play" hint="For example https://play.klygenix.com/watch/abc123">
+          <Field label={t("Link to the content on Klygenix Play")} hint={t("For example {url}", { url: "https://play.klygenix.com/watch/abc123" })}>
             <input className={INPUT} type="url" value={form.target_url} onChange={(e) => setForm({ ...form, target_url: e.target.value })} required placeholder="https://" />
           </Field>
-          <Field label="Details" hint="Describe the original work you own and what in the content infringes it, with links to the original if you can.">
+          <Field label={t("Details")} hint={t("Describe the original work you own and what in the content infringes it, with links to the original if you can.")}>
             <textarea className={TEXTAREA} rows={6} value={form.details} onChange={(e) => setForm({ ...form, details: e.target.value })} required minLength={20} maxLength={5000} />
           </Field>
           <label className="flex items-start gap-3 text-sm">
             <input type="checkbox" checked={form.sworn} onChange={(e) => setForm({ ...form, sworn: e.target.checked })} required className="mt-1 h-4 w-4 accent-[#A21CAF]" />
-            <span>I state in good faith that the information in this notice is accurate and that I am the rights holder or authorised to act for them. I understand that false notices can have legal consequences.</span>
+            <span>{t("I state in good faith that the information in this notice is accurate and that I am the rights holder or authorised to act for them. I understand that false notices can have legal consequences.")}</span>
           </label>
           {error && <p role="alert" className="rounded-xl border border-[#7f1d1d] bg-[#450a0a]/60 px-3 py-2 text-sm text-[#fecaca]">{error}</p>}
-          <Btn type="submit" tone="brand" disabled={pending || !form.sworn}>{pending ? "Sending…" : "File notice"}</Btn>
+          <Btn type="submit" tone="brand" disabled={pending || !form.sworn}>{pending ? t("Sending…") : t("File notice")}</Btn>
         </form>
       )}
 
@@ -499,6 +507,8 @@ export function CopyrightPage() {
 }
 
 export function GrievancePage() {
+  const t = useT("legal")
+  const lang = useLang()
   const rows: [string, ReactNode][] = [
     ["Name", <Ph>grievance officer name</Ph>],
     ["Designation", "Grievance Officer, Klygenix Play"],
@@ -513,7 +523,7 @@ export function GrievancePage() {
       <dl className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-panel">
         {rows.map(([k, v]) => (
           <div key={k} className="grid gap-1 px-4 py-3 sm:grid-cols-[160px_1fr]">
-            <dt className="text-sm text-muted">{k}</dt>
+            <dt lang={lang} className="text-sm text-muted">{t(k)}</dt>
             <dd className="text-sm font-medium text-ink">{v}</dd>
           </div>
         ))}

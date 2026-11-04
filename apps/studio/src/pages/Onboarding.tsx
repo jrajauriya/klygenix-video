@@ -7,11 +7,13 @@ import { api } from "@klygenixvideo/auth"
 import { Button, Card, Field, Input, Select, Spinner, Textarea } from "@klygenixvideo/ui"
 import { STUDIO, useChannel } from "../lib/hooks"
 import { LANGUAGES, detail, status } from "../lib/format"
+import { useT } from "../i18n"
 
 const slug = (name: string) =>
   name.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40)
 
 export default function Onboarding() {
+  const t = useT()
   const { data: channel, isLoading } = useChannel()
   const navigate = useNavigate()
   const qc = useQueryClient()
@@ -50,10 +52,10 @@ export default function Onboarding() {
       })
       qc.setQueryData(["studio-channel"], data)
       qc.invalidateQueries({ queryKey: ["video-me"] })
-      toast.success("Your channel is open")
+      toast.success(t("Your channel is open"))
       navigate("/", { replace: true })
     } catch (err) {
-      const message = detail(err, "The channel could not be opened")
+      const message = detail(err, t("The channel could not be opened"))
       if (status(err) === 403) setRefused(message)
       toast.error(message)
       setBusy(false)
@@ -67,13 +69,13 @@ export default function Onboarding() {
           <Tv size={22} />
         </div>
         <div>
-          <h1 className="text-xl font-bold text-navy">Open your channel</h1>
-          <p className="text-sm text-slate-500">Your channel is where your videos and reels live. You can change these later.</p>
+          <h1 className="text-xl font-bold text-navy">{t("Open your channel")}</h1>
+          <p className="text-sm text-slate-500">{t("Your channel is where your videos and reels live. You can change these later.")}</p>
         </div>
       </div>
       {mode === "closed" && (
         <p role="status" className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-3.5 py-2.5 text-sm text-amber-900">
-          New channels are paused during the beta. You can still watch, follow and comment. We will email you when channels open again.
+          {t("New channels are paused during the beta. You can still watch, follow and comment. We will email you when channels open again.")}
         </p>
       )}
       {refused && (
@@ -81,18 +83,18 @@ export default function Onboarding() {
       )}
       <Card className="space-y-4 p-5">
         {needsInvite && (
-          <Field label="Creator invite code" required hint="Channels are invite-only during the beta. The code is in your invite email.">
+          <Field label={t("Creator invite code")} required hint={t("Channels are invite-only during the beta. The code is in your invite email.")}>
             <Input value={invite} maxLength={40} autoComplete="off" onChange={(e) => { setInvite(e.target.value.toUpperCase()); setRefused(null) }}
               placeholder="XXXX-XXXX-XXXX" />
           </Field>
         )}
-        <Field label="Channel name" required>
+        <Field label={t("Channel name")} required>
           <Input value={name} maxLength={80} onChange={(e) => setName(e.target.value)} placeholder="Asha Codes" autoFocus />
         </Field>
         <Field
-          label="Handle"
-          hint="3 to 40 letters, numbers or hyphens. Your public page will be at /@handle."
-          error={handleOk ? undefined : "Use 3 to 40 lowercase letters, numbers or hyphens"}
+          label={t("Handle")}
+          hint={t("3 to 40 letters, numbers or hyphens. Your public page will be at /@handle.")}
+          error={handleOk ? undefined : t("Use 3 to 40 lowercase letters, numbers or hyphens")}
         >
           <div className="flex items-center gap-1">
             <span className="text-sm font-semibold text-slate-500">@</span>
@@ -107,16 +109,16 @@ export default function Onboarding() {
             />
           </div>
         </Field>
-        <Field label="About">
+        <Field label={t("About")}>
           <Textarea rows={3} value={about} maxLength={2000} onChange={(e) => setAbout(e.target.value)}
-            placeholder="What your channel is about, in a line or two" />
+            placeholder={t("What your channel is about, in a line or two")} />
         </Field>
-        <Field label="Main language">
+        <Field label={t("Main language")}>
           <Select value={language} onChange={setLanguage} options={LANGUAGES} />
         </Field>
         <div className="flex justify-end">
           <Button onClick={open} disabled={busy || !name.trim() || !handleOk || mode === "closed" || (needsInvite && invite.trim().length < 4)}>
-            {busy ? "Opening…" : "Open my channel"}
+            {busy ? t("Opening…") : t("Open my channel")}
           </Button>
         </div>
       </Card>

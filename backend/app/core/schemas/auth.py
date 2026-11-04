@@ -29,12 +29,12 @@ class UserSettings(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     theme: dict[str, str] = {}
-    language: Optional[Literal["en", "hi", "mr", "bn", "ta", "te"]] = None
+    language: Optional[Literal["en", "hi", "mr", "bn", "ta", "te", "gu", "kn", "ml", "pa", "or"]] = None
 
 
 class UserSettingsUpdate(BaseModel):
     theme: Optional[dict[str, str]] = None
-    language: Optional[Literal["en", "hi", "mr", "bn", "ta", "te"]] = None
+    language: Optional[Literal["en", "hi", "mr", "bn", "ta", "te", "gu", "kn", "ml", "pa", "or"]] = None
 
 
 class UserResponse(BaseModel):

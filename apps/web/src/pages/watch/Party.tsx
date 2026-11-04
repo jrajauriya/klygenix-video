@@ -6,6 +6,7 @@ import { api } from "@klygenixvideo/auth"
 import { cn, useConfirm } from "@klygenixvideo/ui"
 import { errStatus, errText, loginPath } from "../../lib/api"
 import { Btn } from "../../components/bits"
+import { tr, useT } from "../../i18n"
 
 export interface PartyInfo {
   code: string
@@ -85,7 +86,7 @@ export function useParty(code: string | null, enabled: boolean, onState: (s: Par
     }).catch((err) => {
       if (!live) return
       if (errStatus(err) === 404) setMissing(true)
-      else toast.error(errText(err, "The watch party did not load."))
+      else toast.error(errText(err, tr("The watch party did not load.")))
     })
     return () => { live = false }
   }, [code, enabled])
@@ -169,7 +170,7 @@ export function useParty(code: string | null, enabled: boolean, onState: (s: Par
       await api.post(`/api/video/parties/${code}/chat`, { text })
       return true
     } catch (err) {
-      toast.error(errText(err, "That message was not sent."))
+      toast.error(errText(err, tr("That message was not sent.")))
       return false
     }
   }, [code])
@@ -180,7 +181,7 @@ export function useParty(code: string | null, enabled: boolean, onState: (s: Par
       await api.delete(`/api/video/parties/${code}`)
       setEnded(true)
     } catch (err) {
-      toast.error(errText(err, "The party could not be ended."))
+      toast.error(errText(err, tr("The party could not be ended.")))
     }
   }, [code])
 
@@ -265,12 +266,13 @@ export function usePartySync(party: Party | null, videoRef: RefObject<HTMLVideoE
 }
 
 export function GuestStrip({ party, blocked, onJoin }: { party: Party | null; blocked: boolean; onJoin: () => void }) {
+  const t = useT("watchx", Boolean(party))
   if (!party?.info || party.ended || party.info.is_host) return null
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-line bg-brand/15 px-3 py-2 text-sm sm:rounded-b-2xl">
       <PartyPopper size={16} className="shrink-0 text-brand-soft" aria-hidden="true" />
-      <span className="min-w-0 flex-1">The host controls playback.</span>
-      {blocked && <Btn tone="brand" size="sm" onClick={onJoin}>Join playback</Btn>}
+      <span className="min-w-0 flex-1">{t("The host controls playback.")}</span>
+      {blocked && <Btn tone="brand" size="sm" onClick={onJoin}>{t("Join playback")}</Btn>}
     </div>
   )
 }
@@ -285,6 +287,7 @@ export function PartyPanel({
   onLeave: () => void
   className?: string
 }) {
+  const t = useT("watchx", Boolean(party))
   const confirm = useConfirm()
   const [text, setText] = useState("")
   const [sending, setSending] = useState(false)
@@ -297,7 +300,7 @@ export function PartyPanel({
   }, [lines])
 
   const box = (children: React.ReactNode) => (
-    <section aria-label="Watch party" className={cn("overflow-hidden rounded-2xl border border-line bg-panel", className)}>
+    <section aria-label={t("Watch party")} className={cn("overflow-hidden rounded-2xl border border-line bg-panel", className)}>
       {children}
     </section>
   )
@@ -305,33 +308,33 @@ export function PartyPanel({
   if (!signedIn) {
     return box(
       <div className="space-y-2 p-4 text-sm">
-        <p className="flex items-center gap-2 font-semibold"><PartyPopper size={16} className="text-brand-soft" /> You are invited to a watch party</p>
-        <p className="text-muted">Sign in to watch together and chat.</p>
-        <Link to={loginPath()} className="inline-flex h-8 items-center rounded-full bg-brand px-3 text-xs font-semibold text-white hover:bg-brand-hover">Sign in to join</Link>
+        <p className="flex items-center gap-2 font-semibold"><PartyPopper size={16} className="text-brand-soft" /> {t("You are invited to a watch party")}</p>
+        <p className="text-muted">{t("Sign in to watch together and chat.")}</p>
+        <Link to={loginPath()} className="inline-flex h-8 items-center rounded-full bg-brand px-3 text-xs font-semibold text-white hover:bg-brand-hover">{t("Sign in to join")}</Link>
       </div>,
     )
   }
   if (!hosted) {
-    return box(<p className="p-4 text-sm text-muted">Watch parties work only on videos hosted on Klygenix Play.</p>)
+    return box(<p className="p-4 text-sm text-muted">{t("Watch parties work only on videos hosted on Klygenix Play.")}</p>)
   }
   if (!party) return null
   if (party.ended || party.missing) {
     return box(
       <div className="space-y-2 p-4 text-sm">
-        <p className="font-semibold">The watch party has ended.</p>
-        <p className="text-muted">You can keep watching on your own.</p>
-        <Btn size="sm" onClick={onLeave}>Keep watching</Btn>
+        <p className="font-semibold">{t("The watch party has ended.")}</p>
+        <p className="text-muted">{t("You can keep watching on your own.")}</p>
+        <Btn size="sm" onClick={onLeave}>{t("Keep watching")}</Btn>
       </div>,
     )
   }
-  if (!party.info) return box(<p className="p-4 text-sm text-muted">Joining the watch party…</p>)
+  if (!party.info) return box(<p className="p-4 text-sm text-muted">{t("Joining the watch party…")}</p>)
   const info = party.info
 
   async function copy() {
     const url = partyLink(videoId, info.code)
     try {
       await navigator.clipboard.writeText(url)
-      toast.success("Party link copied")
+      toast.success(t("Party link copied"))
     } catch {
       toast.message(url)
     }
@@ -339,9 +342,10 @@ export function PartyPanel({
 
   async function endParty() {
     const ok = await confirm({
-      title: "End the watch party?",
-      message: "Everyone in it stops following your playback. The video keeps playing for each of them.",
-      confirmLabel: "End party",
+      title: t("End the watch party?"),
+      message: t("Everyone in it stops following your playback. The video keeps playing for each of them."),
+      confirmLabel: t("End party"),
+      cancelLabel: t("Cancel"),
       variant: "destructive",
     })
     if (ok) await party!.end()
@@ -349,10 +353,10 @@ export function PartyPanel({
 
   async function send(e: React.FormEvent) {
     e.preventDefault()
-    const t = text.trim()
-    if (!t) return
+    const line = text.trim()
+    if (!line) return
     setSending(true)
-    if (await party!.sendChat(t)) setText("")
+    if (await party!.sendChat(line)) setText("")
     setSending(false)
   }
 
@@ -360,27 +364,27 @@ export function PartyPanel({
     <>
       <div className="space-y-2 border-b border-line px-3 py-3">
         <div className="flex items-center justify-between gap-2">
-          <p className="flex items-center gap-2 font-semibold"><PartyPopper size={16} className="text-brand-soft" aria-hidden="true" /> Watch party</p>
-          <span className="inline-flex items-center gap-1 text-xs text-muted" aria-label={`${party.members} watching`}>
+          <p className="flex items-center gap-2 font-semibold"><PartyPopper size={16} className="text-brand-soft" aria-hidden="true" /> {t("Watch party")}</p>
+          <span className="inline-flex items-center gap-1 text-xs text-muted" aria-label={t("{n} watching", { n: party.members })}>
             <Users size={14} aria-hidden="true" /> {party.members}
           </span>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded-lg bg-white/10 px-2.5 py-1 font-mono text-lg font-bold tracking-[0.2em]" aria-label={`Party code ${info.code.split("").join(" ")}`}>{info.code}</span>
-          <Btn size="sm" onClick={copy}><Copy size={14} aria-hidden="true" /> Copy link</Btn>
+          <span className="rounded-lg bg-white/10 px-2.5 py-1 font-mono text-lg font-bold tracking-[0.2em]" aria-label={t("Party code {code}", { code: info.code.split("").join(" ") })}>{info.code}</span>
+          <Btn size="sm" onClick={copy}><Copy size={14} aria-hidden="true" /> {t("Copy link")}</Btn>
           {info.is_host ? (
-            <Btn size="sm" tone="danger" onClick={endParty}>End party</Btn>
+            <Btn size="sm" tone="danger" onClick={endParty}>{t("End party")}</Btn>
           ) : (
-            <Btn size="sm" tone="ghost" onClick={onLeave}><LogOut size={14} aria-hidden="true" /> Leave</Btn>
+            <Btn size="sm" tone="ghost" onClick={onLeave}><LogOut size={14} aria-hidden="true" /> {t("Leave")}</Btn>
           )}
         </div>
         <p className="text-xs text-muted">
-          {info.is_host ? "You are the host. Everyone follows your play, pause and seek." : <>Hosted by {info.host_name}. The host controls playback.</>}
+          {info.is_host ? t("You are the host. Everyone follows your play, pause and seek.") : t("Hosted by {name}. The host controls playback.", { name: info.host_name })}
         </p>
       </div>
-      <ol ref={list} className="h-44 space-y-1.5 overflow-y-auto px-3 py-2 text-sm" aria-live="polite" aria-label="Party chat">
+      <ol ref={list} className="h-44 space-y-1.5 overflow-y-auto px-3 py-2 text-sm" aria-live="polite" aria-label={t("Party chat")}>
         {party.chat.length === 0 ? (
-          <li className="flex items-center gap-2 text-muted"><MessageCircle size={14} aria-hidden="true" /> Say hello to the room.</li>
+          <li className="flex items-center gap-2 text-muted"><MessageCircle size={14} aria-hidden="true" /> {t("Say hello to the room.")}</li>
         ) : party.chat.map((c) => (
           <li key={c.n} className="break-words"><span className="font-semibold text-brand-soft">{c.name}</span> <span className="text-ink/90">{c.text}</span></li>
         ))}
@@ -390,11 +394,11 @@ export function PartyPanel({
           value={text}
           onChange={(e) => setText(e.target.value)}
           maxLength={200}
-          placeholder="Chat with the room"
-          aria-label="Chat message"
+          placeholder={t("Chat with the room")}
+          aria-label={t("Chat message")}
           className="h-9 min-w-0 flex-1 rounded-full border border-line bg-panel-2 px-3 text-sm text-ink placeholder:text-faint outline-none focus:border-brand"
         />
-        <button type="submit" disabled={sending || !text.trim()} aria-label="Send" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand text-white disabled:opacity-50">
+        <button type="submit" disabled={sending || !text.trim()} aria-label={t("Send")} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand text-white disabled:opacity-50">
           <Send size={15} aria-hidden="true" />
         </button>
       </form>

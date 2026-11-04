@@ -40,6 +40,7 @@ class Segment(Base):
     __table_args__ = (
         Index("idx_segments_video", "video_id", "start_ms"),
         Index("idx_segments_search", "search", postgresql_using="gin"),
+        Index("idx_segments_search_roman", "search_roman", postgresql_using="gin"),
         Index(
             "idx_segments_embedding", "embedding", postgresql_using="hnsw",
             postgresql_ops={"embedding": "vector_cosine_ops"},
@@ -57,6 +58,8 @@ class Segment(Base):
     text: Mapped[str] = mapped_column(Text, nullable=False)
     embedding = mapped_column(Vector(settings.EMBED_DIM))
     search = mapped_column(TSVECTOR, Computed("to_tsvector('simple', text)", persisted=True))
+    roman: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
+    search_roman = mapped_column(TSVECTOR, Computed("to_tsvector('simple', roman)", persisted=True))
 
 
 class Insight(Base):
@@ -247,3 +250,16 @@ class RecoModel(Base):
     promoted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     promoted_by: Mapped[int | None] = mapped_column(Integer)
     note: Mapped[str | None] = mapped_column(Text)
+
+
+class RepurposePack(Base):
+    __tablename__ = "repurpose_packs"
+    __table_args__ = (Index("idx_repurpose_video", "video_id", "created_at"), {"schema": SCHEMA})
+
+    id: Mapped[int] = pk()
+    tenant_id: Mapped[int] = tenant_fk()
+    video_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("kv_media.videos.id", ondelete="CASCADE"), nullable=False)
+    language: Mapped[str] = mapped_column(String(8), nullable=False, default="en")
+    content: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    model: Mapped[str] = mapped_column(String(60), nullable=False)
+    created_at: Mapped[datetime] = created()

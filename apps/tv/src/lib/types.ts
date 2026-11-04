@@ -30,6 +30,20 @@ export interface VideoCard {
   ai_generated: boolean
   channel: ChannelCard | null
   access?: "free" | "members" | "paid"
+  paid_partnership?: PaidPartnership | null
+  new?: boolean
+}
+
+export interface PaidPartnership {
+  brand: string
+  label: string
+}
+
+export interface Subscriptions {
+  new_count: number
+  since: string | null
+  channels: number
+  items: VideoCard[]
 }
 
 export interface Chapter {
@@ -44,7 +58,7 @@ export interface VideoDetail extends VideoCard {
   insight: { summary: string; chapters: Chapter[] } | null
   embed: { platform: string; url: string } | null
   locked: { access: "members" | "paid"; preview_seconds: number } | null
-  paid_partnership: { brand: string; label: string } | null
+  paid_partnership: PaidPartnership | null
   resume_ms: number
   danmaku_count: number
 }

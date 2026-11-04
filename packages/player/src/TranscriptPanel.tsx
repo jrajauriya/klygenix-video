@@ -11,6 +11,7 @@ export interface TranscriptPanelProps {
   className?: string
   emptyText?: string
   searchPlaceholder?: string
+  noMatchText?: string
 }
 
 function highlight(text: string, query: string): ReactNode {
@@ -31,7 +32,7 @@ function highlight(text: string, query: string): ReactNode {
 }
 
 export function TranscriptPanel({
-  segments, currentMs, onSeek, autoScroll = true, className, emptyText = "No transcript yet.", searchPlaceholder = "Search in transcript",
+  segments, currentMs, onSeek, autoScroll = true, className, emptyText = "No transcript yet.", searchPlaceholder = "Search in transcript", noMatchText = "Nothing matches that.",
 }: TranscriptPanelProps) {
   const [query, setQuery] = useState("")
   const [follow, setFollow] = useState(true)
@@ -88,7 +89,7 @@ export function TranscriptPanel({
       </label>
       {q && <div className="mb-1 shrink-0 text-xs text-white/50">{shown.length} {shown.length === 1 ? "match" : "matches"}</div>}
       <div ref={list} onWheel={pauseFollow} onTouchMove={pauseFollow} className="relative min-h-0 flex-1 overflow-y-auto pr-1">
-        {shown.length === 0 && <p className="px-2 py-6 text-center text-sm text-white/50">{q ? "Nothing matches that." : emptyText}</p>}
+        {shown.length === 0 && <p className="px-2 py-6 text-center text-sm text-white/50">{q ? noMatchText : emptyText}</p>}
         {shown.map((s) => {
           const on = s.start_ms === activeStart
           return (

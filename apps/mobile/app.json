@@ -96,7 +96,13 @@
         }
       ],
       "expo-status-bar",
-      "expo-video",
+      [
+        "expo-video",
+        {
+          "supportsBackgroundPlayback": true,
+          "supportsPictureInPicture": true
+        }
+      ],
       "expo-splash-screen",
       [
         "expo-splash-screen",

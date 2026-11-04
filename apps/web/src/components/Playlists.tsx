@@ -7,6 +7,7 @@ import { errStatus, getJson, useSignedIn } from "../lib/api"
 import { rupees } from "../lib/format"
 import type { PlaylistDetail, PlaylistSummary, SeriesProgress } from "../lib/types"
 import { Thumb } from "./VideoCards"
+import { useT } from "../i18n"
 
 export const playlistWatchUrl = (videoId: string, playlistId: number) => `/watch/${videoId}?list=${playlistId}`
 
@@ -50,10 +51,12 @@ export function useAutoplay() {
 }
 
 export function SeriesBadge({ className }: { className?: string }) {
-  return <span className={cn("rounded-md bg-brand px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-white", className)}>Series</span>
+  const t = useT("watchx")
+  return <span className={cn("rounded-md bg-brand px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-white", className)}>{t("Series")}</span>
 }
 
 export function PlaylistTile({ playlist }: { playlist: PlaylistSummary }) {
+  const t = useT("watchx")
   return (
     <article className="group min-w-0">
       <Link to={`/playlist/${playlist.id}`} className="block" aria-label={playlist.title}>
@@ -66,13 +69,13 @@ export function PlaylistTile({ playlist }: { playlist: PlaylistSummary }) {
           <div className="absolute inset-y-0 right-0 flex w-2/5 flex-col items-center justify-center gap-1 bg-black/70 text-white">
             <ListVideo size={20} aria-hidden="true" />
             <span className="text-sm font-semibold tabular-nums">{playlist.video_count}</span>
-            <span className="text-[11px] text-white/75">{playlist.video_count === 1 ? "video" : "videos"}</span>
+            <span className="text-[11px] text-white/75">{playlist.video_count === 1 ? t("video") : t("videos")}</span>
           </div>
           {playlist.kind === "series" && <SeriesBadge className="absolute left-1.5 top-1.5" />}
         </div>
       </Link>
       <Link to={`/playlist/${playlist.id}`} className="mt-3 line-clamp-2 text-[15px] font-semibold leading-snug text-ink hover:text-white">{playlist.title}</Link>
-      <p className="mt-1 text-[13px] text-muted">{playlist.kind === "series" ? "Series" : "Playlist"}{playlist.kind === "series" && playlist.price_minor ? ` · ${rupees(playlist.price_minor)}` : ""} · {playlist.video_count} {playlist.video_count === 1 ? "video" : "videos"}</p>
+      <p className="mt-1 text-[13px] text-muted">{playlist.kind === "series" ? t("Series") : t("Playlist")}{playlist.kind === "series" && playlist.price_minor ? ` · ${rupees(playlist.price_minor)}` : ""} · {t(playlist.video_count === 1 ? "{n} video" : "{n} videos", { n: playlist.video_count })}</p>
     </article>
   )
 }
@@ -86,6 +89,7 @@ export function PlaylistPanel({
   onAutoplay: (on: boolean) => void
   className?: string
 }) {
+  const t = useT("watchx")
   const progress = useSeriesProgress(playlist)
   const done = new Set((progress.data?.videos ?? []).filter((v) => v.completed).map((v) => v.id))
   const at = playlist.videos.findIndex((v) => v.id === currentId)
@@ -98,7 +102,7 @@ export function PlaylistPanel({
   }, [currentId, playlist.id])
 
   return (
-    <section aria-label={`Playlist: ${playlist.title}`} className={cn("flex max-h-[460px] flex-col overflow-hidden rounded-2xl border border-line bg-panel", className)}>
+    <section aria-label={t("Playlist: {title}", { title: playlist.title })} className={cn("flex max-h-[460px] flex-col overflow-hidden rounded-2xl border border-line bg-panel", className)}>
       <div className="border-b border-line px-3 py-2.5">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
@@ -107,17 +111,17 @@ export function PlaylistPanel({
               {playlist.kind === "series" && <SeriesBadge className="shrink-0" />}
             </Link>
             <p className="text-xs text-muted">
-              {playlist.channel?.name} · {at >= 0 ? `${at + 1} / ${playlist.videos.length}` : `${playlist.videos.length} ${playlist.videos.length === 1 ? "video" : "videos"}`}
-              {progress.data && <> · {progress.data.completed} watched</>}
+              {playlist.channel?.name} · {at >= 0 ? `${at + 1} / ${playlist.videos.length}` : t(playlist.videos.length === 1 ? "{n} video" : "{n} videos", { n: playlist.videos.length })}
+              {progress.data && <> · {t("{n} watched", { n: progress.data.completed })}</>}
             </p>
           </div>
           <label className="flex shrink-0 cursor-pointer items-center gap-2 text-xs text-muted">
-            Autoplay
+            {t("Autoplay")}
             <button
               type="button"
               role="switch"
               aria-checked={autoplay}
-              aria-label="Autoplay the next video"
+              aria-label={t("Autoplay the next video")}
               onClick={() => onAutoplay(!autoplay)}
               className={cn("relative inline-flex h-5 w-9 items-center rounded-full transition-colors", autoplay ? "bg-brand" : "bg-white/20")}
             >
@@ -143,7 +147,7 @@ export function PlaylistPanel({
                 <div className="min-w-0 flex-1">
                   <p className={cn("line-clamp-2 text-sm leading-snug", current ? "font-semibold text-ink" : "text-ink/90")}>{v.title}</p>
                   {done.has(v.id) && (
-                    <p className="mt-0.5 inline-flex items-center gap-1 text-[11px] text-emerald-400"><CheckCircle2 size={12} aria-hidden="true" /> Watched</p>
+                    <p className="mt-0.5 inline-flex items-center gap-1 text-[11px] text-emerald-400"><CheckCircle2 size={12} aria-hidden="true" /> {t("Watched")}</p>
                   )}
                 </div>
               </Link>

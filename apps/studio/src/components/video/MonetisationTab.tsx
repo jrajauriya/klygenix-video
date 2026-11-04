@@ -10,16 +10,18 @@ import { STUDIO } from "../../lib/hooks"
 import { detail } from "../../lib/format"
 import type { StudioVideoDetail, VideoAccess } from "../../lib/types"
 import { PayoutsOff, inr, parseRupees, priceProblem, useEarnings, useTiers } from "../earnings/shared"
+import { useT } from "../../i18n"
 
 type Saved = { access: VideoAccess; price_minor: number | null; members_rank: number | null; preview_seconds: number | null }
 
 const OPTIONS: { value: VideoAccess; label: string; hint: string }[] = [
   { value: "free", label: "Free", hint: "Anyone can watch the whole video." },
   { value: "members", label: "Members only", hint: "Channel members at or above a level you pick." },
-  { value: "paid", label: "Paid", hint: "Viewers buy it once and keep it." },
+  { value: "paid", label: "Paid|access", hint: "Viewers buy it once and keep it." },
 ]
 
 export function MonetisationTab({ video }: { video: StudioVideoDetail }) {
+  const t = useT()
   const qc = useQueryClient()
   const canEdit = useHasPermission("video.earnings", "full")
   const { data: earnings, isLoading } = useEarnings()
@@ -40,11 +42,11 @@ export function MonetisationTab({ video }: { video: StudioVideoDetail }) {
 
   const embed = video.source === "embed"
   const canSell = Boolean(earnings?.can_take_money)
-  const active = (tiers ?? []).filter((t) => t.is_active)
-  const tierOptions = active.map((t) => ({ value: String(t.rank), label: `Level ${t.rank} · ${t.name}`, hint: `${inr(t.price_minor)} a month` }))
+  const active = (tiers ?? []).filter((tier) => tier.is_active)
+  const tierOptions = active.map((tier) => ({ value: String(tier.rank), label: t("Level {rank} · {name}", { rank: tier.rank, name: tier.name }), hint: t("{price} a month", { price: inr(tier.price_minor) }) }))
   const minor = parseRupees(price)
   const previewN = Number(preview)
-  const previewError = preview !== "" && (!Number.isInteger(previewN) || previewN < 0 || previewN > 300) ? "Between 0 and 300 seconds." : undefined
+  const previewError = preview !== "" && (!Number.isInteger(previewN) || previewN < 0 || previewN > 300) ? t("Between 0 and 300 seconds.") : undefined
   const priceError = access === "paid" && price ? priceProblem(minor) ?? undefined : undefined
   const locked = embed || !canEdit
 
@@ -56,8 +58,8 @@ export function MonetisationTab({ video }: { video: StudioVideoDetail }) {
         return
       }
     }
-    if (access === "members" && !active.some((t) => t.rank <= Number(rank))) {
-      toast.error("Add a membership tier at this level or lower first.")
+    if (access === "members" && !active.some((tier) => tier.rank <= Number(rank))) {
+      toast.error(t("Add a membership tier at this level or lower first."))
       return
     }
     setSaving(true)
@@ -69,11 +71,11 @@ export function MonetisationTab({ video }: { video: StudioVideoDetail }) {
         preview_seconds: preview === "" ? undefined : previewN,
       })
       setSaved(data)
-      toast.success(data.access === "free" ? "Free for everyone" : data.access === "paid" ? `Priced at ${inr(data.price_minor)}` : "Members only")
+      toast.success(data.access === "free" ? t("Free for everyone") : data.access === "paid" ? t("Priced at {price}", { price: inr(data.price_minor) }) : t("Members only"))
       qc.invalidateQueries({ queryKey: ["studio-video", String(video.id)] })
       qc.invalidateQueries({ queryKey: ["studio-videos"] })
     } catch (err) {
-      toast.error(detail(err, "Could not change who can watch"))
+      toast.error(detail(err, t("Could not change who can watch")))
     } finally {
       setSaving(false)
     }
@@ -89,23 +91,23 @@ export function MonetisationTab({ video }: { video: StudioVideoDetail }) {
     <div className="grid gap-5 lg:grid-cols-5 [&>*]:min-w-0">
       <Card className="space-y-5 p-5 lg:col-span-3">
         <div>
-          <h2 className="text-sm font-bold text-navy">Who can watch</h2>
+          <h2 className="text-sm font-bold text-navy">{t("Who can watch")}</h2>
           <p className="mt-0.5 text-sm text-slate-500">
-            {saved.access === "free" ? "Free for everyone right now." : saved.access === "paid" ? `Paid, ${inr(saved.price_minor)}, right now.` : `Members at level ${saved.members_rank} and above, right now.`}
+            {saved.access === "free" ? t("Free for everyone right now.") : saved.access === "paid" ? t("Paid, {price}, right now.", { price: inr(saved.price_minor) }) : t("Members at level {rank} and above, right now.", { rank: saved.members_rank ?? "" })}
           </p>
         </div>
 
         {embed && (
           <p className="rounded-lg border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-700">
-            This video is linked from {video.embed_platform === "bilibili" ? "Bilibili" : "YouTube"}, where it is free to watch, so it cannot be priced or made members only here.
+            {t("This video is linked from {platform}, where it is free to watch, so it cannot be priced or made members only here.", { platform: video.embed_platform === "bilibili" ? "Bilibili" : "YouTube" })}
           </p>
         )}
         {!embed && !canSell && (
-          <PayoutsOff>Members-only and paid videos are off until your payouts are active.</PayoutsOff>
+          <PayoutsOff>{t("Members-only and paid videos are off until your payouts are active.")}</PayoutsOff>
         )}
 
         <fieldset disabled={locked} className="space-y-2">
-          <legend className="sr-only">Access</legend>
+          <legend className="sr-only">{t("Access")}</legend>
           {OPTIONS.map((o) => {
             const off = locked || (o.value !== "free" && !canSell)
             return (
@@ -118,8 +120,8 @@ export function MonetisationTab({ video }: { video: StudioVideoDetail }) {
                 <input type="radio" name="access" value={o.value} checked={access === o.value} disabled={off}
                   onChange={() => setAccess(o.value)} className="mt-1" />
                 <span className="min-w-0">
-                  <span className="block text-sm font-semibold text-navy">{o.label}</span>
-                  <span className="block text-xs text-slate-600">{o.hint}</span>
+                  <span className="block text-sm font-semibold text-navy">{t(o.label)}</span>
+                  <span className="block text-xs text-slate-600">{t(o.hint)}</span>
                 </span>
               </label>
             )
@@ -129,21 +131,21 @@ export function MonetisationTab({ video }: { video: StudioVideoDetail }) {
         {access === "members" && !embed && (
           tierOptions.length === 0 ? (
             <p className="text-sm text-slate-600">
-              You have no active membership tiers. <Link to="/earnings?tab=memberships" className="font-semibold text-brand hover:underline">Add one under Earnings</Link>.
+              {t("You have no active membership tiers.")} <Link to="/earnings?tab=memberships" className="font-semibold text-brand hover:underline">{t("Add one under Earnings")}</Link>.
             </p>
           ) : (
-            <Field label="Lowest level that can watch">
-              <Select value={rank} onChange={setRank} options={tierOptions} disabled={locked || !canSell} aria-label="Lowest level that can watch" />
+            <Field label={t("Lowest level that can watch")}>
+              <Select value={rank} onChange={setRank} options={tierOptions} disabled={locked || !canSell} aria-label={t("Lowest level that can watch")} />
             </Field>
           )
         )}
         {access === "paid" && !embed && (
-          <Field label="Price (₹)" required error={priceError} hint="Between ₹10 and ₹50,000, GST included">
+          <Field label={t("Price (₹)")} required error={priceError} hint={t("Between ₹10 and ₹50,000, GST included")}>
             <Input value={price} inputMode="decimal" onChange={(e) => setPrice(e.target.value)} disabled={locked || !canSell} className="max-w-[12rem]" />
           </Field>
         )}
         {access !== "free" && !embed && (
-          <Field label="Free preview (seconds)" error={previewError} hint="Everyone can watch this much before they are asked to join or buy. 0 to 300.">
+          <Field label={t("Free preview (seconds)")} error={previewError} hint={t("Everyone can watch this much before they are asked to join or buy. 0 to 300.")}>
             <Input type="number" min={0} max={300} step={5} value={preview} onChange={(e) => setPreview(e.target.value)} disabled={locked} className="max-w-[12rem]" />
           </Field>
         )}
@@ -151,7 +153,7 @@ export function MonetisationTab({ video }: { video: StudioVideoDetail }) {
         {!embed && canEdit && (
           <div className="flex justify-end border-t border-slate-100 pt-4">
             <Button onClick={save} disabled={saving || !dirty || Boolean(previewError) || Boolean(priceError) || (access !== "free" && !canSell)}>
-              <Save size={14} /> {saving ? "Saving…" : "Save"}
+              <Save size={14} /> {saving ? t("Saving…") : t("Save")}
             </Button>
           </div>
         )}
@@ -160,11 +162,11 @@ export function MonetisationTab({ video }: { video: StudioVideoDetail }) {
       <div className="space-y-5 lg:col-span-2">
       {!embed && video.kind === "long" && <VideoAds video={video} />}
       <Card className="space-y-2 p-5 text-sm text-slate-600">
-        <h2 className="text-sm font-bold text-navy">How it works</h2>
-        <p>Klygenix Play keeps {earnings ? earnings.commission_bps / 100 : 20}% commission plus GST. Your share is held for the {earnings?.refund_window_days ?? 7}-day refund window, then released to your bank.</p>
-        <p>Viewers who bought a video, or are members at the right level, see it in full. Everyone else sees the preview.</p>
-        <p>Captions, AI chapters and Ask-the-video work the same for everyone who can watch.</p>
-        <Link to="/earnings" className="inline-block font-semibold text-brand hover:underline">See your earnings</Link>
+        <h2 className="text-sm font-bold text-navy">{t("How it works")}</h2>
+        <p>{t("Klygenix Play keeps {pct}% commission plus GST. Your share is held for the {days}-day refund window, then released to your bank.", { pct: earnings ? earnings.commission_bps / 100 : 20, days: earnings?.refund_window_days ?? 7 })}</p>
+        <p>{t("Viewers who bought a video, or are members at the right level, see it in full. Everyone else sees the preview.")}</p>
+        <p>{t("Captions, AI chapters and Ask-the-video work the same for everyone who can watch.")}</p>
+        <Link to="/earnings" className="inline-block font-semibold text-brand hover:underline">{t("See your earnings")}</Link>
       </Card>
       </div>
     </div>
@@ -172,6 +174,7 @@ export function MonetisationTab({ video }: { video: StudioVideoDetail }) {
 }
 
 function VideoAds({ video }: { video: StudioVideoDetail & { ads_enabled?: boolean } }) {
+  const t = useT()
   const canEdit = useHasPermission("video.uploads", "full")
   const [on, setOn] = useState(video.ads_enabled ?? true)
   const [busy, setBusy] = useState(false)
@@ -181,9 +184,9 @@ function VideoAds({ video }: { video: StudioVideoDetail & { ads_enabled?: boolea
     try {
       const { data } = await api.put<{ ads_enabled: boolean }>(`${STUDIO}/ads/videos/${video.public_id}`, { ads_enabled: next })
       setOn(data.ads_enabled)
-      toast.success(data.ads_enabled ? "Ads can show on this video" : "No ads on this video")
+      toast.success(data.ads_enabled ? t("Ads can show on this video") : t("No ads on this video"))
     } catch (err) {
-      toast.error(detail(err, "Could not change ads for this video"))
+      toast.error(detail(err, t("Could not change ads for this video")))
     } finally {
       setBusy(false)
     }
@@ -191,15 +194,15 @@ function VideoAds({ video }: { video: StudioVideoDetail & { ads_enabled?: boolea
 
   return (
     <Card className="p-5">
-      <h2 className="text-sm font-bold text-navy">Ads</h2>
+      <h2 className="text-sm font-bold text-navy">{t("Ads")}</h2>
       <ToggleField
-        label="Allow ads on this video"
-        hint="Ads only run when they are also on for your channel (Earnings, Ads). Never on members-only or paid videos, or for Premium viewers."
+        label={t("Allow ads on this video")}
+        hint={t("Ads only run when they are also on for your channel (Earnings, Ads). Never on members-only or paid videos, or for Premium viewers.")}
         checked={on}
         onChange={change}
         disabled={!canEdit || busy}
       />
-      <Link to="/earnings?tab=ads" className="text-sm font-semibold text-brand hover:underline">Channel ad settings</Link>
+      <Link to="/earnings?tab=ads" className="text-sm font-semibold text-brand hover:underline">{t("Channel ad settings")}</Link>
     </Card>
   )
 }

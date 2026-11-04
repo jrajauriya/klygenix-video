@@ -134,6 +134,115 @@ async function main() {
   }
   await ctx.close()
 
+  console.log("\n== web (Hindi, PWA, run 5)")
+  const DEVANAGARI = /[\u0900-\u097F]{3}/
+  ctx = await browser.newContext({ viewport: { width: 1280, height: 860 }, locale: "hi-IN" })
+  page = await ctx.newPage()
+  drain = watch(page)
+  const langs = []
+  page.on("request", (r) => {
+    if (r.url().includes("/api/video/") && ["xhr", "fetch"].includes(r.resourceType()) && !/\/api\/video\/(sandbox|images|dubs)\/|\.(m3u8|ts|m4s|vtt|jpg|png|webp)(\?|$)/.test(r.url())) langs.push(r.headers()["accept-language"] ?? "")
+  })
+  for (const [label, path] of [["home", "/"], ["reels", "/reels"], ["watch", long ? `/watch/${long.id}` : "/"], ["search", "/search?q=" + encodeURIComponent("चाय")],
+                               ["channel", `/@${handle}`], ["plans", "/plans"], ["login", "/login"], ["terms", "/legal/terms"]]) {
+    await visit(page, drain, `web ${label} (Hindi)`, WEB + path)
+    await page.waitForFunction(() => document.documentElement.lang === "hi", null, { timeout: 5000 }).catch(() => {})
+    const text = await page.locator("main").innerText().catch(() => "")
+    check(`web ${label} (Hindi) is in Hindi`, DEVANAGARI.test(text) && (await page.evaluate(() => document.documentElement.lang)) === "hi", text.slice(0, 120))
+  }
+  check("web sends Accept-Language: hi to the API", langs.length > 0 && langs.slice(-5).every((l) => l === "hi"), langs.slice(-5).join(","))
+  await page.goto(`${WEB}/no-such-page-here`)
+  check("web 404 page (Hindi)", (await page.locator("body").innerText()).includes("यहाँ नहीं है"), "no Hindi 404 text")
+  await page.getByRole("button", { name: "EN", exact: true }).first().click()
+  await page.waitForFunction(() => document.documentElement.lang === "en", null, { timeout: 5000 }).catch(() => {})
+  check("web EN switch goes back to English", (await page.locator("body").innerText()).includes("isn't here"), "still Hindi")
+  drain()
+  const manifest = await (await fetch(`${WEB}/manifest.webmanifest`)).json().catch(() => null)
+  check("web manifest names Klygenix Play with 192/512/maskable icons", manifest?.name === "Klygenix Play" && manifest?.short_name === "Play"
+    && ["192x192", "512x512"].every((s) => manifest.icons.some((i) => i.sizes === s)) && manifest.icons.some((i) => i.purpose === "maskable"), JSON.stringify(manifest)?.slice(0, 160))
+  for (const icon of manifest?.icons ?? []) {
+    const r = await fetch(`${WEB}${icon.src}`)
+    check(`web icon ${icon.src} is served`, r.ok && (r.headers.get("content-type") ?? "").startsWith("image/"), `${r.status} ${r.headers.get("content-type")}`)
+  }
+  await page.goto(`${WEB}/`)
+  const sw = await page.evaluate(() => Promise.race([navigator.serviceWorker.ready.then((r) => Boolean(r.active)), new Promise((r) => setTimeout(() => r(false), 15000))]))
+  check("web service worker installs in production builds", sw === true, String(sw))
+  if (sw) {
+    await page.reload()
+    await page.waitForLoadState("networkidle").catch(() => {})
+    const cached = await page.evaluate(async () => {
+      const names = await caches.keys()
+      const all = (await Promise.all(names.map(async (n) => (await (await caches.open(n)).keys()).map((r) => new URL(r.url).pathname)))).flat()
+      return all
+    })
+    check("web service worker caches the app shell", cached.includes("/") && cached.some((p) => p.startsWith("/assets/")), cached.slice(0, 6).join(","))
+    check("web service worker never caches API, HLS or media", !cached.some((p) => p.startsWith("/api/") || /\.(m3u8|ts|m4s|mp4)$/.test(p)), cached.filter((p) => p.startsWith("/api/")).join(","))
+    await ctx.setOffline(true)
+    await page.goto(`${WEB}/search?q=offline`).catch(() => {})
+    check("web offline navigation shows the offline page", /offline/i.test(await page.locator("body").innerText().catch(() => "")), (await page.locator("body").innerText().catch(() => "")).slice(0, 80))
+    await ctx.setOffline(false)
+  }
+  drain()
+  await ctx.close()
+
+  const sara = await api("/api/auth/login", { method: "POST", body: { email: "sara@demo.klygenix.com", password: DEMO_PASSWORD } })
+  await api("/api/video/me", { token: sara.access_token, method: "PATCH", body: { language: "en" } })
+  ctx = await browser.newContext({ viewport: { width: 1280, height: 860 } })
+  await ctx.addInitScript((auth) => localStorage.setItem("klygenix-video-auth", JSON.stringify({ state: auth, version: 0 })),
+    { token: sara.access_token, user: { ...sara.user, settings: { ...(sara.user.settings ?? {}), language: "en" } } })
+  page = await ctx.newPage()
+  drain = watch(page)
+  await visit(page, drain, "web home (signed in, bell)", `${WEB}/`)
+  const bell = page.getByRole("button", { name: /^Notifications/ })
+  check("web header shows the notification bell", (await bell.count()) === 1, "no bell")
+  if (await bell.count()) {
+    await bell.click()
+    check("web bell opens the notification panel", await page.getByRole("dialog", { name: "Notifications" }).waitFor({ timeout: 5000 }).then(() => true, () => false), "no panel")
+    await page.keyboard.press("Escape")
+  }
+  check("web nav shows Subscriptions when signed in", (await page.getByRole("link", { name: /Subscriptions/ }).count()) > 0, "no link")
+  await visit(page, drain, "web notifications", `${WEB}/notifications`, "Notifications")
+  await visit(page, drain, "web subscriptions", `${WEB}/subscriptions`, "Subscriptions")
+  await visit(page, drain, "web account notifications tab", `${WEB}/account?tab=notifications`, "Email digest")
+  check("web digest setting shows three choices", (await page.getByRole("radio").count()) === 3, String(await page.getByRole("radio").count()))
+  await page.getByRole("button", { name: "हिन्दी" }).first().click()
+  await page.waitForFunction(() => document.documentElement.lang === "hi", null, { timeout: 5000 }).catch(() => {})
+  check("web हिन्दी switch translates the account page", (await page.locator("main").innerText()).includes("ईमेल डाइजेस्ट"), "no Hindi")
+  const me = await api("/api/auth/me", { token: sara.access_token })
+  check("web language switch is saved to the profile", me.settings?.language === "hi", JSON.stringify(me.settings))
+  await page.getByRole("button", { name: "EN", exact: true }).first().click()
+  await page.waitForFunction(() => document.documentElement.lang === "en", null, { timeout: 5000 }).catch(() => {})
+  await api("/api/video/me", { token: sara.access_token, method: "PATCH", body: { language: "en" } })
+  drain()
+  const device = await fetch(`${API}/api/auth/device/start`, { method: "POST", headers: { "Content-Type": "application/json", "User-Agent": "Mozilla/5.0 (SMART-TV; Linux; Tizen 6.0)" }, body: JSON.stringify({ client: "tv" }) }).then((r) => r.json()).catch(() => null)
+  if (device?.user_code) {
+    await visit(page, drain, "web TV approval", `${WEB}/activate?code=${device.user_code}`)
+    check("web TV approval names the device", await page.getByText("Sign in on Samsung TV?").waitFor({ timeout: 5000 }).then(() => true, () => false), (await page.locator("main").innerText()).slice(0, 160))
+    check("web TV approval shows when it was requested", (await page.locator("main").innerText()).includes("Requested at"), "no time")
+  }
+  if (long) {
+    const creative = (await api(`/api/video/videos/${long.id}`)).playback?.url
+    if (creative) {
+      const sent = []
+      await page.route("**/api/video/ads/breaks*", (r) => r.fulfill({ json: { eligible: true, reason: null, pre: true, mid: [] } }))
+      await page.route("**/api/video/ads/decision*", (r) => r.fulfill({ json: { ad: { token: "e2e-web-ad-token-0001", campaign: "c", brand: "E2E Brand", label: "Ad", slot: "pre",
+        skip_after_seconds: 3, click_url: "https://example.com/e2e", duration_ms: 20000, playback: { type: "hls", url: creative } } } }))
+      await page.route("**/api/video/ads/events", (r) => {
+        sent.push(r.request().postDataJSON()?.event)
+        r.fulfill({ status: 202, json: { counted: false } })
+      })
+      await page.goto(`${WEB}/watch/${long.id}`)
+      const skip = await page.getByRole("button", { name: /Skip ad/ }).waitFor({ timeout: 15000 }).then(() => true, () => false)
+      check("web ad sends start, then q0 two seconds in", sent[0] === "start" && sent.includes("q0"), sent.join(","))
+      if (skip) await page.getByRole("button", { name: /Skip ad/ }).click()
+      const pip = await page.evaluate(() => document.pictureInPictureEnabled === true)
+      if (pip) check("web player has a picture-in-picture button", await page.getByRole("button", { name: /Picture-in-picture/ }).waitFor({ timeout: 8000 }).then(() => true, () => false), "no PiP button")
+      await page.unrouteAll({ behavior: "ignoreErrors" })
+    }
+  }
+  drain()
+  await ctx.close()
+
   console.log("\n== studio")
   ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } })
   page = await ctx.newPage()
@@ -243,6 +352,33 @@ async function main() {
   }
   await ctx.close()
 
+
+  console.log("\n== tv (signed in)")
+  const tvViewer = await api("/api/auth/login", { method: "POST", body: { email: VIEWER, password: DEMO_PASSWORD } })
+  ctx = await browser.newContext({ viewport: { width: 1920, height: 1080 } })
+  await ctx.addInitScript((auth) => localStorage.setItem("klygenix-video-auth", JSON.stringify({ state: auth, version: 0 })),
+    { token: tvViewer.access_token, user: tvViewer.user })
+  page = await ctx.newPage()
+  drain = watch(page)
+  const subsPeek = await api("/api/video/feed/subscriptions?limit=1&mark_seen=false", { token: tvViewer.access_token })
+  await visit(page, drain, "tv home (signed in)", `${TV}/`)
+  check("tv nav shows Subscriptions when signed in", (await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Subscriptions" }).count()) === 1, "no nav link")
+  if (subsPeek.items.length) {
+    check("tv home has a Subscriptions row", (await page.locator("#row-subscriptions").count()) === 1, "no row")
+    check("tv Subscriptions row has cards", (await page.locator('a[data-focus-id^="subscriptions:"]').count()) > 1, "no cards")
+  }
+  const started = page.waitForRequest((r) => r.url().includes("/api/auth/device/start"), { timeout: 8000 }).catch(() => null)
+  await page.goto(`${TV}/login`)
+  const startReq = await started
+  check("tv device sign-in sends a device name", Boolean(startReq?.postDataJSON()?.name), JSON.stringify(startReq?.postDataJSON() ?? null))
+  await visit(page, drain, "tv profile (signed in)", `${TV}/profile`, "Language")
+  await page.getByRole("button", { name: "हिन्दी" }).click()
+  await page.goto(`${TV}/`)
+  await page.waitForLoadState("networkidle").catch(() => {})
+  check("tv Hindi switch translates Home", (await page.locator("body").innerText()).includes("आपके लिए सुझाव"), "no Hindi row title")
+  check("tv Hindi sets the page language", (await page.evaluate(() => document.documentElement.lang)) === "hi", "lang not hi")
+  drain()
+  await ctx.close()
   await browser.close()
   console.log(`\n${PASS} passed, ${FAIL} failed`)
   if (FAIL) for (const e of ERRORS) console.log(`  - ${e}`)

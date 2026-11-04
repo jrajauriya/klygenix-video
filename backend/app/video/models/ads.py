@@ -58,6 +58,7 @@ class AdCampaign(Base):
     start_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     end_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     targeting: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict, server_default="{}")
+    exclude_categories: Mapped[list] = mapped_column(JSONB, nullable=False, default=list, server_default="[]")
     skip_after_seconds: Mapped[int] = mapped_column(SmallInteger, nullable=False, default=5, server_default="5")
     review_note: Mapped[str | None] = mapped_column(Text)
     reviewed_by: Mapped[int | None] = mapped_column(Integer)
@@ -69,7 +70,7 @@ class AdCampaign(Base):
 class AdDaily(Base):
     __tablename__ = "ad_daily"
     __table_args__ = (
-        UniqueConstraint("campaign_id", "video_id", "day", name="uq_ad_daily"),
+        UniqueConstraint("campaign_id", "video_id", "day", "device", name="uq_ad_daily"),
         Index("idx_ad_daily_channel", "channel_tenant_id", "day"),
         {"schema": SCHEMA},
     )
@@ -80,6 +81,9 @@ class AdDaily(Base):
     video_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
     channel_tenant_id: Mapped[int] = mapped_column(Integer, nullable=False)
     day: Mapped[date] = mapped_column(Date, nullable=False)
+    device: Mapped[str] = mapped_column(String(8), nullable=False, default="desktop", server_default="desktop")
+    starts: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0, server_default="0")
+    invalid: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0, server_default="0")
     impressions: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0, server_default="0")
     completes: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0, server_default="0")
     skips: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0, server_default="0")
@@ -90,14 +94,17 @@ class AdDaily(Base):
 class AdPayout(Base):
     __tablename__ = "ad_payouts"
     __table_args__ = (
-        UniqueConstraint("tenant_id", "period", name="uq_ad_payouts_period"),
+        UniqueConstraint("tenant_id", "period", "kind", name="uq_ad_payouts_period"),
         CheckConstraint("status IN ('pending','released','failed','skipped')", name="ck_ad_payouts_status"),
+        CheckConstraint("kind IN ('ad_share','view_pool')", name="ck_ad_payouts_kind"),
         {"schema": SCHEMA},
     )
 
     id: Mapped[int] = pk()
     tenant_id: Mapped[int] = tenant_fk()
     period: Mapped[str] = mapped_column(String(7), nullable=False)
+    kind: Mapped[str] = mapped_column(String(10), nullable=False, default="ad_share", server_default="ad_share")
+    watch_ms: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0, server_default="0")
     impressions: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
     spend_minor: Mapped[int] = minor()
     share_bps: Mapped[int] = mapped_column(Integer, nullable=False)

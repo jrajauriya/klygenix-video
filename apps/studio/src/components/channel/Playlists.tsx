@@ -12,6 +12,7 @@ import { WEB_URL, detail, when } from "../../lib/format"
 import type { Playlist, PlaylistDetail, PlaylistKind, PlaylistVisibility, StudioVideo, Visibility } from "../../lib/types"
 import { VisibilityField } from "../VisibilityField"
 import { inr, parseRupees, priceProblem, useEarnings } from "../earnings/shared"
+import { useT } from "../../i18n"
 
 const KIND_OPTIONS = [
   { value: "playlist", label: "Playlist", hint: "Any videos, in any order" },
@@ -35,6 +36,7 @@ function Cover({ src, className }: { src: string | null; className?: string }) {
 }
 
 export function Playlists() {
+  const t = useT()
   const [open, setOpen] = useState<Playlist | "new" | null>(null)
   const { data: rows, isLoading } = useQuery({
     queryKey: ["studio-playlists"],
@@ -46,16 +48,16 @@ export function Playlists() {
       <Card className="p-0">
         <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
           <div>
-            <h2 className="text-sm font-bold text-navy">Playlists and series</h2>
-            <p className="mt-0.5 text-sm text-slate-500">Group your videos. A series is watched in order, and signed-in viewers see how far they got.</p>
+            <h2 className="text-sm font-bold text-navy">{t("Playlists and series")}</h2>
+            <p className="mt-0.5 text-sm text-slate-500">{t("Group your videos. A series is watched in order, and signed-in viewers see how far they got.")}</p>
           </div>
-          <Button size="sm" onClick={() => setOpen("new")}><Plus size={14} /> New playlist</Button>
+          <Button size="sm" onClick={() => setOpen("new")}><Plus size={14} /> {t("New playlist")}</Button>
         </div>
         {isLoading ? (
           <Spinner />
         ) : (rows ?? []).length === 0 ? (
           <div className="p-5">
-            <EmptyState title="No playlists yet" hint="Public playlists with at least one published video show on your channel page." />
+            <EmptyState title={t("No playlists yet")} hint={t("Public playlists with at least one published video show on your channel page.")} />
           </div>
         ) : (
           <ul className="divide-y divide-slate-100">
@@ -68,11 +70,11 @@ export function Playlists() {
                     <p className="truncate text-sm font-semibold text-slate-800">{p.title}</p>
                     {p.description && <p className="truncate text-xs text-slate-500">{p.description}</p>}
                     <p className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
-                      <Badge color={p.kind === "series" ? "brand" : "slate"}>{p.kind === "series" ? "Series" : "Playlist"}</Badge>
-                      <Badge color={p.visibility === "public" ? "green" : p.visibility === "unlisted" ? "blue" : "amber"}>{VISIBILITY_LABEL[p.visibility]}</Badge>
+                      <Badge color={p.kind === "series" ? "brand" : "slate"}>{p.kind === "series" ? t("Series") : t("Playlist")}</Badge>
+                      <Badge color={p.visibility === "public" ? "green" : p.visibility === "unlisted" ? "blue" : "amber"}>{t(VISIBILITY_LABEL[p.visibility])}</Badge>
                       {p.kind === "series" && p.price_minor ? <Badge color="purple">{inr(p.price_minor)}</Badge> : null}
-                      <span>{p.video_count} {p.video_count === 1 ? "video" : "videos"}</span>
-                      <span>· created {when(p.created_at)}</span>
+                      <span>{p.video_count === 1 ? t("1 video") : t("{n} videos", { n: p.video_count })}</span>
+                      <span>{t("· created {when}", { when: when(p.created_at) })}</span>
                     </p>
                   </div>
                 </button>
@@ -89,6 +91,7 @@ export function Playlists() {
 }
 
 function PlaylistDrawer({ initial, onClose }: { initial: Playlist | null; onClose: () => void }) {
+  const t = useT()
   const qc = useQueryClient()
   const confirm = useConfirm()
   const [current, setCurrent] = useState<Playlist | null>(initial)
@@ -105,15 +108,15 @@ function PlaylistDrawer({ initial, onClose }: { initial: Playlist | null; onClos
       if (current) {
         const { data } = await api.patch<Playlist>(`${STUDIO}/playlists/${current.id}`, body)
         setCurrent(data)
-        toast.success("Playlist saved")
+        toast.success(t("Playlist saved"))
       } else {
         const { data } = await api.post<Playlist>(`${STUDIO}/playlists`, body)
         setCurrent(data)
-        toast.success("Created. Now add videos to it.")
+        toast.success(t("Created. Now add videos to it."))
       }
       qc.invalidateQueries({ queryKey: ["studio-playlists"] })
     } catch (err) {
-      toast.error(detail(err, "Could not save the playlist"))
+      toast.error(detail(err, t("Could not save the playlist")))
     } finally {
       setBusy(null)
     }
@@ -122,20 +125,20 @@ function PlaylistDrawer({ initial, onClose }: { initial: Playlist | null; onClos
   async function remove() {
     if (!current) return
     const ok = await confirm({
-      title: `Delete “${current.title}”?`,
-      message: "The playlist goes for good. The videos in it stay on your channel.",
-      confirmLabel: "Delete",
+      title: t("Delete “{title}”?", { title: current.title }),
+      message: t("The playlist goes for good. The videos in it stay on your channel."),
+      confirmLabel: t("Delete"),
       variant: "destructive",
     })
     if (!ok) return
     setBusy("delete")
     try {
       await api.delete(`${STUDIO}/playlists/${current.id}`)
-      toast.success("Playlist deleted")
+      toast.success(t("Playlist deleted"))
       qc.invalidateQueries({ queryKey: ["studio-playlists"] })
       onClose()
     } catch (err) {
-      toast.error(detail(err, "Could not delete the playlist"))
+      toast.error(detail(err, t("Could not delete the playlist")))
       setBusy(null)
     }
   }
@@ -147,32 +150,32 @@ function PlaylistDrawer({ initial, onClose }: { initial: Playlist | null; onClos
       open
       onClose={onClose}
       width="lg"
-      title={current ? current.title : "New playlist"}
+      title={current ? current.title : t("New playlist")}
       subtitle={current ? (
         <a href={playlistUrl(current.id)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-brand hover:underline">
-          View on Klygenix Play <ExternalLink size={12} />
+          {t("View on Klygenix Play")} <ExternalLink size={12} />
         </a>
-      ) : "Give it a name. You add videos after it is created."}
+      ) : t("Give it a name. You add videos after it is created.")}
       footer={
         <DrawerFooter
-          destructive={current ? { label: "Delete", onClick: remove, pending: busy === "delete", disabled: busy !== null } : undefined}
+          destructive={current ? { label: t("Delete"), onClick: remove, pending: busy === "delete", disabled: busy !== null } : undefined}
           onCancel={onClose}
-          cancelLabel={current ? "Close" : "Cancel"}
-          save={{ label: current ? "Save" : "Create", onClick: save, pending: busy === "save", disabled: busy !== null || !title.trim() || !dirty }}
+          cancelLabel={current ? t("Close") : t("Cancel")}
+          save={{ label: current ? t("Save") : t("Create"), onClick: save, pending: busy === "save", disabled: busy !== null || !title.trim() || !dirty }}
         />
       }
     >
       <div className="space-y-4">
-        <Field label="Title" required>
+        <Field label={t("Title")} required>
           <Input value={title} maxLength={160} onChange={(e) => setTitle(e.target.value)} />
         </Field>
-        <Field label="Description">
+        <Field label={t("Description")}>
           <Textarea rows={3} value={description} maxLength={5000} onChange={(e) => setDescription(e.target.value)} />
         </Field>
-        <Field label="Kind">
-          <Select value={kind} onChange={(v) => setKind(v as PlaylistKind)} options={KIND_OPTIONS} aria-label="Kind" />
+        <Field label={t("Kind")}>
+          <Select value={kind} onChange={(v) => setKind(v as PlaylistKind)} options={KIND_OPTIONS.map((o) => ({ ...o, label: t(o.label), hint: t(o.hint) }))} aria-label={t("Kind")} />
         </Field>
-        <Field label="Visibility">
+        <Field label={t("Visibility")}>
           <VisibilityField schedule={false} value={visibility as Visibility} publishAt="" onPublishAt={() => undefined}
             onChange={(v) => setVisibility(v as PlaylistVisibility)} />
         </Field>
@@ -184,6 +187,7 @@ function PlaylistDrawer({ initial, onClose }: { initial: Playlist | null; onClos
 }
 
 function Items({ playlistId }: { playlistId: number }) {
+  const t = useT()
   const qc = useQueryClient()
   const [search, setSearch] = useState("")
   const [busy, setBusy] = useState(false)
@@ -226,19 +230,19 @@ function Items({ playlistId }: { playlistId: number }) {
     const cards = [...playlist.videos]
     ;[cards[index], cards[target]] = [cards[target], cards[index]]
     qc.setQueryData<PlaylistDetail>(key, { ...playlist, videos: cards })
-    run(() => api.put(`${STUDIO}/playlists/${playlistId}/order`, { video_ids: order }), "Could not save the new order")
+    run(() => api.put(`${STUDIO}/playlists/${playlistId}/order`, { video_ids: order }), t("Could not save the new order"))
   }
 
   return (
     <div className="space-y-3 border-t border-slate-100 pt-4">
       <div>
-        <h3 className="text-sm font-bold text-navy">Videos</h3>
-        <p className="text-xs text-slate-500">Viewers see only the published public and unlisted ones, in this order.</p>
+        <h3 className="text-sm font-bold text-navy">{t("Videos")}</h3>
+        <p className="text-xs text-slate-500">{t("Viewers see only the published public and unlisted ones, in this order.")}</p>
       </div>
       {isLoading ? (
         <Spinner />
       ) : items.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-slate-200 px-3 py-4 text-center text-sm text-slate-500">No videos in it yet. Add some below.</p>
+        <p className="rounded-lg border border-dashed border-slate-200 px-3 py-4 text-center text-sm text-slate-500">{t("No videos in it yet. Add some below.")}</p>
       ) : (
         <ol className="divide-y divide-slate-100 rounded-lg border border-slate-200">
           {items.map(({ card, video }, i) => (
@@ -248,21 +252,21 @@ function Items({ playlistId }: { playlistId: number }) {
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium text-slate-800">{card.title}</p>
                 <p className="flex flex-wrap items-center gap-1 text-xs text-slate-500">
-                  <span>{card.kind === "reel" ? "Reel" : card.duration}</span>
+                  <span>{card.kind === "reel" ? t("Reel") : card.duration}</span>
                   {video && (video.status !== "published" || video.visibility === "private" || video.visibility === "scheduled") && (
-                    <Badge color="amber">Not shown to viewers</Badge>
+                    <Badge color="amber">{t("Not shown to viewers")}</Badge>
                   )}
                 </p>
               </div>
               <div className="flex shrink-0 items-center">
-                <Button size="icon" variant="ghost" className="h-8 w-8" aria-label={`Move ${card.title} up`} disabled={busy || i === 0} onClick={() => move(i, -1)}>
+                <Button size="icon" variant="ghost" className="h-8 w-8" aria-label={t("Move {title} up", { title: card.title })} disabled={busy || i === 0} onClick={() => move(i, -1)}>
                   <ArrowUp size={15} />
                 </Button>
-                <Button size="icon" variant="ghost" className="h-8 w-8" aria-label={`Move ${card.title} down`} disabled={busy || i === items.length - 1} onClick={() => move(i, 1)}>
+                <Button size="icon" variant="ghost" className="h-8 w-8" aria-label={t("Move {title} down", { title: card.title })} disabled={busy || i === items.length - 1} onClick={() => move(i, 1)}>
                   <ArrowDown size={15} />
                 </Button>
-                <Button size="icon" variant="ghost" className="h-8 w-8 text-red-600" aria-label={`Remove ${card.title}`} disabled={busy || !video}
-                  onClick={() => video && run(() => api.delete(`${STUDIO}/playlists/${playlistId}/items/${video.id}`), "Could not remove it")}>
+                <Button size="icon" variant="ghost" className="h-8 w-8 text-red-600" aria-label={t("Remove {title}", { title: card.title })} disabled={busy || !video}
+                  onClick={() => video && run(() => api.delete(`${STUDIO}/playlists/${playlistId}/items/${video.id}`), t("Could not remove it"))}>
                   <X size={15} />
                 </Button>
               </div>
@@ -273,10 +277,10 @@ function Items({ playlistId }: { playlistId: number }) {
       <div className="space-y-2 rounded-lg bg-slate-50 p-3">
         <label className="flex items-center gap-2">
           <Search size={15} className="shrink-0 text-slate-400" />
-          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Find one of your videos to add" aria-label="Find a video to add" />
+          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t("Find one of your videos to add")} aria-label={t("Find a video to add")} />
         </label>
         {candidates.length === 0 ? (
-          <p className="px-1 text-xs text-slate-500">{needle ? "No video matches that." : "Every video you have is already in it."}</p>
+          <p className="px-1 text-xs text-slate-500">{needle ? t("No video matches that.") : t("Every video you have is already in it.")}</p>
         ) : (
           <ul className="max-h-64 space-y-1 overflow-y-auto">
             {candidates.slice(0, 30).map((v) => (
@@ -284,11 +288,11 @@ function Items({ playlistId }: { playlistId: number }) {
                 <Cover src={v.thumbnail} className="w-16" />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm text-slate-800">{v.title}</p>
-                  <p className="text-xs text-slate-500">{v.kind === "reel" ? "Reel" : "Video"} · {v.status === "published" ? (v.visibility === "public" ? "Public" : v.visibility) : v.status.replace("_", " ")}</p>
+                  <p className="text-xs text-slate-500">{v.kind === "reel" ? t("Reel") : t("Video")} · {v.status === "published" ? (v.visibility === "public" ? t("Public") : t(v.visibility)) : t(v.status.replace("_", " "))}</p>
                 </div>
                 <Button size="sm" variant="outline" disabled={busy}
-                  onClick={() => run(() => api.post(`${STUDIO}/playlists/${playlistId}/items`, { video_id: v.id }), "Could not add it")}>
-                  <Plus size={13} /> Add
+                  onClick={() => run(() => api.post(`${STUDIO}/playlists/${playlistId}/items`, { video_id: v.id }), t("Could not add it"))}>
+                  <Plus size={13} /> {t("Add")}
                 </Button>
               </li>
             ))}
@@ -300,6 +304,7 @@ function Items({ playlistId }: { playlistId: number }) {
 }
 
 function SeriesPrice({ playlist, onSaved }: { playlist: Playlist; onSaved: (price: number | null) => void }) {
+  const t = useT()
   const featureOn = useHasFeature("video.earnings")
   const canView = useHasPermission("video.earnings")
   const canEdit = useHasPermission("video.earnings", "full")
@@ -319,10 +324,10 @@ function SeriesPrice({ playlist, onSaved }: { playlist: Playlist; onSaved: (pric
     try {
       const { data } = await api.put<{ id: number; price_minor: number | null }>(`${STUDIO}/playlists/${playlist.id}/price`, { price_minor: minor })
       onSaved(data.price_minor)
-      toast.success(data.price_minor ? `Series priced at ${inr(data.price_minor)}` : "The series is free again")
+      toast.success(data.price_minor ? t("Series priced at {price}", { price: inr(data.price_minor) }) : t("The series is free again"))
       qc.invalidateQueries({ queryKey: ["studio-playlists"] })
     } catch (err) {
-      toast.error(detail(err, "Could not save the price"))
+      toast.error(detail(err, t("Could not save the price")))
     } finally {
       setBusy(false)
     }
@@ -331,17 +336,17 @@ function SeriesPrice({ playlist, onSaved }: { playlist: Playlist; onSaved: (pric
   return (
     <div className="space-y-2 rounded-lg border border-slate-200 p-3">
       <div className="flex flex-wrap items-end gap-2">
-        <Field label="Price for the whole series (₹)" error={error} hint="Leave empty to keep it free. Between ₹10 and ₹50,000." className="min-w-0 flex-1">
+        <Field label={t("Price for the whole series (₹)")} error={error} hint={t("Leave empty to keep it free. Between ₹10 and ₹50,000.")} className="min-w-0 flex-1">
           <Input value={price} inputMode="decimal" onChange={(e) => setPrice(e.target.value)} disabled={!canEdit || (!canSell && !playlist.price_minor)} />
         </Field>
         {canEdit && (
           <Button variant="outline" onClick={save} disabled={busy || !dirty || Boolean(error) || (minor !== null && !canSell)} className="mb-5">
-            {busy ? "Saving…" : "Save price"}
+            {busy ? t("Saving…") : t("Save price")}
           </Button>
         )}
       </div>
       {!canSell && (
-        <p className="text-xs text-amber-800">Selling a series is off until your payouts are active. Set them up under Earnings.</p>
+        <p className="text-xs text-amber-800">{t("Selling a series is off until your payouts are active. Set them up under Earnings.")}</p>
       )}
     </div>
   )

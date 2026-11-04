@@ -59,6 +59,10 @@ class SandboxProvider:
         sig = sign("hls", video.id, exp)
         return {"type": "hls", "url": f"{self._base()}/hls/{video.id}/{exp}/{sig}/master.m3u8", "expires_at": exp}
 
+    def download_url(self, video, ttl: int) -> str:
+        exp = expiry(ttl)
+        return f"{self._base()}/download/{video.id}/{exp}/{sign('dl', video.id, exp)}.mp4"
+
     def preview(self, video, ttl: int, seconds: int) -> dict | None:
         if seconds <= 0:
             return None

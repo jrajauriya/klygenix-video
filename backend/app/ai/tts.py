@@ -8,7 +8,8 @@ from app.config import settings
 from app.video.media.ffmpeg import FFMPEG, run
 
 VOICES = {"en": "en-IN-NeerjaNeural", "hi": "hi-IN-SwaraNeural", "mr": "mr-IN-AarohiNeural", "bn": "bn-IN-TanishaaNeural",
-          "ta": "ta-IN-PallaviNeural", "te": "te-IN-ShrutiNeural"}
+          "ta": "ta-IN-PallaviNeural", "te": "te-IN-ShrutiNeural",
+          "gu": "gu-IN-DhwaniNeural", "kn": "kn-IN-SapnaNeural", "ml": "ml-IN-SobhanaNeural", "pa": "pa-IN-OjasNeural", "or": "or-IN-SubhasiniNeural"}
 
 
 class TtsError(Exception):

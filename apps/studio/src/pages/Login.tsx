@@ -1,5 +1,7 @@
 import { LoginPage } from "@klygenixvideo/auth"
+import { useT } from "../i18n"
 
 export default function Login() {
-  return <LoginPage productName="Klygenix Play Studio" productKey="video" signupPath="/signup" forgotPath="/forgot" />
+  const t = useT()
+  return <LoginPage productName={t("Klygenix Play Studio")} productKey="video" signupPath="/signup" forgotPath="/forgot" />
 }

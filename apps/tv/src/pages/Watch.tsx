@@ -5,6 +5,7 @@ import { DanmakuLayer, HlsPlayer, useDanmaku, type CaptionTrack } from "@klygeni
 import { api, apiUrl, errStatus, errText, getJson, sameOrigin, useSignedIn } from "../lib/api"
 import { focusEl, focusFirst, useBack } from "../lib/focus"
 import { clock } from "../lib/format"
+import { slot, useT } from "../lib/i18n"
 import { useProgressReporter } from "../lib/progress"
 import type { Ad, AdBreaks, Chapter, VideoDetail } from "../lib/types"
 import { AdPlayer } from "../components/AdPlayer"
@@ -14,6 +15,7 @@ const SOURCES = ["home", "reels", "search", "channel", "follow", "related"]
 
 function BackButton({ auto }: { auto?: boolean }) {
   const navigate = useNavigate()
+  const t = useT()
   const back = () => {
     const idx = (window.history.state as { idx?: number } | null)?.idx ?? 0
     if (idx > 0) navigate(-1)
@@ -21,7 +23,7 @@ function BackButton({ auto }: { auto?: boolean }) {
   }
   return (
     <button type="button" onClick={back} data-autofocus={auto || undefined} className="rounded-full bg-panel-3 px-8 py-3 text-2xl font-semibold text-white">
-      ‹ Back
+      ‹ {t("Back")}
     </button>
   )
 }
@@ -38,6 +40,7 @@ function Screen({ video, children }: { video?: VideoDetail; children: React.Reac
 export default function Watch() {
   const { id = "" } = useParams()
   const signedIn = useSignedIn()
+  const t = useT()
   const q = useQuery({
     queryKey: ["video", id, signedIn],
     queryFn: () => getJson<VideoDetail>(`/api/video/videos/${id}`),
@@ -48,9 +51,9 @@ export default function Watch() {
   if (q.isLoading) {
     return (
       <Screen>
-        <h1 className="sr-only">Watch</h1>
+        <h1 className="sr-only">{t("Watch")}</h1>
         <BackButton />
-        <p role="status" className="mt-10 text-3xl text-muted">Loading…</p>
+        <p role="status" className="mt-10 text-3xl text-muted">{t("Loading…")}</p>
       </Screen>
     )
   }
@@ -58,8 +61,8 @@ export default function Watch() {
     return (
       <Screen>
         <BackButton auto />
-        <h1 className="mt-10 text-5xl font-bold">{errStatus(q.error) === 404 ? "This video isn't here" : "This video did not load"}</h1>
-        <p className="mt-4 text-2xl text-muted">{errText(q.error, "Check your connection and try again.")}</p>
+        <h1 className="mt-10 text-5xl font-bold">{errStatus(q.error) === 404 ? t("This video isn't here") : t("This video did not load")}</h1>
+        <p className="mt-4 text-2xl text-muted">{errText(q.error, t("Check your connection and try again."))}</p>
       </Screen>
     )
   }
@@ -70,7 +73,7 @@ export default function Watch() {
         <h1 className="mt-10 text-5xl font-bold">{video.title}</h1>
         <p className="mt-4 text-2xl text-muted">{video.channel?.name}</p>
         <div className="mt-8">
-          <Phone what={video.locked.access === "members" ? "This video is for channel members. To join," : "This is a paid video. To buy it,"} />
+          <Phone what={video.locked.access === "members" ? t("This video is for channel members. To join,") : t("This is a paid video. To buy it,")} />
         </div>
       </Screen>
     )
@@ -85,11 +88,11 @@ export default function Watch() {
           <>
             <p className="mt-6 text-2xl">{embed.credit}</p>
             <p className="mt-4 text-2xl text-muted">
-              This video plays on {embed.type === "youtube" ? "YouTube" : "Bilibili"}. Watch it at <strong className="text-ink">{embed.source_url}</strong>
+              {slot(t("This video plays on {platform}. Watch it at {site}", { platform: embed.type === "youtube" ? "YouTube" : "Bilibili" }), "site", <strong className="text-ink">{embed.source_url}</strong>)}
             </p>
           </>
         ) : (
-          <p className="mt-6 text-2xl text-muted">This video isn't ready to play yet.</p>
+          <p className="mt-6 text-2xl text-muted">{t("This video isn't ready to play yet.")}</p>
         )}
       </Screen>
     )
@@ -99,6 +102,7 @@ export default function Watch() {
 
 function Player({ video, url }: { video: VideoDetail; url: string }) {
   const [params] = useSearchParams()
+  const t = useT()
   const src = params.get("src") ?? ""
   const progress = useProgressReporter(video.id, SOURCES.includes(src) ? src : "direct")
   const startMs = useMemo(() => {
@@ -287,10 +291,10 @@ function Player({ video, url }: { video: VideoDetail; url: string }) {
           <DanmakuLayer items={danmaku.items} currentMs={currentMs} playing={playing} enabled={danmakuOn} />
         </HlsPlayer>
       )}
-      {!mounted && phase !== "content" && <p role="status" className="absolute inset-0 flex items-center justify-center text-3xl text-white/80">Starting…</p>}
+      {!mounted && phase !== "content" && <p role="status" className="absolute inset-0 flex items-center justify-center text-3xl text-white/80">{t("Starting…")}</p>}
 
       {video.paid_partnership && (
-        <p className="absolute right-[6rem] top-[3.375rem] rounded-lg bg-black/80 px-4 py-2 text-xl font-semibold">{video.paid_partnership.label}</p>
+        <p className="absolute right-[6rem] top-[3.375rem] rounded-lg bg-black/80 px-4 py-2 text-xl font-semibold">{t("Paid partnership with {brand}", { brand: video.paid_partnership.brand })}</p>
       )}
 
       <div className={`transition-opacity duration-300 ${showChrome && phase === "content" ? "opacity-100" : "pointer-events-none opacity-0"}`}>
@@ -298,7 +302,7 @@ function Player({ video, url }: { video: VideoDetail; url: string }) {
           <p className={`max-w-[70%] text-4xl font-bold leading-tight ${video.paid_partnership ? "mt-14" : ""}`}>{video.title}</p>
           <p className="mt-2 text-2xl text-white/80">
             {video.channel?.name}
-            {video.ai_generated ? " · AI-generated" : ""}
+            {video.ai_generated ? ` · ${t("AI-generated")}` : ""}
           </p>
         </div>
         <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/60 to-transparent px-[6rem] pb-[3.375rem] pt-24">
@@ -311,11 +315,11 @@ function Player({ video, url }: { video: VideoDetail; url: string }) {
           <div
             className="relative mt-3 h-2.5 rounded-full bg-white/25"
             role="progressbar"
-            aria-label="Playback position"
+            aria-label={t("Playback position")}
             aria-valuemin={0}
             aria-valuemax={Math.round(durationMs / 1000)}
             aria-valuenow={Math.round(currentMs / 1000)}
-            aria-valuetext={`${clock(currentMs)} of ${clock(durationMs)}`}
+            aria-valuetext={t("{at} of {total}", { at: clock(currentMs), total: clock(durationMs) })}
           >
             <div className="h-full rounded-full bg-brand-soft" style={{ width: `${pct}%` }} />
             {durationMs > 0 && chapters.map((c) => (
@@ -327,22 +331,22 @@ function Player({ video, url }: { video: VideoDetail; url: string }) {
               const idx = (window.history.state as { idx?: number } | null)?.idx ?? 0
               if (idx > 0) navigate(-1)
               else navigate("/", { replace: true })
-            }}>‹ Back</button>
+            }}>‹ {t("Back")}</button>
             <button ref={playRef} type="button" data-autofocus className={`${ctl} min-w-[9rem]`} onClick={toggle}>
-              {playing ? "Pause" : "Play"}
+              {playing ? t("Pause") : t("Play")}
             </button>
-            <button type="button" className={ctl} onClick={() => seek(currentMs - 10_000)}>Back 10 s</button>
-            <button type="button" className={ctl} onClick={() => seek(currentMs + 10_000)}>Forward 10 s</button>
+            <button type="button" className={ctl} onClick={() => seek(currentMs - 10_000)}>{t("Back 10 s")}</button>
+            <button type="button" className={ctl} onClick={() => seek(currentMs + 10_000)}>{t("Forward 10 s")}</button>
             {captions.length > 0 && (
               <button type="button" className={ctl} aria-pressed={captionLang !== null} onClick={() => setCaptionLang(captionLang ? null : captions[0].lang)}>
-                Captions {captionLang ? "on" : "off"}
+                {captionLang ? t("Captions on") : t("Captions off")}
               </button>
             )}
             <button type="button" className={ctl} aria-pressed={danmakuOn} onClick={() => setDanmakuOn(!danmakuOn)}>
-              Danmaku {danmakuOn ? "on" : "off"}
+              {danmakuOn ? t("Danmaku on") : t("Danmaku off")}
             </button>
             {chapters.length > 0 && (
-              <button type="button" className={ctl} onClick={() => setChaptersOpen(true)}>Chapters</button>
+              <button type="button" className={ctl} onClick={() => setChaptersOpen(true)}>{t("Chapters")}</button>
             )}
             {video.channel && (
               <Link to={`/channel/${video.channel.handle}`} className={ctl}>{video.channel.name}</Link>
@@ -353,7 +357,7 @@ function Player({ video, url }: { video: VideoDetail; url: string }) {
 
       {chaptersOpen && (
         <div ref={panelRef} data-focus-scope role="dialog" aria-modal="true" aria-labelledby="chapters-title" className="absolute inset-y-0 right-0 w-[36rem] overflow-y-auto bg-panel/95 px-10 py-[3.375rem]">
-          <h2 id="chapters-title" className="text-3xl font-bold">Chapters</h2>
+          <h2 id="chapters-title" className="text-3xl font-bold">{t("Chapters")}</h2>
           <ul className="mt-6 flex flex-col gap-3" data-focus-group>
             {chapters.map((c) => (
               <li key={c.start_ms}>
@@ -373,7 +377,7 @@ function Player({ video, url }: { video: VideoDetail; url: string }) {
               </li>
             ))}
           </ul>
-          <button type="button" className="mt-6 rounded-full bg-panel-3 px-8 py-3 text-2xl font-semibold" onClick={() => setChaptersOpen(false)}>Close</button>
+          <button type="button" className="mt-6 rounded-full bg-panel-3 px-8 py-3 text-2xl font-semibold" onClick={() => setChaptersOpen(false)}>{t("Close")}</button>
         </div>
       )}
 

@@ -11,6 +11,7 @@ import { NOTIFY_KINDS, appPath, notifyHistory, notifyPrefs, saveNotifyPrefs } fr
 import { pushAllowed } from "../lib/push"
 import { colour, s } from "../lib/theme"
 import type { NotifyKind, NotifyPrefs, PushRecord } from "../lib/types"
+import { DigestSetting } from "./DigestSetting"
 
 const SHORT = 5
 
@@ -104,6 +105,8 @@ export function NotificationSettings() {
         ))}
       {prefs.isError && <Text style={s.error}>{detail(prefs.error, t("notify.saveFailed"))}</Text>}
       {error && <Text style={s.error}>{error}</Text>}
+
+      <DigestSetting />
 
       <Text style={[s.label, { marginTop: 24 }]}>{t("notify.history")}</Text>
       {history.isLoading ? (

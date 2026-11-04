@@ -34,6 +34,13 @@ export interface VideoCard {
   embed_platform: string | null
   channel: ChannelCard
   playback?: Playback | null
+  paid_partnership?: PaidPartnership | null
+  new?: boolean
+}
+
+export interface PaidPartnership {
+  brand: string
+  label: string
 }
 
 export interface Chapter {
@@ -88,7 +95,6 @@ export interface VideoDetail extends VideoCard {
   resume_ms: number
   is_owner: boolean
   ai_status: string | null
-  paid_partnership?: { brand: string; label: string } | null
 }
 
 export interface Comment {
@@ -372,3 +378,41 @@ export interface StudyRow {
   best_total: number | null
   last_activity_at: string | null
 }
+
+export interface InboxItem {
+  id: number
+  kind: string
+  title: string
+  body: string
+  url: string | null
+  image: string | null
+  read: boolean
+  created_at: string | null
+}
+
+export interface Inbox {
+  unread: number
+  items: InboxItem[]
+}
+
+export type DigestFrequency = "off" | "daily" | "weekly"
+
+export interface Subscriptions {
+  new_count: number
+  since: string | null
+  channels: number
+  items: VideoCard[]
+}
+
+export interface DownloadTicket {
+  id: string
+  title: string
+  duration_ms: number | null
+  quality: string
+  url: string
+  url_expires_at: number
+  license: string
+  license_expires_at: number
+}
+
+export type LicenseState = "ok" | "expired" | "premium_ended" | "removed" | "invalid"

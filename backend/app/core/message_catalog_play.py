@@ -113,4 +113,10 @@ PLAY_MESSAGES: dict[str, dict[str, str]] = {
     "reco_not_enough_data": {"en": "Not enough labelled impressions to train yet.", "hi": "प्रशिक्षण के लिए अभी पर्याप्त लेबल वाले इंप्रेशन नहीं हैं।"},
     "device_code_invalid": {"en": "That code is not valid or has expired. Start again on your TV.", "hi": "यह कोड मान्य नहीं है या समाप्त हो गया है। अपने टीवी पर फिर से शुरू करें।"},
     "device_code_used": {"en": "That code was already used.", "hi": "यह कोड पहले ही उपयोग हो चुका है।"},
+    "download_premium_only": {"en": "Downloads are part of Premium.", "hi": "डाउनलोड Premium का हिस्सा हैं।"},
+    "download_not_allowed": {"en": "This video cannot be downloaded.", "hi": "यह वीडियो डाउनलोड नहीं किया जा सकता।"},
+    "chapters_invalid": {"en": "Chapters need a title, must start at 0:00 and stay inside the video.", "hi": "अध्यायों का शीर्षक होना चाहिए, वे 0:00 से शुरू हों और वीडियो के भीतर रहें।"},
+    "chapters_too_close": {"en": "Chapters must be at least 5 seconds apart.", "hi": "अध्याय कम से कम 5 सेकंड के अंतर पर होने चाहिए।"},
+    "schedule_in_past": {"en": "Pick a time in the future.", "hi": "भविष्य का कोई समय चुनें।"},
+    "account_in_other_region": {"en": "Your account lives in our {region} region. Sign in at {url}.", "hi": "आपका खाता हमारे {region} क्षेत्र में है। {url} पर साइन इन करें।"},
 }

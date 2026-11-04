@@ -164,6 +164,10 @@ def signup(data: SignupIn, request: Request, db: Session = Depends(get_db)):
     if db.query(User).filter(User.email == email).first():
         raise err(409, "address_already_has_account_sign_reset")
     handle = _chosen_handle(db, data.handle)
+    from app.core.services import region
+
+    home = region.region_for(country)
+    region.guard(home)
     beta.gate_signup(db, email=email, invite=data.invite, opens_channel=bool(handle))
 
     tenant, owner, _ = create_tenant_with_admin(
@@ -175,6 +179,7 @@ def signup(data: SignupIn, request: Request, db: Session = Depends(get_db)):
 
     bind_tenant(db, tenant.id)
     owner.settings = {**(owner.settings or {}), "language": data.language}
+    owner.home_region = home
     db.add(Profile(user_id=owner.id, tenant_id=tenant.id, display_name=data.name.strip()[:80],
                    birth_date=data.birth_date, country=country, language=data.language))
     if handle:
@@ -291,3 +296,11 @@ def totp_disable(data: TotpDisableIn, user: User = Depends(get_current_user), db
     account.disable_totp(db, user)
     db.commit()
     return MessageOut(message="Two-step sign-in is off.")
+
+
+
+@router.get("/region")
+def region_info():
+    from app.core.services import region
+
+    return {"region": region.here(), "enforced": settings.REGION_ENFORCE, "regions": region.urls()}

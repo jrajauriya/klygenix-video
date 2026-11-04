@@ -9,9 +9,11 @@ import { AccessBadge } from "../../components/AccessBadge"
 import { AdOverlay } from "../../components/AdOverlay"
 import { AskBox } from "../../components/AskBox"
 import { Comments } from "../../components/Comments"
+import { DownloadButton } from "../../components/DownloadButton"
 import { DubSwitch } from "../../components/DubSwitch"
 import { LockCard } from "../../components/LockCard"
 import { Notes } from "../../components/Notes"
+import { PaidPartnership } from "../../components/PaidPartnership"
 import { ProductLinks } from "../../components/ProductLinks"
 import { useAdBreaks } from "../../lib/ads"
 import { api, detail } from "../../lib/api"
@@ -33,6 +35,8 @@ function useWatchPlayer(
   const preview = video?.locked ? video.locked.preview_seconds : null
   const player = useVideoPlayer(url, (p) => {
     p.timeUpdateEventInterval = 1
+    p.staysActiveInBackground = true
+    p.showNowPlayingNotification = true
   })
   const seeded = useRef(false)
   const started = useRef(false)
@@ -169,7 +173,14 @@ export default function Watch() {
       <View style={{ width: "100%", aspectRatio: reel ? 9 / 12 : 16 / 9, backgroundColor: colour.night }}>
         {url && !(locked && ended) ? (
           <>
-            <VideoView player={player} style={{ flex: 1 }} contentFit="contain" nativeControls={ads.phase === "content"} />
+            <VideoView
+              player={player}
+              style={{ flex: 1 }}
+              contentFit="contain"
+              nativeControls={ads.phase === "content"}
+              allowsPictureInPicture={ads.phase === "content" && !locked}
+              startsPictureInPictureAutomatically={ads.phase === "content" && !locked}
+            />
             {ads.phase === "ad" && ads.ad && <AdOverlay key={ads.ad.token} ad={ads.ad} onDone={ads.finish} />}
           </>
         ) : (
@@ -205,8 +216,8 @@ export default function Watch() {
           <AccessBadge access={video.access} priceMinor={video.price_minor} />
         </View>
         {video.paid_partnership ? (
-          <View style={[s.chip, { marginTop: 8, backgroundColor: colour.slate200 }]}>
-            <Text style={[s.chipText, { color: colour.navy }]}>{video.paid_partnership.label}</Text>
+          <View style={{ marginTop: 8 }}>
+            <PaidPartnership deal={video.paid_partnership} />
           </View>
         ) : null}
 
@@ -244,6 +255,8 @@ export default function Watch() {
             {liked ? say("watch.liked") : say("watch.like")} · {compact(video.likes + (liked === null ? 0 : Number(liked) - Number(video.liked)))}
           </Text>
         </Pressable>
+
+        {user && url && !locked && <DownloadButton video={video} />}
 
         {video.insight?.summary ? (
           <>

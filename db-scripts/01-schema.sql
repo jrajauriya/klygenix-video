@@ -3,6 +3,7 @@
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'klygenix_video_app') THEN
   CREATE ROLE klygenix_video_app LOGIN PASSWORD 'klygenix_video_app'; END IF; END $$;
 CREATE EXTENSION IF NOT EXISTS vector;
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
 --
 -- PostgreSQL database dump
 --
@@ -828,7 +829,8 @@ CREATE TABLE kv_admin.users (
     session_epoch integer NOT NULL,
     totp_secret text,
     totp_enabled_at timestamp with time zone,
-    totp_last_step bigint
+    totp_last_step bigint,
+    home_region character varying(4) DEFAULT 'in'::character varying NOT NULL
 );
 
 
@@ -1174,6 +1176,40 @@ ALTER SEQUENCE kv_ai.reco_models_id_seq OWNED BY kv_ai.reco_models.id;
 
 
 --
+-- Name: repurpose_packs; Type: TABLE; Schema: kv_ai; Owner: -
+--
+
+CREATE TABLE kv_ai.repurpose_packs (
+    id bigint NOT NULL,
+    tenant_id integer NOT NULL,
+    video_id bigint NOT NULL,
+    language character varying(8) NOT NULL,
+    content jsonb NOT NULL,
+    model character varying(60) NOT NULL,
+    created_at timestamp with time zone NOT NULL
+);
+
+
+--
+-- Name: repurpose_packs_id_seq; Type: SEQUENCE; Schema: kv_ai; Owner: -
+--
+
+CREATE SEQUENCE kv_ai.repurpose_packs_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: repurpose_packs_id_seq; Type: SEQUENCE OWNED BY; Schema: kv_ai; Owner: -
+--
+
+ALTER SEQUENCE kv_ai.repurpose_packs_id_seq OWNED BY kv_ai.repurpose_packs.id;
+
+
+--
 -- Name: segments; Type: TABLE; Schema: kv_ai; Owner: -
 --
 
@@ -1187,7 +1223,9 @@ CREATE TABLE kv_ai.segments (
     end_ms bigint NOT NULL,
     text text NOT NULL,
     embedding public.vector(1536),
-    search tsvector GENERATED ALWAYS AS (to_tsvector('simple'::regconfig, text)) STORED
+    search tsvector GENERATED ALWAYS AS (to_tsvector('simple'::regconfig, text)) STORED,
+    roman text DEFAULT ''::text NOT NULL,
+    search_roman tsvector GENERATED ALWAYS AS (to_tsvector('simple'::regconfig, roman)) STORED
 );
 
 
@@ -1356,6 +1394,7 @@ CREATE TABLE kv_commerce.ad_campaigns (
     reviewed_at timestamp with time zone,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
+    exclude_categories jsonb DEFAULT '[]'::jsonb NOT NULL,
     CONSTRAINT ck_ad_campaigns_cpm CHECK ((cpm_minor > 0)),
     CONSTRAINT ck_ad_campaigns_status CHECK (((status)::text = ANY ((ARRAY['draft'::character varying, 'review'::character varying, 'active'::character varying, 'paused'::character varying, 'rejected'::character varying, 'ended'::character varying])::text[])))
 );
@@ -1395,7 +1434,10 @@ CREATE TABLE kv_commerce.ad_daily (
     completes bigint DEFAULT '0'::bigint NOT NULL,
     skips bigint DEFAULT '0'::bigint NOT NULL,
     clicks bigint DEFAULT '0'::bigint NOT NULL,
-    spend_minor bigint DEFAULT '0'::bigint NOT NULL
+    spend_minor bigint DEFAULT '0'::bigint NOT NULL,
+    device character varying(8) DEFAULT 'desktop'::character varying NOT NULL,
+    starts bigint DEFAULT '0'::bigint NOT NULL,
+    invalid bigint DEFAULT '0'::bigint NOT NULL
 );
 
 
@@ -1434,6 +1476,9 @@ CREATE TABLE kv_commerce.ad_payouts (
     route_transfer_id bigint,
     note character varying(300),
     created_at timestamp with time zone NOT NULL,
+    kind character varying(10) DEFAULT 'ad_share'::character varying NOT NULL,
+    watch_ms bigint DEFAULT '0'::bigint NOT NULL,
+    CONSTRAINT ck_ad_payouts_kind CHECK (((kind)::text = ANY ((ARRAY['ad_share'::character varying, 'view_pool'::character varying])::text[]))),
     CONSTRAINT ck_ad_payouts_status CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'released'::character varying, 'failed'::character varying, 'skipped'::character varying])::text[])))
 );
 
@@ -1899,7 +1944,7 @@ CREATE TABLE kv_commerce.route_transfers (
     tenant_id integer NOT NULL,
     payout_account_id bigint,
     split_id bigint,
-    kind character varying(8) NOT NULL,
+    kind character varying(10) NOT NULL,
     amount_minor bigint DEFAULT '0'::bigint NOT NULL,
     reversed_minor bigint DEFAULT '0'::bigint NOT NULL,
     status character varying(10) NOT NULL,
@@ -1911,7 +1956,7 @@ CREATE TABLE kv_commerce.route_transfers (
     error text,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
-    CONSTRAINT ck_route_transfers_kind CHECK (((kind)::text = ANY ((ARRAY['sale'::character varying, 'reserve'::character varying, 'recovery'::character varying, 'ad_share'::character varying])::text[]))),
+    CONSTRAINT ck_route_transfers_kind CHECK (((kind)::text = ANY ((ARRAY['sale'::character varying, 'reserve'::character varying, 'recovery'::character varying, 'ad_share'::character varying, 'view_pool'::character varying])::text[]))),
     CONSTRAINT ck_route_transfers_status CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'held'::character varying, 'released'::character varying, 'reversed'::character varying, 'recovered'::character varying, 'failed'::character varying])::text[])))
 );
 
@@ -2504,6 +2549,11 @@ CREATE TABLE kv_media.videos (
     dubbing_allowed boolean DEFAULT false NOT NULL,
     ads_enabled boolean DEFAULT true NOT NULL,
     sponsor_deal_id bigint,
+    made_for_kids boolean DEFAULT false NOT NULL,
+    safety_labels jsonb,
+    roman text DEFAULT ''::text NOT NULL,
+    search_roman tsvector GENERATED ALWAYS AS (to_tsvector('simple'::regconfig, roman)) STORED,
+    thumbnail_ai boolean DEFAULT false NOT NULL,
     CONSTRAINT ck_videos_access CHECK (((access)::text = ANY ((ARRAY['free'::character varying, 'members'::character varying, 'paid'::character varying])::text[]))),
     CONSTRAINT ck_videos_kind CHECK (((kind)::text = ANY ((ARRAY['long'::character varying, 'reel'::character varying])::text[]))),
     CONSTRAINT ck_videos_paid_price CHECK ((((access)::text <> 'paid'::text) OR (price_inr_minor > 0))),
@@ -2908,6 +2958,45 @@ CREATE SEQUENCE kv_social.notes_id_seq
 --
 
 ALTER SEQUENCE kv_social.notes_id_seq OWNED BY kv_social.notes.id;
+
+
+--
+-- Name: notifications; Type: TABLE; Schema: kv_social; Owner: -
+--
+
+CREATE TABLE kv_social.notifications (
+    id bigint NOT NULL,
+    tenant_id integer NOT NULL,
+    user_id integer NOT NULL,
+    kind character varying(20) NOT NULL,
+    title character varying(160) NOT NULL,
+    body character varying(300) DEFAULT ''::character varying NOT NULL,
+    url character varying(300),
+    image character varying(500),
+    dedupe_key character varying(120),
+    read_at timestamp with time zone,
+    digest_sent_at timestamp with time zone,
+    created_at timestamp with time zone NOT NULL
+);
+
+
+--
+-- Name: notifications_id_seq; Type: SEQUENCE; Schema: kv_social; Owner: -
+--
+
+CREATE SEQUENCE kv_social.notifications_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: notifications_id_seq; Type: SEQUENCE OWNED BY; Schema: kv_social; Owner: -
+--
+
+ALTER SEQUENCE kv_social.notifications_id_seq OWNED BY kv_social.notifications.id;
 
 
 --
@@ -3354,8 +3443,9 @@ CREATE TABLE kv_studio.publish_targets (
     error text,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
+    scheduled_at timestamp with time zone,
     CONSTRAINT ck_publish_targets_platform CHECK (((platform)::text = ANY ((ARRAY['youtube'::character varying, 'instagram'::character varying])::text[]))),
-    CONSTRAINT ck_publish_targets_status CHECK (((status)::text = ANY ((ARRAY['queued'::character varying, 'publishing'::character varying, 'published'::character varying, 'failed'::character varying])::text[])))
+    CONSTRAINT ck_publish_targets_status CHECK (((status)::text = ANY ((ARRAY['scheduled'::character varying, 'queued'::character varying, 'publishing'::character varying, 'published'::character varying, 'failed'::character varying, 'cancelled'::character varying])::text[])))
 );
 
 
@@ -3978,6 +4068,13 @@ ALTER TABLE ONLY kv_ai.reco_models ALTER COLUMN id SET DEFAULT nextval('kv_ai.re
 
 
 --
+-- Name: repurpose_packs id; Type: DEFAULT; Schema: kv_ai; Owner: -
+--
+
+ALTER TABLE ONLY kv_ai.repurpose_packs ALTER COLUMN id SET DEFAULT nextval('kv_ai.repurpose_packs_id_seq'::regclass);
+
+
+--
 -- Name: segments id; Type: DEFAULT; Schema: kv_ai; Owner: -
 --
 
@@ -4269,6 +4366,13 @@ ALTER TABLE ONLY kv_social.live_messages ALTER COLUMN id SET DEFAULT nextval('kv
 --
 
 ALTER TABLE ONLY kv_social.notes ALTER COLUMN id SET DEFAULT nextval('kv_social.notes_id_seq'::regclass);
+
+
+--
+-- Name: notifications id; Type: DEFAULT; Schema: kv_social; Owner: -
+--
+
+ALTER TABLE ONLY kv_social.notifications ALTER COLUMN id SET DEFAULT nextval('kv_social.notifications_id_seq'::regclass);
 
 
 --
@@ -4697,6 +4801,14 @@ ALTER TABLE ONLY kv_ai.reco_models
 
 
 --
+-- Name: repurpose_packs repurpose_packs_pkey; Type: CONSTRAINT; Schema: kv_ai; Owner: -
+--
+
+ALTER TABLE ONLY kv_ai.repurpose_packs
+    ADD CONSTRAINT repurpose_packs_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: segments segments_pkey; Type: CONSTRAINT; Schema: kv_ai; Owner: -
 --
 
@@ -4925,7 +5037,7 @@ ALTER TABLE ONLY kv_commerce.ad_campaigns
 --
 
 ALTER TABLE ONLY kv_commerce.ad_daily
-    ADD CONSTRAINT uq_ad_daily UNIQUE (campaign_id, video_id, day);
+    ADD CONSTRAINT uq_ad_daily UNIQUE (campaign_id, video_id, day, device);
 
 
 --
@@ -4933,7 +5045,7 @@ ALTER TABLE ONLY kv_commerce.ad_daily
 --
 
 ALTER TABLE ONLY kv_commerce.ad_payouts
-    ADD CONSTRAINT uq_ad_payouts_period UNIQUE (tenant_id, period);
+    ADD CONSTRAINT uq_ad_payouts_period UNIQUE (tenant_id, period, kind);
 
 
 --
@@ -5281,6 +5393,14 @@ ALTER TABLE ONLY kv_social.notes
 
 
 --
+-- Name: notifications notifications_pkey; Type: CONSTRAINT; Schema: kv_social; Owner: -
+--
+
+ALTER TABLE ONLY kv_social.notifications
+    ADD CONSTRAINT notifications_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: playlist_items playlist_items_pkey; Type: CONSTRAINT; Schema: kv_social; Owner: -
 --
 
@@ -5382,6 +5502,14 @@ ALTER TABLE ONLY kv_social.follows
 
 ALTER TABLE ONLY kv_social.likes
     ADD CONSTRAINT uq_likes UNIQUE (user_id, video_id);
+
+
+--
+-- Name: notifications uq_notifications_dedupe; Type: CONSTRAINT; Schema: kv_social; Owner: -
+--
+
+ALTER TABLE ONLY kv_social.notifications
+    ADD CONSTRAINT uq_notifications_dedupe UNIQUE (dedupe_key);
 
 
 --
@@ -5784,6 +5912,13 @@ CREATE INDEX idx_reco_impressions_user ON kv_ai.reco_impressions USING btree (us
 
 
 --
+-- Name: idx_repurpose_video; Type: INDEX; Schema: kv_ai; Owner: -
+--
+
+CREATE INDEX idx_repurpose_video ON kv_ai.repurpose_packs USING btree (video_id, created_at);
+
+
+--
 -- Name: idx_segments_embedding; Type: INDEX; Schema: kv_ai; Owner: -
 --
 
@@ -5795,6 +5930,13 @@ CREATE INDEX idx_segments_embedding ON kv_ai.segments USING hnsw (embedding publ
 --
 
 CREATE INDEX idx_segments_search ON kv_ai.segments USING gin (search);
+
+
+--
+-- Name: idx_segments_search_roman; Type: INDEX; Schema: kv_ai; Owner: -
+--
+
+CREATE INDEX idx_segments_search_roman ON kv_ai.segments USING gin (search_roman);
 
 
 --
@@ -5837,6 +5979,13 @@ CREATE INDEX ix_kv_ai_insights_tenant_id ON kv_ai.insights USING btree (tenant_i
 --
 
 CREATE INDEX ix_kv_ai_llm_calls_tenant_id ON kv_ai.llm_calls USING btree (tenant_id);
+
+
+--
+-- Name: ix_kv_ai_repurpose_packs_tenant_id; Type: INDEX; Schema: kv_ai; Owner: -
+--
+
+CREATE INDEX ix_kv_ai_repurpose_packs_tenant_id ON kv_ai.repurpose_packs USING btree (tenant_id);
 
 
 --
@@ -6060,7 +6209,7 @@ CREATE INDEX ix_route_transfers_release ON kv_commerce.route_transfers USING btr
 -- Name: uq_route_transfers_split_kind; Type: INDEX; Schema: kv_commerce; Owner: -
 --
 
-CREATE UNIQUE INDEX uq_route_transfers_split_kind ON kv_commerce.route_transfers USING btree (split_id, kind) WHERE ((kind)::text = ANY ((ARRAY['sale'::character varying, 'reserve'::character varying])::text[]));
+CREATE UNIQUE INDEX uq_route_transfers_split_kind ON kv_commerce.route_transfers USING btree (split_id, kind) WHERE ((kind)::text = ANY (ARRAY[('sale'::character varying)::text, ('reserve'::character varying)::text]));
 
 
 --
@@ -6148,10 +6297,24 @@ CREATE INDEX idx_videos_feed ON kv_media.videos USING btree (status, visibility,
 
 
 --
+-- Name: idx_videos_roman_trgm; Type: INDEX; Schema: kv_media; Owner: -
+--
+
+CREATE INDEX idx_videos_roman_trgm ON kv_media.videos USING gin (roman public.gin_trgm_ops);
+
+
+--
 -- Name: idx_videos_search; Type: INDEX; Schema: kv_media; Owner: -
 --
 
 CREATE INDEX idx_videos_search ON kv_media.videos USING gin (search);
+
+
+--
+-- Name: idx_videos_search_roman; Type: INDEX; Schema: kv_media; Owner: -
+--
+
+CREATE INDEX idx_videos_search_roman ON kv_media.videos USING gin (search_roman);
 
 
 --
@@ -6222,6 +6385,20 @@ CREATE INDEX idx_live_messages_stream ON kv_social.live_messages USING btree (st
 --
 
 CREATE INDEX idx_notes_user_video ON kv_social.notes USING btree (user_id, video_id, t_ms);
+
+
+--
+-- Name: idx_notifications_digest; Type: INDEX; Schema: kv_social; Owner: -
+--
+
+CREATE INDEX idx_notifications_digest ON kv_social.notifications USING btree (digest_sent_at, read_at);
+
+
+--
+-- Name: idx_notifications_user; Type: INDEX; Schema: kv_social; Owner: -
+--
+
+CREATE INDEX idx_notifications_user ON kv_social.notifications USING btree (user_id, created_at);
 
 
 --
@@ -6348,6 +6525,13 @@ CREATE INDEX ix_kv_social_live_messages_tenant_id ON kv_social.live_messages USI
 --
 
 CREATE INDEX ix_kv_social_notes_tenant_id ON kv_social.notes USING btree (tenant_id);
+
+
+--
+-- Name: ix_kv_social_notifications_tenant_id; Type: INDEX; Schema: kv_social; Owner: -
+--
+
+CREATE INDEX ix_kv_social_notifications_tenant_id ON kv_social.notifications USING btree (tenant_id);
 
 
 --
@@ -6743,6 +6927,22 @@ ALTER TABLE ONLY kv_ai.insights
 
 ALTER TABLE ONLY kv_ai.insights
     ADD CONSTRAINT insights_video_id_fkey FOREIGN KEY (video_id) REFERENCES kv_media.videos(id) ON DELETE CASCADE;
+
+
+--
+-- Name: repurpose_packs repurpose_packs_tenant_id_fkey; Type: FK CONSTRAINT; Schema: kv_ai; Owner: -
+--
+
+ALTER TABLE ONLY kv_ai.repurpose_packs
+    ADD CONSTRAINT repurpose_packs_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES kv_admin.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: repurpose_packs repurpose_packs_video_id_fkey; Type: FK CONSTRAINT; Schema: kv_ai; Owner: -
+--
+
+ALTER TABLE ONLY kv_ai.repurpose_packs
+    ADD CONSTRAINT repurpose_packs_video_id_fkey FOREIGN KEY (video_id) REFERENCES kv_media.videos(id) ON DELETE CASCADE;
 
 
 --
@@ -7282,6 +7482,14 @@ ALTER TABLE ONLY kv_social.notes
 
 
 --
+-- Name: notifications notifications_tenant_id_fkey; Type: FK CONSTRAINT; Schema: kv_social; Owner: -
+--
+
+ALTER TABLE ONLY kv_social.notifications
+    ADD CONSTRAINT notifications_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES kv_admin.tenants(id) ON DELETE CASCADE;
+
+
+--
 -- Name: playlist_items playlist_items_playlist_id_fkey; Type: FK CONSTRAINT; Schema: kv_social; Owner: -
 --
 
@@ -7632,6 +7840,12 @@ CREATE POLICY public_read ON kv_ai.transcripts FOR SELECT USING ((is_current AND
 
 
 --
+-- Name: repurpose_packs; Type: ROW SECURITY; Schema: kv_ai; Owner: -
+--
+
+ALTER TABLE kv_ai.repurpose_packs ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: segments; Type: ROW SECURITY; Schema: kv_ai; Owner: -
 --
 
@@ -7669,6 +7883,13 @@ CREATE POLICY tenant_isolation ON kv_ai.clip_suggestions USING (((tenant_id = kv
 --
 
 CREATE POLICY tenant_isolation ON kv_ai.insights USING (((tenant_id = kv_admin.current_tenant()) OR kv_admin.is_platform())) WITH CHECK (((tenant_id = kv_admin.current_tenant()) OR kv_admin.is_platform()));
+
+
+--
+-- Name: repurpose_packs tenant_isolation; Type: POLICY; Schema: kv_ai; Owner: -
+--
+
+CREATE POLICY tenant_isolation ON kv_ai.repurpose_packs USING (((tenant_id = kv_admin.current_tenant()) OR kv_admin.is_platform())) WITH CHECK (((tenant_id = kv_admin.current_tenant()) OR kv_admin.is_platform()));
 
 
 --
@@ -8132,6 +8353,12 @@ ALTER TABLE kv_social.live_messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE kv_social.notes ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: notifications; Type: ROW SECURITY; Schema: kv_social; Owner: -
+--
+
+ALTER TABLE kv_social.notifications ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: playlist_items; Type: ROW SECURITY; Schema: kv_social; Owner: -
 --
 
@@ -8303,6 +8530,13 @@ CREATE POLICY tenant_isolation ON kv_social.live_messages USING (((tenant_id = k
 --
 
 CREATE POLICY tenant_isolation ON kv_social.notes USING (((tenant_id = kv_admin.current_tenant()) OR kv_admin.is_platform())) WITH CHECK (((tenant_id = kv_admin.current_tenant()) OR kv_admin.is_platform()));
+
+
+--
+-- Name: notifications tenant_isolation; Type: POLICY; Schema: kv_social; Owner: -
+--
+
+CREATE POLICY tenant_isolation ON kv_social.notifications USING (((tenant_id = kv_admin.current_tenant()) OR kv_admin.is_platform())) WITH CHECK (((tenant_id = kv_admin.current_tenant()) OR kv_admin.is_platform()));
 
 
 --
@@ -8952,6 +9186,20 @@ GRANT SELECT,USAGE ON SEQUENCE kv_ai.reco_models_id_seq TO klygenix_video_app;
 
 
 --
+-- Name: TABLE repurpose_packs; Type: ACL; Schema: kv_ai; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE kv_ai.repurpose_packs TO klygenix_video_app;
+
+
+--
+-- Name: SEQUENCE repurpose_packs_id_seq; Type: ACL; Schema: kv_ai; Owner: -
+--
+
+GRANT SELECT,USAGE ON SEQUENCE kv_ai.repurpose_packs_id_seq TO klygenix_video_app;
+
+
+--
 -- Name: TABLE segments; Type: ACL; Schema: kv_ai; Owner: -
 --
 
@@ -9544,6 +9792,20 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE kv_social.notes TO klygenix_video_app
 --
 
 GRANT SELECT,USAGE ON SEQUENCE kv_social.notes_id_seq TO klygenix_video_app;
+
+
+--
+-- Name: TABLE notifications; Type: ACL; Schema: kv_social; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE kv_social.notifications TO klygenix_video_app;
+
+
+--
+-- Name: SEQUENCE notifications_id_seq; Type: ACL; Schema: kv_social; Owner: -
+--
+
+GRANT SELECT,USAGE ON SEQUENCE kv_social.notifications_id_seq TO klygenix_video_app;
 
 
 --

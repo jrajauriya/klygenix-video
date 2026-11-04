@@ -57,6 +57,9 @@ def notify(db: Session, user_id: int, kind: str, title: str, body: str, data: di
         return None
     if dedupe_key and db.execute(select(PushMessage.id).where(PushMessage.dedupe_key == dedupe_key)).first():
         return None
+    from app.video.services import inbox
+
+    inbox.add(db, user_id, kind, title, body, (data or {}).get("url"), dedupe_key=f"in:{dedupe_key}" if dedupe_key else None)
     tokens = [t.token for t in db.execute(select(DeviceToken).where(DeviceToken.user_id == user_id)).scalars()]
     msg = PushMessage(tenant_id=user.tenant_id, user_id=user_id, kind=kind, title=title[:120], body=body[:300],
                       data=data or {}, dedupe_key=dedupe_key, provider=provider(), status="sent", tokens=len(tokens))

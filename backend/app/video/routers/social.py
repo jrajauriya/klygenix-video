@@ -159,6 +159,14 @@ def post_comment(public_id: str, data: CommentIn, request: Request, ctx: Ctx = D
     c = Comment(tenant_id=ctx.tenant_id, video_id=v.id, user_id=ctx.user.id, author_name=_display_name(ctx),
                 parent_id=data.parent_id, body=text, status="hidden" if has_link(text) else "visible")
     ctx.db.add(c)
+    if data.parent_id and c.status == "visible" and parent.user_id != ctx.user.id:
+        from app.video.services import inbox
+        from app.video.sessions import platform_session
+
+        with platform_session() as pdb:
+            inbox.add(pdb, parent.user_id, "reply", f"{_display_name(ctx)} replied to your comment", text[:200],
+                      f"/watch/{v.public_id}")
+            pdb.commit()
     ctx.db.commit()
     if c.status == "visible":
         counters.incr("video", v.id, "comment_count", 1)

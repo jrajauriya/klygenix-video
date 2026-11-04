@@ -27,7 +27,8 @@ merchant of record abroad); trust & safety with scans, reports, strikes, appeals
 ## Status
 V0 + V1 (run 1), V2 Earn + V3 Community & learning (run 2), V4 Live + mobile store-ready + launch hardening (run 3)
 and run 4 (provider go-live readiness, trust & safety gaps, closed beta, and V5.1 ads / V5.2 sponsorships / V5.3 TV web
-app / V5.5 trained recommender started early by the owner) built and running **locally on sandbox
+app / V5.5 trained recommender started early by the owner) and run 5 (ad integrity & brand safety, Hindi & India-first,
+viewer growth, creator AI v2, V5.4 regions and V5.6 view pool) built and running **locally on sandbox
 providers**, not deployed (Nov 2026). Creator money runs on the sandbox rail only: live money waits for
 CA sign-off, creator KYC and Play's Razorpay Route keys. Every provider has a sandbox adapter and a real
 one behind the same interface, switched by `.env`. See `docs/BUILD-PLAN.md` for what is proven,
@@ -69,7 +70,8 @@ backend/app/
     ├── live/                 service (streams, keys, signed playback) · worker (Supervisor: gates, ffmpeg listeners, go-live,
     │                         idle end, replay) · gate (RTMP publish-key check) · cloudflare (inputs, RS256 playback tokens,
     │                         webhook checks) · cf_events (record → process; idle end and replay import sweep)
-    ├── ads/                  service (eligibility, decisions, Redis events, flush, accrual, creator share, refunds)
+    ├── ads/                  service (eligibility, decisions, Redis events, viewability, flush, accrual, creator share, view pool,
+    │                         refunds) · integrity (bot UAs, data-centre ranges, bursts, brand-safety categories)
     │                         · sponsorships (escrowed deals, delivery label, approve/auto-approve, disputes)
     ├── reco/                 model (numpy logistic ranker, AUC/NDCG, synthetic viewers) · service (features, impression log,
     │                         labels, train/promote, A/B arm)
@@ -89,6 +91,8 @@ backend/app/
     │                         · products · learning (study sets, notes, quiz, Ask across a channel/series)
     │                         · community (posts, polls, moderators, translation, comment summary) · dubbing
     │                         · beta (waitlist, invites, feedback, onboarding, outbox) · ads · sponsorships
+    │                         · growth (downloads, inbox, digest, subscriptions) · studio_ai (AI thumbnails, chapters,
+    │                           repurpose pack, calendar)
     ├── jobs/                 RQ queues ai / render / default · scheduler · sweeps
     └── sessions.py           tenant_session() / platform_session()
 packages/  ui auth client types config fonts observe (from Store) · player (hls.js, DanmakuLayer, ChapterBar, YouTube/Bilibili embeds, DanmakuRail)
@@ -261,3 +265,19 @@ bash infra/local-stack.sh up && bash infra/local-stack.sh smoke   # production s
 (and `make -C infra live` with `LIVE_WORKER_INLINE=false`).
 `VPS_HOST=… bash infra/deploy.sh --rollback` restores the previous image and frontends (one step back).
 `make -C infra providers-check ENV_FILE=../backend/.env.prod` before switching a provider on (`docs/GO-LIVE.md`).
+- **Ads bill on `q0`, not `start`**: an impression is billable only when the player reports 2 s of play (`q0`) at least
+  ~2 s after `start`, from the same viewer key, outside data-centre ranges and bursts. Test and smoke clients send a browser
+  User-Agent — httpx's default UA is a bot and gets no ad.
+- **Romanised search**: `kv_media.videos.roman` / `kv_ai.segments.roman` hold a Devanagari→Latin, phonetically normalised
+  form (`video/services/translit.py`, schwa deletion, vowel folding) kept current by ORM listeners installed when
+  `app.video.models` is imported; `search_roman` tsvectors and a `pg_trgm` fallback make Hinglish, Devanagari and typos
+  meet. Raw SQL inserts bypass the listeners — set `roman` yourself.
+- `kv_commerce.route_transfers.kind` is `String(10)`; a longer kind is reported as a 422 ("out of range") by the DataError
+  mapping, not a 500.
+- Regions: `REGION` (in|us), accounts carry `home_region` from their country; with `REGION_ENFORCE` the other host refuses
+  sign-up and sign-in with a link (`/api/auth/region` for discovery). A second local stack: `KV_STACK=staging-us bash
+  infra/local-stack.sh up --skip-web` (container names and env file follow `KV_STACK`).
+- In-app notifications are written for every push (`services/push.notify` → `services/inbox.add`) plus new videos from
+  followed channels, comment replies and deal events; the digest sweep runs at 08:00 IST (weekly on Mondays by default).
+- Downloads are licences, not DRM: `POST /videos/{id}/download` returns a 6-hour MP4 link and a 30-day signed licence the
+  app re-checks (`/me/downloads/check`) — Premium lapsing or the video being removed withdraws it.

@@ -7,6 +7,7 @@ import { Button, Modal } from "@klygenixvideo/ui"
 import { formatMoney } from "@klygenixvideo/client"
 import { detail } from "../../lib/format"
 import type { Checkout, Me, Plan } from "../../lib/types"
+import { tr, useT } from "../../i18n"
 
 declare global {
   interface Window {
@@ -20,12 +21,13 @@ export function loadRazorpay(): Promise<void> {
     const s = document.createElement("script")
     s.src = "https://checkout.razorpay.com/v1/checkout.js"
     s.onload = () => resolve()
-    s.onerror = () => reject(new Error("Razorpay could not be loaded. Check your connection."))
+    s.onerror = () => reject(new Error(tr("Razorpay could not be loaded. Check your connection.")))
     document.body.appendChild(s)
   })
 }
 
 export function CheckoutModal({ checkout, plan, onClose }: { checkout: Checkout; plan: Plan; onClose: () => void }) {
+  const t = useT()
   const qc = useQueryClient()
   const [busy, setBusy] = useState(false)
   const [waiting, setWaiting] = useState(false)
@@ -45,7 +47,7 @@ export function CheckoutModal({ checkout, plan, onClose }: { checkout: Checkout;
         if (data.plans.creator.key === plan.key) {
           clearInterval(timer)
           qc.invalidateQueries({ queryKey: ["video-invoices"] })
-          toast.success(`You are on ${plan.name}`)
+          toast.success(tr("You are on {name}", { name: plan.name }))
           close.current()
           return
         }
@@ -56,7 +58,7 @@ export function CheckoutModal({ checkout, plan, onClose }: { checkout: Checkout;
         clearInterval(timer)
         setWaiting(false)
         setBusy(false)
-        toast.error("The payment has not been confirmed yet. Refresh this page in a minute.")
+        toast.error(tr("The payment has not been confirmed yet. Refresh this page in a minute."))
       }
     }, 2000)
     return () => clearInterval(timer)
@@ -67,13 +69,13 @@ export function CheckoutModal({ checkout, plan, onClose }: { checkout: Checkout;
     try {
       await api.post(`/api/video/sandbox/pay/${checkout.id}?outcome=${outcome}`)
       if (outcome === "failed") {
-        toast.error("The test payment failed. Nothing was charged.")
+        toast.error(t("The test payment failed. Nothing was charged."))
         setBusy(false)
         return
       }
       setWaiting(true)
     } catch (err) {
-      toast.error(detail(err, "The payment did not go through"))
+      toast.error(detail(err, t("The payment did not go through")))
       setBusy(false)
     }
   }
@@ -94,7 +96,7 @@ export function CheckoutModal({ checkout, plan, onClose }: { checkout: Checkout;
       amount: c.amount ?? checkout.amount_minor,
       currency: c.currency ?? checkout.currency,
       name: "Klygenix Play",
-      description: `${plan.name}, one month`,
+      description: t("{name}, one month", { name: plan.name }),
       prefill: c.prefill,
       theme: { color: "#A21CAF" },
       handler: () => setWaiting(true),
@@ -108,7 +110,7 @@ export function CheckoutModal({ checkout, plan, onClose }: { checkout: Checkout;
     if (checkout.rail === "razorpay") return razorpay()
     const url = checkout.client?.url
     if (typeof url === "string") window.location.assign(url)
-    else toast.error("This payment method is not available right now")
+    else toast.error(t("This payment method is not available right now"))
   }
 
   return (
@@ -117,22 +119,22 @@ export function CheckoutModal({ checkout, plan, onClose }: { checkout: Checkout;
       size="sm"
       onClose={busy ? () => undefined : onClose}
       dismissible={!busy}
-      title={`Move to ${plan.name}`}
+      title={t("Move to {name}", { name: plan.name })}
       footer={
         <div className="flex flex-wrap justify-end gap-2">
-          <Button variant="outline" onClick={onClose} disabled={busy}>Cancel</Button>
+          <Button variant="outline" onClick={onClose} disabled={busy}>{t("Cancel")}</Button>
           {sandbox && (
-            <Button variant="outline" className="text-red-600" onClick={() => sandboxPay("failed")} disabled={busy}>Fail</Button>
+            <Button variant="outline" className="text-red-600" onClick={() => sandboxPay("failed")} disabled={busy}>{t("Fail")}</Button>
           )}
           <Button onClick={pay} disabled={busy}>
-            <Lock size={14} /> {waiting ? "Confirming…" : busy ? "Paying…" : `Pay ${money(checkout.amount_minor)}`}
+            <Lock size={14} /> {waiting ? t("Confirming…") : busy ? t("Paying…") : t("Pay {amount}", { amount: money(checkout.amount_minor) })}
           </Button>
         </div>
       }
     >
       <dl className="space-y-1.5 text-sm">
         <div className="flex justify-between gap-3">
-          <dt className="text-slate-600">{plan.name}, one month</dt>
+          <dt className="text-slate-600">{t("{name}, one month", { name: plan.name })}</dt>
           <dd className="font-num">{money(checkout.taxable_minor)}</dd>
         </div>
         <div className="flex justify-between gap-3">
@@ -140,16 +142,16 @@ export function CheckoutModal({ checkout, plan, onClose }: { checkout: Checkout;
           <dd className="font-num">{money(checkout.tax_minor)}</dd>
         </div>
         <div className="flex justify-between gap-3 border-t border-slate-200 pt-1.5 font-semibold text-navy">
-          <dt>Total</dt>
+          <dt>{t("Total")}</dt>
           <dd className="font-num">{money(checkout.amount_minor)}</dd>
         </div>
       </dl>
       <p className="mt-4 text-xs leading-relaxed text-slate-500">
-        The plan starts as soon as the payment is confirmed and renews monthly until you cancel. A GST invoice is emailed and listed below.
+        {t("The plan starts as soon as the payment is confirmed and renews monthly until you cancel. A GST invoice is emailed and listed below.")}
       </p>
       {sandbox && (
         <p className="mt-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-          Test mode: no money moves. Pay confirms the plan, Fail shows what a declined payment looks like.
+          {t("Test mode: no money moves. Pay confirms the plan, Fail shows what a declined payment looks like.")}
         </p>
       )}
     </Modal>

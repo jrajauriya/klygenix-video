@@ -8,6 +8,7 @@ import { clock, compact, when } from "../lib/format"
 import type { StudioVideo } from "../lib/types"
 import { KindBadge, STATUS_OPTIONS, VideoStatusPill, VisibilityBadge } from "../components/StatusChips"
 import { UploadDrawer } from "../components/upload/UploadDrawer"
+import { useT } from "../i18n"
 
 const KIND_OPTIONS = [
   { value: "all", label: "Long and reels" },
@@ -16,6 +17,7 @@ const KIND_OPTIONS = [
 ]
 
 export default function Videos() {
+  const t = useT()
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
   const [status, setStatus] = useState("all")
@@ -25,8 +27,8 @@ export default function Videos() {
   const uploading = params.get("upload") === "1"
 
   useEffect(() => {
-    const t = setTimeout(() => setQ(search.trim()), 300)
-    return () => clearTimeout(t)
+    const timer = setTimeout(() => setQ(search.trim()), 300)
+    return () => clearTimeout(timer)
   }, [search])
 
   const list = usePagedList<StudioVideo>("studio-videos", `${STUDIO}/videos`, { status, kind, q }, 25)
@@ -34,7 +36,7 @@ export default function Videos() {
   const columns: DataTableColumn<StudioVideo>[] = [
     {
       key: "title",
-      header: "Video",
+      header: t("Video"),
       render: (v) => (
         <div className="flex min-w-0 items-center gap-3">
           <div className="relative h-12 w-20 shrink-0 overflow-hidden rounded bg-slate-200">
@@ -46,28 +48,28 @@ export default function Videos() {
           <div className="min-w-0">
             <p className="max-w-[22rem] truncate font-medium text-slate-800">{v.title}</p>
             <p className="max-w-[22rem] truncate text-xs text-slate-500">
-              {v.source === "embed" ? `Linked from ${v.embed_platform === "bilibili" ? "Bilibili" : "YouTube"}` : v.description || "No description"}
+              {v.source === "embed" ? t("Linked from {platform}", { platform: v.embed_platform === "bilibili" ? "Bilibili" : "YouTube" }) : v.description || t("No description")}
             </p>
           </div>
         </div>
       ),
     },
-    { key: "kind", header: "Kind", render: (v) => <KindBadge kind={v.kind} /> },
-    { key: "status", header: "Status", render: (v) => <VideoStatusPill video={v} /> },
-    { key: "visibility", header: "Visibility", render: (v) => <VisibilityBadge value={v.visibility} /> },
-    { key: "views", header: "Views", align: "right", sortKey: "views", render: (v) => <span className="font-num">{compact(v.views)}</span> },
-    { key: "created", header: "Uploaded", sortKey: "created_at", render: (v) => <span className="whitespace-nowrap text-slate-600">{when(v.created_at)}</span> },
+    { key: "kind", header: t("Kind"), render: (v) => <KindBadge kind={v.kind} /> },
+    { key: "status", header: t("Status"), render: (v) => <VideoStatusPill video={v} /> },
+    { key: "visibility", header: t("Visibility"), render: (v) => <VisibilityBadge value={v.visibility} /> },
+    { key: "views", header: t("Views"), align: "right", sortKey: "views", render: (v) => <span className="font-num">{compact(v.views)}</span> },
+    { key: "created", header: t("Uploaded"), sortKey: "created_at", render: (v) => <span className="whitespace-nowrap text-slate-600">{when(v.created_at)}</span> },
   ]
 
   return (
     <ListPage>
       <PageHeader
-        title="Videos"
-        subtitle="Everything on your channel: uploads, reels made from clips, and videos linked from YouTube or Bilibili."
-        actions={<Button onClick={() => setParams({ upload: "1" })}><Upload size={15} /> Upload</Button>}
+        title={t("Videos")}
+        subtitle={t("Everything on your channel: uploads, reels made from clips, and videos linked from YouTube or Bilibili.")}
+        actions={<Button onClick={() => setParams({ upload: "1" })}><Upload size={15} /> {t("Upload")}</Button>}
       />
       <DataTable
-        label="Videos"
+        label={t("Videos")}
         rows={list.rows}
         columns={columns}
         rowKey={(v) => v.id}
@@ -76,17 +78,17 @@ export default function Videos() {
         onServerPage={list.onServerPage}
         pageSize={25}
         pageSizeOptions={[25, 50, 100]}
-        unitLabel="videos"
+        unitLabel={t("videos")}
         searchValue={search}
         onSearchChange={setSearch}
-        searchPlaceholder="Search titles and descriptions…"
+        searchPlaceholder={t("Search titles and descriptions…")}
         onRowClick={(v) => navigate(`/videos/${v.id}`)}
-        emptyTitle="No videos match"
-        emptyDescription={status === "all" && kind === "all" && !q ? "Upload your first video to get started." : "Try a different filter."}
+        emptyTitle={t("No videos match")}
+        emptyDescription={status === "all" && kind === "all" && !q ? t("Upload your first video to get started.") : t("Try a different filter.")}
         toolbarRight={
           <div className="flex flex-wrap gap-2">
-            <Select value={status} onChange={setStatus} options={STATUS_OPTIONS} className="w-40" />
-            <Select value={kind} onChange={setKind} options={KIND_OPTIONS} className="w-40" />
+            <Select value={status} onChange={setStatus} options={STATUS_OPTIONS.map((o) => ({ ...o, label: t(o.label) }))} className="w-40" />
+            <Select value={kind} onChange={setKind} options={KIND_OPTIONS.map((o) => ({ ...o, label: t(o.label) }))} className="w-40" />
           </div>
         }
       />

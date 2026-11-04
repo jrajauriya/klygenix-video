@@ -151,7 +151,8 @@ def send_feedback(data: FeedbackIn, request: Request, viewer: Viewer = Depends(o
             row.screenshot_key = key
         reference = f"FB-{row.id:06d}"
         if row.email:
-            mailer.send(db, "feedback_received", row.email, {"reference": reference})
+            lang = (user.settings or {}).get("language", "en") if user else "en"
+            mailer.send(db, "feedback_received", row.email, {"reference": reference}, "hi" if lang == "hi" else "en")
         db.commit()
         return {"id": row.id, "reference": reference}
     finally:

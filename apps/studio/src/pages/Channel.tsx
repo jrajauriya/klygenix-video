@@ -12,6 +12,7 @@ import { LANGUAGES, channelUrl, detail, when } from "../lib/format"
 import type { Channel, Connected, StudioVideo } from "../lib/types"
 import { ChannelAvatar } from "../components/ChannelAvatar"
 import { Playlists } from "../components/channel/Playlists"
+import { useT } from "../i18n"
 
 const TABS = [
   { key: "profile", label: "Profile" },
@@ -19,6 +20,7 @@ const TABS = [
 ]
 
 export default function ChannelPage() {
+  const t = useT()
   const { data: channel, isLoading } = useChannel()
   const [params, setParams] = useSearchParams()
   const tab = params.get("tab") === "playlists" ? "playlists" : "profile"
@@ -30,19 +32,19 @@ export default function ChannelPage() {
     handled.current = true
     const ig = connectingPlatform() === "instagram"
     const name = ig ? "Instagram" : "YouTube"
-    if (flag === "1") toast.success(ig ? "Instagram is connected. You can publish clips to Instagram Reels." : "YouTube is connected. Your videos are being linked now.")
-    else if (flag === "taken") toast.error(`That ${name} account is already connected to another Klygenix Play account.`)
-    else toast.error(`${name} was not connected.`)
+    if (flag === "1") toast.success(ig ? t("Instagram is connected. You can publish clips to Instagram Reels.") : t("YouTube is connected. Your videos are being linked now."))
+    else if (flag === "taken") toast.error(t("That {platform} account is already connected to another Klygenix Play account.", { platform: name }))
+    else toast.error(t("{platform} was not connected.", { platform: name }))
     setParams({}, { replace: true })
-  }, [params, setParams])
+  }, [params, setParams, t])
 
   if (isLoading || !channel) return <Spinner />
 
   return (
     <div className="pb-8">
       <PageHeader
-        title="Channel"
-        subtitle="Your public profile, your playlists, and the other platforms your videos live on."
+        title={t("Channel")}
+        subtitle={t("Your public profile, your playlists, and the other platforms your videos live on.")}
         actions={
           <a href={channelUrl(channel.handle)} target="_blank" rel="noopener noreferrer"
             className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:border-brand hover:text-brand">
@@ -50,7 +52,7 @@ export default function ChannelPage() {
           </a>
         }
       />
-      <Tabs tabs={TABS} active={tab} onChange={(k) => setParams(k === "playlists" ? { tab: k } : {}, { replace: true })} />
+      <Tabs tabs={TABS.map((x) => ({ ...x, label: t(x.label) }))} active={tab} onChange={(k) => setParams(k === "playlists" ? { tab: k } : {}, { replace: true })} />
       {tab === "playlists" ? (
         <Playlists />
       ) : (
@@ -103,6 +105,7 @@ function Section({ title, hint, children, action }: { title: string; hint?: Reac
 }
 
 function Profile({ channel }: { channel: Channel }) {
+  const t = useT()
   const qc = useQueryClient()
   const [name, setName] = useState(channel.name)
   const [about, setAbout] = useState(channel.about)
@@ -122,9 +125,9 @@ function Profile({ channel }: { channel: Channel }) {
     try {
       const { data } = await api.patch<Channel>(`${STUDIO}/channel`, { name: name.trim(), about, language })
       update(data)
-      toast.success("Channel saved")
+      toast.success(t("Channel saved"))
     } catch (err) {
-      toast.error(detail(err, "Could not save the channel"))
+      toast.error(detail(err, t("Could not save the channel")))
     } finally {
       setSaving(false)
     }
@@ -137,9 +140,9 @@ function Profile({ channel }: { channel: Channel }) {
     try {
       const { data } = await api.post<Channel>(`${STUDIO}/channel/${kind}`, body, MULTIPART)
       update(data)
-      toast.success(kind === "avatar" ? "Picture updated" : "Banner updated")
+      toast.success(kind === "avatar" ? t("Picture updated") : t("Banner updated"))
     } catch (err) {
-      toast.error(detail(err, "That image could not be used"))
+      toast.error(detail(err, t("That image could not be used")))
     } finally {
       setUploading(null)
     }
@@ -155,42 +158,42 @@ function Profile({ channel }: { channel: Channel }) {
   )
 
   return (
-    <Section title="Profile" hint="What viewers see on your channel page.">
+    <Section title={t("Profile")} hint={t("What viewers see on your channel page.")}>
       <div className="relative mb-12">
         <div className="h-32 overflow-hidden rounded-lg bg-gradient-to-r from-brand to-fuchsia-400">
-          {channel.banner && <img src={channel.banner} alt="Channel banner" className="h-full w-full object-cover" />}
+          {channel.banner && <img src={channel.banner} alt={t("Channel banner")} className="h-full w-full object-cover" />}
         </div>
         <Button size="sm" variant="outline" className="absolute right-2 top-2 bg-white/90" disabled={uploading !== null}
           onClick={() => bannerRef.current?.click()}>
-          <ImageUp size={14} /> {uploading === "banner" ? "Uploading…" : "Change banner"}
+          <ImageUp size={14} /> {uploading === "banner" ? t("Uploading…") : t("Change banner")}
         </Button>
         <button type="button" onClick={() => avatarRef.current?.click()} disabled={uploading !== null}
-          className="absolute -bottom-9 left-4 rounded-full border-4 border-white bg-white" aria-label="Change picture" title="Change picture">
+          className="absolute -bottom-9 left-4 rounded-full border-4 border-white bg-white" aria-label={t("Change picture")} title={t("Change picture")}>
           <ChannelAvatar channel={channel} size={72} />
         </button>
-        <span className="absolute -bottom-7 left-24 text-xs text-slate-500">{uploading === "avatar" ? "Uploading…" : "Click the picture to change it"}</span>
+        <span className="absolute -bottom-7 left-24 text-xs text-slate-500">{uploading === "avatar" ? t("Uploading…") : t("Click the picture to change it")}</span>
         {picker("avatar", avatarRef)}
         {picker("banner", bannerRef)}
       </div>
       <div className="space-y-4">
-        <Field label="Channel name" required>
+        <Field label={t("Channel name")} required>
           <Input value={name} maxLength={80} onChange={(e) => setName(e.target.value)} />
         </Field>
-        <Field label="Handle" hint="Handles cannot be changed yet.">
+        <Field label={t("Handle")} hint={t("Handles cannot be changed yet.")}>
           <Input value={`@${channel.handle}`} disabled />
         </Field>
-        <Field label="About">
+        <Field label={t("About")}>
           <Textarea rows={4} value={about} maxLength={2000} onChange={(e) => setAbout(e.target.value)} />
         </Field>
-        <Field label="Main language">
-          <Select value={language} onChange={setLanguage} options={LANGUAGES} />
+        <Field label={t("Main language")}>
+          <Select value={language} onChange={setLanguage} options={LANGUAGES.map((l) => ({ ...l, label: t(l.label) }))} />
         </Field>
         <div className="flex items-center justify-between gap-2">
           <p className="text-xs text-slate-500">
-            {channel.followers} followers · {channel.video_count} videos · opened {when(channel.created_at)}
-            {channel.strike_count > 0 && <span className="ml-1 font-semibold text-red-600">· {channel.strike_count} active strike{channel.strike_count === 1 ? "" : "s"}</span>}
+            {t("{followers} followers · {videos} videos · opened {when}", { followers: channel.followers, videos: channel.video_count, when: when(channel.created_at) })}
+            {channel.strike_count > 0 && <span className="ml-1 font-semibold text-red-600">{channel.strike_count === 1 ? t("· 1 active strike") : t("· {n} active strikes", { n: channel.strike_count })}</span>}
           </p>
-          <Button onClick={save} disabled={saving || !name.trim()}><Save size={14} /> {saving ? "Saving…" : "Save"}</Button>
+          <Button onClick={save} disabled={saving || !name.trim()}><Save size={14} /> {saving ? t("Saving…") : t("Save")}</Button>
         </div>
       </div>
     </Section>
@@ -198,19 +201,20 @@ function Profile({ channel }: { channel: Channel }) {
 }
 
 function Rule() {
+  const t = useT()
   return (
     <div className="flex gap-3 rounded-lg border border-brand-100 bg-brand-50 p-4 text-sm text-slate-700">
       <ShieldCheck size={20} className="mt-0.5 shrink-0 text-brand" />
       <p>
-        <span className="font-semibold text-navy">How linked videos work.</span> We never download videos from YouTube or Bilibili.
-        They play in the original player, credited and linked to the source, and nothing is drawn over them. AI features
-        (transcript, summary, chapters, search) run only on captions you own and upload in the video's Captions tab.
+        <span className="font-semibold text-navy">{t("How linked videos work.")}</span>{" "}
+        {t("We never download videos from YouTube or Bilibili. They play in the original player, credited and linked to the source, and nothing is drawn over them. AI features (transcript, summary, chapters, search) run only on captions you own and upload in the video's Captions tab.")}
       </p>
     </div>
   )
 }
 
 function ConnectedAccounts() {
+  const t = useT()
   const qc = useQueryClient()
   const confirm = useConfirm()
   const [busy, setBusy] = useState<string | null>(null)
@@ -227,7 +231,7 @@ function ConnectedAccounts() {
       rememberConnecting(platform)
       window.location.assign(data.url)
     } catch (err) {
-      toast.error(detail(err, platform === "instagram" ? "Could not reach Instagram" : "Could not reach YouTube"))
+      toast.error(detail(err, platform === "instagram" ? t("Could not reach Instagram") : t("Could not reach YouTube")))
       setBusy(null)
     }
   }
@@ -238,10 +242,10 @@ function ConnectedAccounts() {
     setBusy(`sync-${row.id}`)
     try {
       await api.post(`${STUDIO}/connected/${row.id}/sync`)
-      toast.success("Syncing. New videos appear in your list in a minute or two.")
+      toast.success(t("Syncing. New videos appear in your list in a minute or two."))
       qc.invalidateQueries({ queryKey: ["studio-connected"] })
     } catch (err) {
-      toast.error(detail(err, "Could not start the sync"))
+      toast.error(detail(err, t("Could not start the sync")))
     } finally {
       setBusy(null)
     }
@@ -249,19 +253,19 @@ function ConnectedAccounts() {
 
   async function disconnect(row: Connected) {
     const ok = await confirm({
-      title: `Disconnect ${row.title || "this channel"}?`,
-      message: "Linked videos stay on your channel but lose their verified-owner mark. You can connect again at any time.",
-      confirmLabel: "Disconnect",
+      title: row.title ? t("Disconnect {name}?", { name: row.title }) : t("Disconnect this channel?"),
+      message: t("Linked videos stay on your channel but lose their verified-owner mark. You can connect again at any time."),
+      confirmLabel: t("Disconnect"),
       variant: "destructive",
     })
     if (!ok) return
     setBusy(`off-${row.id}`)
     try {
       await api.delete(`${STUDIO}/connected/${row.id}`)
-      toast.success("Disconnected")
+      toast.success(t("Disconnected"))
       qc.invalidateQueries({ queryKey: ["studio-connected"] })
     } catch (err) {
-      toast.error(detail(err, "Could not disconnect"))
+      toast.error(detail(err, t("Could not disconnect")))
     } finally {
       setBusy(null)
     }
@@ -269,15 +273,15 @@ function ConnectedAccounts() {
 
   return (
     <Section
-      title="Connected accounts"
-      hint="Connect YouTube to link your videos here with their captions. Connect Instagram to publish clips as Reels."
+      title={t("Connected accounts")}
+      hint={t("Connect YouTube to link your videos here with their captions. Connect Instagram to publish clips as Reels.")}
       action={
         <div className="flex flex-wrap justify-end gap-2">
           <Button size="sm" onClick={() => connect("youtube")} disabled={busy !== null}>
-            <Youtube size={14} /> {busy === "connect-youtube" ? "Opening…" : "Connect YouTube"}
+            <Youtube size={14} /> {busy === "connect-youtube" ? t("Opening…") : t("Connect YouTube")}
           </Button>
           <Button size="sm" variant="outline" onClick={() => connect("instagram")} disabled={busy !== null}>
-            <Instagram size={14} /> {busy === "connect-instagram" ? "Opening…" : igConnected ? "Reconnect Instagram" : "Connect Instagram"}
+            <Instagram size={14} /> {busy === "connect-instagram" ? t("Opening…") : igConnected ? t("Reconnect Instagram") : t("Connect Instagram")}
           </Button>
         </div>
       }
@@ -285,7 +289,7 @@ function ConnectedAccounts() {
       {isLoading ? (
         <Spinner />
       ) : active.length === 0 ? (
-        <p className="text-sm text-slate-500">Nothing connected yet.</p>
+        <p className="text-sm text-slate-500">{t("Nothing connected yet.")}</p>
       ) : (
         <ul className="divide-y divide-slate-100">
           {active.map((r) => (
@@ -293,31 +297,31 @@ function ConnectedAccounts() {
               {r.platform === "instagram" ? <Instagram size={20} className="text-pink-600" /> : <Youtube size={20} className="text-red-600" />}
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold text-slate-800">
-                  {r.title || r.external_channel_id} {r.sandbox && <Badge color="amber">Sandbox</Badge>}
+                  {r.title || r.external_channel_id} {r.sandbox && <Badge color="amber">{t("Sandbox")}</Badge>}
                   {r.status === "expired" ? (
-                    <Badge color="amber" className="ml-1">Connection expired</Badge>
+                    <Badge color="amber" className="ml-1">{t("Connection expired")}</Badge>
                   ) : r.status !== "active" && <Badge color="red" className="ml-1">{r.status.replace(/_/g, " ")}</Badge>}
                 </p>
                 <p className="text-xs text-slate-500">
                   {r.status === "expired"
-                    ? `${r.platform === "instagram" ? "Instagram" : "YouTube"} signed us out. Reconnect to keep ${r.platform === "instagram" ? "publishing Reels" : "syncing videos and captions"}.`
+                    ? r.platform === "instagram" ? t("Instagram signed us out. Reconnect to keep publishing Reels.") : t("YouTube signed us out. Reconnect to keep syncing videos and captions.")
                     : r.platform === "instagram"
-                    ? "Instagram · clips can be published as Reels"
-                    : `${r.videos} linked videos · ${r.last_synced_at ? `last synced ${when(r.last_synced_at, true)}` : "not synced yet"}`}
+                    ? t("Instagram · clips can be published as Reels")
+                    : r.last_synced_at ? t("{n} linked videos · last synced {when}", { n: r.videos, when: when(r.last_synced_at, true) }) : t("{n} linked videos · not synced yet", { n: r.videos })}
                 </p>
               </div>
               {r.status === "expired" && (r.platform === "youtube" || r.platform === "instagram") && (
                 <Button size="sm" onClick={() => connect(r.platform as "youtube" | "instagram")} disabled={busy !== null}>
-                  <RefreshCw size={13} /> {busy === `connect-${r.platform}` ? "Opening…" : "Reconnect"}
+                  <RefreshCw size={13} /> {busy === `connect-${r.platform}` ? t("Opening…") : t("Reconnect")}
                 </Button>
               )}
               {r.platform === "youtube" && r.status !== "expired" && (
                 <Button size="sm" variant="outline" onClick={() => sync(r)} disabled={busy !== null}>
-                  <RefreshCw size={13} /> {busy === `sync-${r.id}` ? "Starting…" : "Sync now"}
+                  <RefreshCw size={13} /> {busy === `sync-${r.id}` ? t("Starting…") : t("Sync now")}
                 </Button>
               )}
               <Button size="sm" variant="ghost" className="text-red-600" onClick={() => disconnect(r)} disabled={busy !== null}>
-                <Unplug size={13} /> Disconnect
+                <Unplug size={13} /> {t("Disconnect")}
               </Button>
             </li>
           ))}
@@ -328,6 +332,7 @@ function ConnectedAccounts() {
 }
 
 function AddByLink() {
+  const t = useT()
   const navigate = useNavigate()
   const qc = useQueryClient()
   const [url, setUrl] = useState("")
@@ -347,38 +352,38 @@ function AddByLink() {
         rights_declared: true,
       })
       qc.invalidateQueries({ queryKey: ["studio-videos"] })
-      toast.success("Added. Upload its captions to turn on AI features.")
+      toast.success(t("Added. Upload its captions to turn on AI features."))
       navigate(`/videos/${data.id}?tab=captions`)
     } catch (err) {
-      toast.error(detail(err, "That link could not be added"))
+      toast.error(detail(err, t("That link could not be added")))
       setBusy(false)
     }
   }
 
   return (
-    <Section title="Add a YouTube or Bilibili video by link" hint="It plays from the original site, inside your channel.">
+    <Section title={t("Add a YouTube or Bilibili video by link")} hint={t("It plays from the original site, inside your channel.")}>
       <div className="space-y-4">
-        <Field label="Video link" required error={url && !looksRight ? "Paste a youtube.com, youtu.be or bilibili.com link" : undefined}>
+        <Field label={t("Video link")} required error={url && !looksRight ? t("Paste a youtube.com, youtu.be or bilibili.com link") : undefined}>
           <div className="flex items-center gap-2">
             <Link2 size={16} className="shrink-0 text-slate-400" />
             <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://www.youtube.com/watch?v=…" />
           </div>
         </Field>
-        <Field label="Title" required>
+        <Field label={t("Title")} required>
           <Input value={title} maxLength={200} onChange={(e) => setTitle(e.target.value)} />
         </Field>
-        <Field label="Description">
+        <Field label={t("Description")}>
           <Textarea rows={3} value={description} onChange={(e) => setDescription(e.target.value)} />
         </Field>
         <label className="flex items-start gap-2 text-sm">
           <input type="checkbox" className="mt-0.5 h-4 w-4 accent-[#A21CAF]" checked={rights} onChange={(e) => setRights(e.target.checked)} />
-          <span className="text-slate-700">This is my own video, and I own or have licensed everything in it, including music.</span>
+          <span className="text-slate-700">{t("This is my own video, and I own or have licensed everything in it, including music.")}</span>
         </label>
         <p className="text-xs text-slate-500">
-          AI features need captions. After adding, upload them in the video's Captions tab.
+          {t("AI features need captions. After adding, upload them in the video's Captions tab.")}
         </p>
         <div className="flex justify-end">
-          <Button onClick={add} disabled={busy || !looksRight || !title.trim() || !rights}>{busy ? "Adding…" : "Add video"}</Button>
+          <Button onClick={add} disabled={busy || !looksRight || !title.trim() || !rights}>{busy ? t("Adding…") : t("Add video")}</Button>
         </div>
       </div>
     </Section>

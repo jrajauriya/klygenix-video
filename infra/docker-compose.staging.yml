@@ -1,17 +1,17 @@
 services:
   postgres:
-    container_name: klygenix-video-staging-postgres
+    container_name: klygenix-video-${KV_STACK:-staging}-postgres
     volumes: !override
       - pgdata:/var/lib/postgresql/data
       - walarchive:/wal-archive
       - basebackups:/backups
 
   redis:
-    container_name: klygenix-video-staging-redis
+    container_name: klygenix-video-${KV_STACK:-staging}-redis
 
   mailpit:
     image: axllent/mailpit:v1.27
-    container_name: klygenix-video-staging-mailpit
+    container_name: klygenix-video-${KV_STACK:-staging}-mailpit
     restart: unless-stopped
     environment:
       MP_SMTP_AUTH_ACCEPT_ANY: "1"
@@ -22,8 +22,8 @@ services:
 
   backend:
     image: klygenix-video-backend:staging
-    container_name: klygenix-video-staging-backend
-    env_file: !override [.env.staging]
+    container_name: klygenix-video-${KV_STACK:-staging}-backend
+    env_file: !override [".env.${KV_STACK:-staging}"]
     environment:
       SANDBOX_ENABLED: "true"
       PAYMENT_RAIL: sandbox
@@ -37,8 +37,8 @@ services:
 
   worker-ai:
     image: klygenix-video-backend:staging
-    container_name: klygenix-video-staging-worker-ai
-    env_file: !override [.env.staging]
+    container_name: klygenix-video-${KV_STACK:-staging}-worker-ai
+    env_file: !override [".env.${KV_STACK:-staging}"]
     environment:
       SANDBOX_ENABLED: "true"
       JOBS_MODE: rq
@@ -48,8 +48,8 @@ services:
 
   worker-render:
     image: klygenix-video-backend:staging
-    container_name: klygenix-video-staging-worker-render
-    env_file: !override [.env.staging]
+    container_name: klygenix-video-${KV_STACK:-staging}-worker-render
+    env_file: !override [".env.${KV_STACK:-staging}"]
     environment:
       SANDBOX_ENABLED: "true"
       JOBS_MODE: rq
@@ -59,8 +59,8 @@ services:
 
   scheduler:
     image: klygenix-video-backend:staging
-    container_name: klygenix-video-staging-scheduler
-    env_file: !override [.env.staging]
+    container_name: klygenix-video-${KV_STACK:-staging}-scheduler
+    env_file: !override [".env.${KV_STACK:-staging}"]
     environment:
       SANDBOX_ENABLED: "true"
       JOBS_MODE: rq
@@ -69,8 +69,8 @@ services:
 
   live:
     image: klygenix-video-backend:staging
-    container_name: klygenix-video-staging-live
-    env_file: !override [.env.staging]
+    container_name: klygenix-video-${KV_STACK:-staging}-live
+    env_file: !override [".env.${KV_STACK:-staging}"]
     environment:
       SANDBOX_ENABLED: "true"
       JOBS_MODE: rq
@@ -81,7 +81,7 @@ services:
       - media:/app/private_uploads
 
   nginx:
-    container_name: klygenix-video-staging-nginx
+    container_name: klygenix-video-${KV_STACK:-staging}-nginx
     ports: !override
       - "127.0.0.1:${STAGING_HTTP_PORT:-8080}:80"
       - "127.0.0.1:${STAGING_HTTPS_PORT:-8443}:443"

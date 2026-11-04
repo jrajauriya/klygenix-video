@@ -16,3 +16,10 @@ condition = "AND"
 paths = ['''tests/live/test_offline\.py''']
 regexTarget = "line"
 regexes = ['''web push: VAPID-signed, aes128gcm-encrypted delivery''']
+
+[[allowlists]]
+description = "docs/BUILD-PLAN.md run 4 blocker table: prose 'Route keys, ASCI/advertiser policy text', not a key (docs/SECURITY.md, 2026-11-04)"
+condition = "AND"
+paths = ['''docs/BUILD-PLAN\.md''']
+regexTarget = "line"
+regexes = ['''Route keys, ASCI/advertiser policy text''']

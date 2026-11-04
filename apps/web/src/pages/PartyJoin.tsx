@@ -4,6 +4,7 @@ import { api } from "@klygenixvideo/auth"
 import { loginPath, useSignedIn } from "../lib/api"
 import { useTitle } from "../lib/title"
 import NotFound from "./NotFound"
+import { useT } from "../i18n"
 
 export default function PartyJoin() {
   const { code = "" } = useParams()
@@ -11,7 +12,8 @@ export default function PartyJoin() {
   const signedIn = useSignedIn()
   const navigate = useNavigate()
   const [missing, setMissing] = useState(false)
-  useTitle("Watch party")
+  const t = useT("support")
+  useTitle(t("Watch party"))
 
   useEffect(() => {
     if (!signedIn || !/^[A-Z0-9]{6}$/.test(clean)) return
@@ -24,5 +26,5 @@ export default function PartyJoin() {
 
   if (!/^[A-Z0-9]{6}$/.test(clean) || missing) return <NotFound what="watch party" />
   if (!signedIn) return <Navigate to={loginPath(`/party/${clean}`)} replace />
-  return <p className="p-10 text-center text-sm text-muted">Joining the watch party…</p>
+  return <p className="p-10 text-center text-sm text-muted">{t("Joining the watch party…")}</p>
 }

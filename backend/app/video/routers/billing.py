@@ -73,7 +73,7 @@ def patch_me(data: ProfilePatch, ctx: Ctx = Depends(signed_in)):
         raise err(404, "action_not_allowed")
     if data.display_name is not None:
         p.display_name = data.display_name.strip()
-    if data.language is not None and data.language in ("en", "hi", "mr", "bn", "ta", "te"):
+    if data.language is not None and data.language in ("en", "hi", "mr", "bn", "ta", "te", "gu", "kn", "ml", "pa", "or"):
         p.language = data.language
         ctx.user.settings = {**(ctx.user.settings or {}), "language": data.language}
     ctx.db.commit()

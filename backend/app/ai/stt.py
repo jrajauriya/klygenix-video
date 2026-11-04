@@ -86,7 +86,7 @@ def _azure(src: str, work: str, language: str | None) -> Transcription:
 
     url = (f"https://{settings.AZURE_SPEECH_REGION}.api.cognitive.microsoft.com/speechtotext/"
            "transcriptions:transcribe?api-version=2024-11-15")
-    locales = [{"en": "en-IN", "hi": "hi-IN", "mr": "mr-IN", "bn": "bn-IN", "ta": "ta-IN", "te": "te-IN"}.get(language or "en", "en-IN")]
+    locales = [{"en": "en-IN", "hi": "hi-IN", "mr": "mr-IN", "bn": "bn-IN", "ta": "ta-IN", "te": "te-IN", "gu": "gu-IN", "kn": "kn-IN", "ml": "ml-IN", "pa": "pa-IN", "or": "or-IN"}.get(language or "en", "en-IN")]
     cues: list[Cue] = []
     for path, offset in _chunks(src, work):
         with open(path, "rb") as fh:
@@ -102,7 +102,7 @@ def _azure(src: str, work: str, language: str | None) -> Transcription:
     return Transcription(language or "en", [c for c in cues if c.text], "azure_speech")
 
 
-LANGS = {"english": "en", "hindi": "hi", "marathi": "mr", "bengali": "bn", "tamil": "ta", "telugu": "te"}
+LANGS = {"english": "en", "hindi": "hi", "marathi": "mr", "bengali": "bn", "tamil": "ta", "telugu": "te", "gujarati": "gu", "kannada": "kn", "malayalam": "ml", "punjabi": "pa", "odia": "or", "oriya": "or"}
 
 
 def _lang_code(value: str) -> str:

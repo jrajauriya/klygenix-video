@@ -64,7 +64,8 @@ def ad_decision(request: Request, video: str, slot: str = Query("pre", pattern="
         v, ch = _video(db, video)
         ip = request.client.host if request.client else "unknown"
         ad = ads.decide(db, video=v, channel=ch, user=viewer.user, slot=slot, ip=ip, country=_country(db, viewer, request),
-                        device=_device(user_agent, x_klygenix_app))
+                        device=_device(user_agent, x_klygenix_app), user_agent=user_agent)
+        db.commit()
         return {"ad": ad}
 
 
@@ -74,8 +75,15 @@ class EventIn(BaseModel):
 
 
 @router.post("/ads/events", status_code=202)
-def ad_event(data: EventIn):
-    return {"counted": ads.event(data.token, data.event)}
+def ad_event(data: EventIn, request: Request, viewer: Viewer = Depends(optional_viewer)):
+    return {"counted": ads.event(data.token, data.event, ip=request.client.host if request.client else None, user=viewer.user)}
+
+
+@router.get("/ads/categories")
+def ad_categories():
+    from app.video.ads.integrity import CATEGORIES
+
+    return {"categories": list(CATEGORIES)}
 
 
 class BrandIn(BaseModel):
@@ -127,6 +135,7 @@ class CampaignIn(BaseModel):
     countries: list[str] = Field(default_factory=list, max_length=20)
     languages: list[str] = Field(default_factory=list, max_length=10)
     devices: list[str] = Field(default_factory=list, max_length=3)
+    exclude_categories: list[str] = Field(default_factory=list, max_length=16)
 
 
 def campaign_out(db, c: AdCampaign, with_report: bool = False) -> dict:
@@ -134,7 +143,8 @@ def campaign_out(db, c: AdCampaign, with_report: bool = False) -> dict:
     out = {"id": c.public_id, "name": c.name, "status": c.status, "click_url": c.click_url, "cpm_minor": c.cpm_minor,
            "budget_minor": c.budget_minor, "spent_minor": c.spent_minor, "remaining_minor": ads.unspent(c),
            "refunded_minor": c.refunded_minor, "daily_cap_minor": c.daily_cap_minor, "start_at": iso(c.start_at),
-           "end_at": iso(c.end_at), "targeting": c.targeting, "skip_after_seconds": c.skip_after_seconds,
+           "end_at": iso(c.end_at), "targeting": c.targeting, "exclude_categories": c.exclude_categories,
+           "skip_after_seconds": c.skip_after_seconds,
            "review_note": c.review_note, "created_at": iso(c.created_at),
            "creative": None if v is None else {"id": v.public_id, "title": v.title, "status": v.status, "duration_ms": v.duration_ms}}
     if with_report:
@@ -161,6 +171,11 @@ def _apply(c: AdCampaign, data: CampaignIn, db, tenant_id: int) -> None:
         raise err(400, "action_not_allowed")
     if any(d not in ("desktop", "mobile", "tv") for d in data.devices):
         raise err(400, "action_not_allowed")
+    from app.video.ads.integrity import CATEGORIES
+
+    if any(x not in CATEGORIES for x in data.exclude_categories):
+        raise err(400, "action_not_allowed")
+    c.exclude_categories = sorted(set(data.exclude_categories))
     c.name, c.click_url, c.cpm_minor, c.daily_cap_minor = data.name.strip(), data.click_url, data.cpm_minor, data.daily_cap_minor
     c.start_at, c.end_at = data.start_at, data.end_at
     c.creative_video_id = _creative(db, tenant_id, data.creative_video_id)
@@ -231,6 +246,21 @@ def submit_campaign(public_id: str, ctx: StudioCtx = Depends(studio("video.brand
     c.status = "review"
     ctx.db.commit()
     return campaign_out(ctx.db, c)
+
+
+@router.get("/studio/ads/campaigns/{public_id}/export")
+def export_campaign(public_id: str, by: str = Query("day", pattern="^(day|category|device)$"),
+                    ctx: StudioCtx = Depends(studio("video.brand", need_channel=False))):
+    import csv
+    import io
+
+    c = _own(ctx, public_id)
+    with platform_session() as db:
+        rows = ads.export_rows(db, c.id, by)
+    buf = io.StringIO()
+    csv.writer(buf).writerows(rows)
+    return Response(buf.getvalue(), media_type="text/csv",
+                    headers={"Content-Disposition": f'attachment; filename="campaign-{c.public_id}-{by}.csv"'})
 
 
 class StateIn(BaseModel):
@@ -311,14 +341,18 @@ def ads_revenue(ctx: StudioCtx = Depends(studio("video.earnings"))):
         month = func.to_char(AdDaily.day, "YYYY-MM").label("month")
         rows = db.execute(select(month, func.sum(AdDaily.impressions), func.sum(AdDaily.spend_minor))
                           .where(AdDaily.channel_tenant_id == ctx.tenant_id).group_by(month).order_by(month.desc())).all()
-        pays = {p.period: p for p in db.execute(select(AdPayout).where(AdPayout.tenant_id == ctx.tenant_id)).scalars()}
+        pays = {p.period: p for p in db.execute(select(AdPayout).where(AdPayout.tenant_id == ctx.tenant_id,
+                                                                       AdPayout.kind == "ad_share")).scalars()}
+        pool = [{"period": p.period, "watch_ms": p.watch_ms, "share_minor": p.share_minor, "status": p.status, "note": p.note}
+                for p in db.execute(select(AdPayout).where(AdPayout.tenant_id == ctx.tenant_id, AdPayout.kind == "view_pool")
+                                    .order_by(AdPayout.period.desc())).scalars()]
         out = []
         for m, imps, spend in rows:
             p = pays.get(m)
             out.append({"period": m, "impressions": int(imps), "ad_spend_minor": int(spend),
                         "share_minor": p.share_minor if p else int(spend) * settings.ADS_CREATOR_SHARE_BPS // 10_000,
                         "status": p.status if p else "accruing", "note": p.note if p else None})
-        return {"share_bps": settings.ADS_CREATOR_SHARE_BPS, "months": out}
+        return {"share_bps": settings.ADS_CREATOR_SHARE_BPS, "months": out, "view_pool": pool}
 
 
 @router.get("/admin/ads/campaigns")
@@ -397,11 +431,45 @@ def run_payouts(data: PayoutRunIn, ctx: Ctx = Depends(platform("admin.ads", "ful
                  "share_minor": p.share_minor, "status": p.status, "note": p.note} for p in rows]
 
 
+def _channel_of(db, tenant_id: int) -> dict | None:
+    ch = db.execute(select(Channel).where(Channel.tenant_id == tenant_id)).scalars().first()
+    return {"handle": ch.handle, "name": ch.name} if ch else None
+
+
 @router.get("/admin/ads/payouts")
 def list_payouts(period: str | None = None, ctx: Ctx = Depends(platform("admin.ads"))):
     q = select(AdPayout)
     if period:
         q = q.where(AdPayout.period == period)
-    return [{"tenant_id": p.tenant_id, "period": p.period, "impressions": p.impressions, "spend_minor": p.spend_minor,
-             "share_bps": p.share_bps, "share_minor": p.share_minor, "status": p.status, "note": p.note,
-             "created_at": iso(p.created_at)} for p in ctx.db.execute(q.order_by(AdPayout.id.desc()).limit(500)).scalars()]
+    return [{"tenant_id": p.tenant_id, "channel": _channel_of(ctx.db, p.tenant_id), "period": p.period, "kind": p.kind, "impressions": p.impressions, "watch_ms": p.watch_ms,
+             "spend_minor": p.spend_minor, "share_bps": p.share_bps, "share_minor": p.share_minor, "status": p.status,
+             "note": p.note, "created_at": iso(p.created_at)}
+            for p in ctx.db.execute(q.order_by(AdPayout.id.desc()).limit(500)).scalars()]
+
+
+@router.get("/admin/ads/ivt")
+def admin_ivt(ctx: Ctx = Depends(platform("admin.ads"))):
+    by_campaign = ctx.db.execute(select(AdCampaign.public_id, AdCampaign.name, func.sum(AdDaily.impressions), func.sum(AdDaily.invalid))
+                                 .join(AdDaily, AdDaily.campaign_id == AdCampaign.id)
+                                 .group_by(AdCampaign.public_id, AdCampaign.name)
+                                 .order_by(func.sum(AdDaily.invalid).desc()).limit(50)).all()
+    return {**ads.ivt_summary(), "campaigns": [{"id": p, "name": n, "impressions": int(i), "invalid": int(v)}
+                                              for p, n, i, v in by_campaign]}
+
+
+@router.get("/admin/ads/view-pool/preview")
+def view_pool_preview(period: str = Query(pattern=r"^\d{4}-\d{2}$"), ctx: Ctx = Depends(platform("admin.ads"))):
+    with platform_session() as db:
+        return ads.view_pool(db, period)
+
+
+@router.post("/admin/ads/view-pool/run")
+def view_pool_run(data: PayoutRunIn, ctx: Ctx = Depends(platform("admin.ads", "full"))):
+    with platform_session() as db:
+        rows = ads.pay_view_pool(db, data.period)
+        audit.record(db, action="ads.view_pool_run", target_table="kv_commerce.ad_payouts", target_id=None,
+                     after={"period": data.period, "rows": len(rows)})
+        db.commit()
+        return [{"tenant_id": p.tenant_id, "channel": _channel_of(db, p.tenant_id), "period": p.period, "watch_ms": p.watch_ms,
+                 "share_bps": p.share_bps,
+                 "share_minor": p.share_minor, "status": p.status, "note": p.note} for p in rows]

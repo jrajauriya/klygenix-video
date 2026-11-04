@@ -28,24 +28,24 @@ export default function Settings() {
   const theme = useThemePreference("studio")
   const [theming, setTheming] = useState(false)
   const [twoStep, setTwoStep] = useState(false)
-  const themeLabel = THEMES.find((x) => x.key === theme.current)?.label ?? "Light"
+  const themeLabel = t(THEMES.find((x) => x.key === theme.current)?.label ?? "Light")
 
   return (
     <div className="max-w-3xl space-y-4 pb-8">
-      <PageHeader title={t("Settings")} subtitle="How the studio looks and reads for you." />
+      <PageHeader title={t("Settings")} subtitle={t("How the studio looks and reads for you.")} />
 
-      <Section icon={<Languages size={18} />} title={t("Language")} hint="The studio menus are available in English and Hindi. Your channel's language is set on the Channel page.">
+      <Section icon={<Languages size={18} />} title={t("Language")} hint={t("The studio menus are available in English and Hindi. Your channel's language is set on the Channel page.")}>
         <LanguagePicker onSaved={() => toast.success(t("Language saved"))} />
       </Section>
 
-      <Section icon={<Palette size={18} />} title={t("Theme")} hint="Light, dark, or a coloured sidebar. Saved to your account.">
+      <Section icon={<Palette size={18} />} title={t("Theme")} hint={t("Light, dark, or a coloured sidebar. Saved to your account.")}>
         <div className="flex items-center gap-3">
           <Badge color="slate">{themeLabel}</Badge>
-          <Button variant="outline" size="sm" onClick={() => setTheming(true)}>Choose a theme</Button>
+          <Button variant="outline" size="sm" onClick={() => setTheming(true)}>{t("Choose a theme")}</Button>
         </div>
       </Section>
 
-      <Section icon={<UserRound size={18} />} title="Your account">
+      <Section icon={<UserRound size={18} />} title={t("Your account")}>
         {user && (
           <div className="text-sm">
             <p className="font-semibold text-navy">{user.name}</p>
@@ -57,13 +57,13 @@ export default function Settings() {
             {t("Two-step sign-in")} {user?.totp_enabled ? t("(on)") : ""}
           </Button>
         </div>
-        <p className="mt-2 text-xs text-slate-500">Change your password from the account menu at the top right.</p>
+        <p className="mt-2 text-xs text-slate-500">{t("Change your password from the account menu at the top right.")}</p>
       </Section>
 
-      <Section icon={<Users size={18} />} title="Team members" hint="Invite editors and managers to help run your channel.">
+      <Section icon={<Users size={18} />} title={t("Team members")} hint={t("Invite editors and managers to help run your channel.")}>
         <div className="flex items-center gap-2">
-          <Badge color="amber">Coming soon</Badge>
-          <span className="text-sm text-slate-500">For now, only the channel owner can sign in to the studio.</span>
+          <Badge color="amber">{t("Coming soon")}</Badge>
+          <span className="text-sm text-slate-500">{t("For now, only the channel owner can sign in to the studio.")}</span>
         </div>
       </Section>
 
@@ -74,7 +74,7 @@ export default function Settings() {
         accent="#A21CAF"
         value={isThemeKey(theme.current) ? theme.current : undefined}
         saving={theme.saving}
-        onSelect={(key) => theme.save(key).catch(() => toast.error("Could not save the theme"))}
+        onSelect={(key) => theme.save(key).catch(() => toast.error(t("Could not save the theme")))}
       />
       <TwoStep open={twoStep} onClose={() => setTwoStep(false)} />
     </div>

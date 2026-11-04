@@ -286,3 +286,27 @@ tests:
             exp_annotations:
               summary: "The active recommendation model is 80 hours old: nightly training is not promoting"
               runbook: "infra/METRICS.md#kvrecomodelstale"
+
+  - interval: 1m
+    input_series:
+      - series: 'kv_ads_viewable_total{outcome="invalid"}'
+        values: '0+2x120'
+      - series: 'kv_ads_viewable_total{outcome="billable"}'
+        values: '0+3x120'
+      - series: 'kv_digest_last_run_age_hours'
+        values: '30+0x60'
+    alert_rule_test:
+      - eval_time: 100m
+        alertname: KvAdInvalidTrafficHigh
+        exp_alerts:
+          - exp_labels: {severity: warning}
+            exp_annotations:
+              summary: "40% of viewable ad impressions in the last hour were invalid traffic"
+              runbook: "infra/METRICS.md#kvadinvalidtraffichigh"
+      - eval_time: 40m
+        alertname: KvDigestNotSent
+        exp_alerts:
+          - exp_labels: {severity: warning}
+            exp_annotations:
+              summary: "The notification digest last ran 30 hours ago"
+              runbook: "infra/METRICS.md#kvdigestnotsent"

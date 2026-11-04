@@ -11,6 +11,7 @@ import { TRANSLATE_LANGS, useTranslateLang } from "../lib/prefs"
 import type { CommentRow, CommentSummary, Translation } from "../lib/types"
 import { Btn, ChannelAvatar, Skel, TEXTAREA } from "./bits"
 import type { ReportTarget } from "./ReportDialog"
+import { useT } from "../i18n"
 
 const PAGE = 20
 
@@ -21,7 +22,9 @@ async function fetchComments(videoId: string, offset: number, parentId?: number)
   return { rows: res.data, total: Number(res.headers["x-total-count"] ?? res.data.length), offset }
 }
 
-function Composer({ videoId, parentId, onDone, autoFocus, placeholder = "Add a comment…" }: { videoId: string; parentId?: number; onDone?: () => void; autoFocus?: boolean; placeholder?: string }) {
+function Composer({ videoId, parentId, onDone, autoFocus, placeholder: hint = "Add a comment…" }: { videoId: string; parentId?: number; onDone?: () => void; autoFocus?: boolean; placeholder?: string }) {
+  const t = useT("watch")
+  const placeholder = t(hint)
   const qc = useQueryClient()
   const [body, setBody] = useState("")
   const [focused, setFocused] = useState(Boolean(autoFocus))
@@ -36,11 +39,11 @@ function Composer({ videoId, parentId, onDone, autoFocus, placeholder = "Add a c
       const { data } = await api.post<CommentRow>(`/api/video/videos/${videoId}/comments`, { body: text, parent_id: parentId ?? null })
       setBody("")
       setFocused(false)
-      if (data.status !== "visible") toast.message("Your comment is held for review because it contains a link.")
+      if (data.status !== "visible") toast.message(t("Your comment is held for review because it contains a link."))
       qc.invalidateQueries({ queryKey: ["comments", videoId] })
       onDone?.()
     } catch (err) {
-      toast.error(errText(err, "Your comment could not be posted."))
+      toast.error(errText(err, t("Your comment could not be posted.")))
     } finally {
       setPending(false)
     }
@@ -61,8 +64,8 @@ function Composer({ videoId, parentId, onDone, autoFocus, placeholder = "Add a c
       />
       {focused && (
         <div className="mt-2 flex justify-end gap-2">
-          <Btn tone="ghost" size="sm" onClick={() => { setBody(""); setFocused(false); onDone?.() }}>Cancel</Btn>
-          <Btn tone="brand" size="sm" type="submit" disabled={!body.trim() || pending}>{pending ? "Posting…" : parentId ? "Reply" : "Comment"}</Btn>
+          <Btn tone="ghost" size="sm" onClick={() => { setBody(""); setFocused(false); onDone?.() }}>{t("Cancel")}</Btn>
+          <Btn tone="brand" size="sm" type="submit" disabled={!body.trim() || pending}>{pending ? t("Posting…") : parentId ? t("Reply") : t("Comment")}</Btn>
         </div>
       )}
     </form>
@@ -93,6 +96,7 @@ function Replies({ videoId, parentId, onReport, lang }: { videoId: string; paren
 }
 
 function CommentItem({ videoId, comment, onReport, lang, isReply = false }: { videoId: string; comment: CommentRow; onReport: (t: ReportTarget) => void; lang: string; isReply?: boolean }) {
+  const t = useT("watch")
   const signedIn = useSignedIn()
   const confirm = useConfirm()
   const qc = useQueryClient()
@@ -112,21 +116,21 @@ function CommentItem({ videoId, comment, onReport, lang, isReply = false }: { vi
       const item = data.items.find((x) => x.id === comment.id)
       setTranslated({ lang, text: data.machine_translation && item ? item.text : null })
     } catch (err) {
-      toast.error(errText(err, "This comment could not be translated."))
+      toast.error(errText(err, t("This comment could not be translated.")))
     } finally {
       setTranslating(false)
     }
   }
 
   async function remove() {
-    const ok = await confirm({ title: "Delete this comment?", message: "This cannot be undone.", confirmLabel: "Delete", variant: "destructive" })
+    const ok = await confirm({ title: t("Delete this comment?"), message: t("This cannot be undone."), confirmLabel: t("Delete"), cancelLabel: t("Cancel"), variant: "destructive" })
     if (!ok) return
     try {
       await api.delete(`/api/video/comments/${comment.id}`)
       qc.invalidateQueries({ queryKey: ["comments", videoId] })
-      toast.success("Comment deleted")
+      toast.success(t("Comment deleted"))
     } catch (err) {
-      toast.error(errText(err, "The comment could not be deleted."))
+      toast.error(errText(err, t("The comment could not be deleted.")))
     }
   }
 
@@ -149,11 +153,11 @@ function CommentItem({ videoId, comment, onReport, lang, isReply = false }: { vi
             <span className="font-semibold text-ink">{comment.author}</span>
           )}
           {comment.is_creator && (
-            <span className="rounded-md bg-brand/25 px-1.5 py-0.5 text-[11px] font-semibold text-brand-soft">Creator</span>
+            <span className="rounded-md bg-brand/25 px-1.5 py-0.5 text-[11px] font-semibold text-brand-soft">{t("Creator")}</span>
           )}
           {tip > 0 && (
             <span className="inline-flex items-center gap-1 rounded-md bg-[#FACC15] px-1.5 py-0.5 text-[11px] font-bold text-black">
-              <Coins size={11} aria-hidden="true" /> {rupees(tip)} tip
+              <Coins size={11} aria-hidden="true" /> {t("{amount} tip", { amount: rupees(tip) })}
             </span>
           )}
           <span className="text-faint">{timeAgo(comment.created_at)}</span>
@@ -162,27 +166,27 @@ function CommentItem({ videoId, comment, onReport, lang, isReply = false }: { vi
         {translated && (
           translated.text !== null ? (
             <p className="mt-1 whitespace-pre-wrap break-words border-l-2 border-brand/60 pl-2 text-sm leading-relaxed text-ink/90">
-              <span className="block text-[11px] font-semibold text-muted">Translated to {langName(translated.lang)} by AI</span>
+              <span className="block text-[11px] font-semibold text-muted">{t("Translated to {language} by AI", { language: langName(translated.lang) })}</span>
               {translated.text}
             </p>
           ) : (
-            <p className="mt-1 text-xs text-muted">Machine translation is off in this environment.</p>
+            <p className="mt-1 text-xs text-muted">{t("Machine translation is off in this environment.")}</p>
           )
         )}
         <div className="mt-1 flex items-center gap-1 text-xs text-muted">
           {signedIn && !isReply && (
-            <button type="button" onClick={() => setReplying(true)} className="rounded-full px-2 py-1 font-semibold hover:bg-white/10">Reply</button>
+            <button type="button" onClick={() => setReplying(true)} className="rounded-full px-2 py-1 font-semibold hover:bg-white/10">{t("Reply")}</button>
           )}
           <button type="button" onClick={translate} disabled={translating} className="inline-flex items-center gap-1 rounded-full px-2 py-1 hover:bg-white/10 disabled:opacity-60">
-            <Languages size={13} aria-hidden="true" /> {translating ? "Translating…" : translated && translated.lang === lang ? "Hide translation" : "Translate"}
+            <Languages size={13} aria-hidden="true" /> {translating ? t("Translating…") : translated && translated.lang === lang ? t("Hide translation") : t("Translate")}
           </button>
           {comment.mine ? (
-            <button type="button" onClick={remove} className="inline-flex items-center gap-1 rounded-full px-2 py-1 hover:bg-white/10" aria-label="Delete comment">
-              <Trash2 size={13} /> Delete
+            <button type="button" onClick={remove} className="inline-flex items-center gap-1 rounded-full px-2 py-1 hover:bg-white/10" aria-label={t("Delete comment")}>
+              <Trash2 size={13} /> {t("Delete")}
             </button>
           ) : (
-            <button type="button" onClick={() => onReport({ type: "comment", id: comment.id, label: "comment" })} className="inline-flex items-center gap-1 rounded-full px-2 py-1 hover:bg-white/10" aria-label="Report comment">
-              <Flag size={13} /> Report
+            <button type="button" onClick={() => onReport({ type: "comment", id: comment.id, label: "comment" })} className="inline-flex items-center gap-1 rounded-full px-2 py-1 hover:bg-white/10" aria-label={t("Report comment")}>
+              <Flag size={13} /> {t("Report")}
             </button>
           )}
         </div>
@@ -194,7 +198,7 @@ function CommentItem({ videoId, comment, onReport, lang, isReply = false }: { vi
         {!isReply && comment.replies > 0 && (
           <button type="button" onClick={() => setOpen(!open)} className="mt-1 inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold text-brand-soft hover:bg-brand/15">
             {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-            {comment.replies} {comment.replies === 1 ? "reply" : "replies"}
+            {t(comment.replies === 1 ? "{n} reply" : "{n} replies", { n: comment.replies })}
           </button>
         )}
         {open && (
@@ -208,6 +212,7 @@ function CommentItem({ videoId, comment, onReport, lang, isReply = false }: { vi
 }
 
 export function Comments({ videoId, count, onReport, heading = true }: { videoId: string; count?: number; onReport: (t: ReportTarget) => void; heading?: boolean }) {
+  const t = useT("watch")
   const signedIn = useSignedIn()
   const { data: me } = useMe()
   const [lang, setLang] = useTranslateLang(me?.profile?.language)
@@ -221,16 +226,16 @@ export function Comments({ videoId, count, onReport, heading = true }: { videoId
   const total = q.data?.pages[0]?.total ?? count ?? 0
 
   return (
-    <section aria-label="Comments">
+    <section aria-label={t("Comments")}>
       <div className="mb-4 flex flex-wrap items-center gap-3">
         {heading && (
           <h2 className="flex flex-1 items-center gap-2 text-lg font-bold">
             <MessageSquare size={18} className="text-brand-soft" aria-hidden="true" />
-            {compactNumber(total)} {total === 1 ? "comment" : "comments"}
+            {t(total === 1 ? "{n} comment" : "{n} comments", { n: compactNumber(total) })}
           </h2>
         )}
         <label className="ml-auto inline-flex items-center gap-1.5 text-xs text-muted">
-          <Languages size={14} aria-hidden="true" /> Translate to
+          <Languages size={14} aria-hidden="true" /> {t("Translate to")}
           <select value={lang} onChange={(e) => setLang(e.target.value)} className="h-8 rounded-lg border border-line bg-panel-2 px-2 text-xs text-ink outline-none focus:border-brand">
             {TRANSLATE_LANGS.map((l) => <option key={l} value={l}>{langName(l)}</option>)}
           </select>
@@ -240,19 +245,19 @@ export function Comments({ videoId, count, onReport, heading = true }: { videoId
       <div className="mb-6 flex gap-3">
         {signedIn ? (
           <>
-            <Bubble name={me?.profile?.display_name ?? me?.user.name ?? "You"} />
+            <Bubble name={me?.profile?.display_name ?? me?.user.name ?? t("You")} />
             <Composer videoId={videoId} />
           </>
         ) : (
           <Link to={loginPath()} className="flex w-full items-center rounded-xl border border-line bg-panel-2 px-3 py-2.5 text-sm text-muted hover:border-brand/60">
-            Sign in to join the conversation
+            {t("Sign in to join the conversation")}
           </Link>
         )}
       </div>
       {q.isLoading ? (
         <div className="space-y-4">{Array.from({ length: 3 }, (_, i) => <Skel key={i} className="h-12 w-full" />)}</div>
       ) : rows.length === 0 ? (
-        <p className="py-6 text-center text-sm text-muted">No comments yet. Start the conversation.</p>
+        <p className="py-6 text-center text-sm text-muted">{t("No comments yet. Start the conversation.")}</p>
       ) : (
         <div className="space-y-5">
           {rows.map((c) => <CommentItem key={c.id} videoId={videoId} comment={c} onReport={onReport} lang={lang} />)}
@@ -261,7 +266,7 @@ export function Comments({ videoId, count, onReport, heading = true }: { videoId
       {q.hasNextPage && (
         <div className="mt-5 flex justify-center">
           <Btn tone="soft" size="sm" onClick={() => q.fetchNextPage()} disabled={q.isFetchingNextPage}>
-            {q.isFetchingNextPage ? "Loading…" : "Show more comments"}
+            {q.isFetchingNextPage ? t("Loading…") : t("Show more comments")}
           </Btn>
         </div>
       )}
@@ -270,10 +275,11 @@ export function Comments({ videoId, count, onReport, heading = true }: { videoId
 }
 
 function CommentSummaryCard({ videoId, lang }: { videoId: string; lang: string }) {
+  const t = useT("watch")
   const [ready, setReady] = useState(false)
   useEffect(() => {
-    const t = window.setTimeout(() => setReady(true), 2500)
-    return () => window.clearTimeout(t)
+    const timer = window.setTimeout(() => setReady(true), 2500)
+    return () => window.clearTimeout(timer)
   }, [])
   const q = useQuery({
     queryKey: ["comment-summary", videoId, lang],
@@ -285,20 +291,20 @@ function CommentSummaryCard({ videoId, lang }: { videoId: string; lang: string }
   const d = q.data
   if (!d || !d.available) return null
   return (
-    <section aria-label="What people are saying" className="mb-5 rounded-2xl border border-line bg-panel p-4">
-      <h3 className="flex items-center gap-2 text-sm font-bold"><Sparkles size={15} className="text-brand-soft" aria-hidden="true" /> What people are saying</h3>
+    <section aria-label={t("What people are saying")} className="mb-5 rounded-2xl border border-line bg-panel p-4">
+      <h3 className="flex items-center gap-2 text-sm font-bold"><Sparkles size={15} className="text-brand-soft" aria-hidden="true" /> {t("What people are saying")}</h3>
       <p className="mt-1.5 text-sm leading-relaxed text-ink/90">{d.summary}</p>
       {d.topics.length > 0 && (
         <ul className="mt-2.5 flex flex-wrap gap-1.5">
-          {d.topics.map((t) => <li key={t} className="rounded-full bg-white/[0.08] px-2.5 py-0.5 text-xs">{t}</li>)}
+          {d.topics.map((topic) => <li key={topic} className="rounded-full bg-white/[0.08] px-2.5 py-0.5 text-xs">{topic}</li>)}
         </ul>
       )}
       {d.quotes.length > 0 && (
         <ul className="mt-3 space-y-1.5">
-          {d.quotes.slice(0, 3).map((t) => <li key={t} className="border-l-2 border-brand/60 pl-2 text-xs italic text-muted">“{t}”</li>)}
+          {d.quotes.slice(0, 3).map((quote) => <li key={quote} className="border-l-2 border-brand/60 pl-2 text-xs italic text-muted">“{quote}”</li>)}
         </ul>
       )}
-      <p className="mt-2.5 text-[11px] text-faint">Summarised by AI from {d.count} comments.</p>
+      <p className="mt-2.5 text-[11px] text-faint">{t("Summarised by AI from {n} comments.", { n: d.count })}</p>
     </section>
   )
 }

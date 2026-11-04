@@ -62,6 +62,12 @@ T = {
         "en": ("Ad campaign update: {title}", "{message}\n\n{link}"),
         "hi": ("विज्ञापन अभियान अपडेट: {title}", "{message}\n\n{link}"),
     },
+    "digest": {
+        "en": ("You have {count} new updates on Klygenix Play", "Here is what happened since your last visit:\n\n{items}\n\nSee them all: {link}\n\n"
+               "Change how often you get this mail in Account → Notifications."),
+        "hi": ("Klygenix Play पर आपके लिए {count} नए अपडेट", "आपकी पिछली विज़िट के बाद:\n\n{items}\n\nसब देखें: {link}\n\n"
+               "यह मेल कितनी बार आए, यह Account → Notifications में बदलें।"),
+    },
     "feedback_received": {
         "en": ("Thanks for your feedback", "We read every message. Reference: {reference}."),
         "hi": ("आपकी प्रतिक्रिया के लिए धन्यवाद", "हम हर संदेश पढ़ते हैं। संदर्भ: {reference}।"),

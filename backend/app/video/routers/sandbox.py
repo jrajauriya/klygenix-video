@@ -121,3 +121,14 @@ def thumb(video_id: int, exp: int, sig: str):
     if not os.path.isfile(full):
         raise err(404, "video_not_found")
     return FileResponse(full, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=3600"})
+
+
+@router.get("/download/{video_id}/{exp}/{sig}.mp4")
+def download_file(video_id: int, exp: int, sig: str):
+    _on()
+    if not alive(exp) or not valid(sig, "dl", video_id, exp):
+        raise err(403, "upload_link_expired")
+    full = os.path.join(video_dir(video_id), "source")
+    if not os.path.isfile(full):
+        raise err(404, "video_not_found")
+    return FileResponse(full, media_type="video/mp4", filename=f"{video_id}.mp4", headers={"Cache-Control": "private, no-store"})

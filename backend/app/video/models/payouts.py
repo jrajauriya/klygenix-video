@@ -102,7 +102,7 @@ class CreatorSplit(Base):
 class RouteTransfer(Base):
     __tablename__ = "route_transfers"
     __table_args__ = (
-        CheckConstraint("kind IN ('sale','reserve','recovery','ad_share')", name="ck_route_transfers_kind"),
+        CheckConstraint("kind IN ('sale','reserve','recovery','ad_share','view_pool')", name="ck_route_transfers_kind"),
         CheckConstraint("status IN ('pending','held','released','reversed','recovered','failed')",
                         name="ck_route_transfers_status"),
         Index("uq_route_transfers_split_kind", "split_id", "kind", unique=True,
@@ -115,7 +115,7 @@ class RouteTransfer(Base):
     tenant_id: Mapped[int] = tenant_fk()
     payout_account_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey(f"{SCHEMA}.payout_accounts.id"))
     split_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey(f"{SCHEMA}.creator_splits.id"))
-    kind: Mapped[str] = mapped_column(String(8), nullable=False)
+    kind: Mapped[str] = mapped_column(String(10), nullable=False)
     amount_minor: Mapped[int] = minor()
     reversed_minor: Mapped[int] = minor()
     status: Mapped[str] = mapped_column(String(10), nullable=False, default="pending")

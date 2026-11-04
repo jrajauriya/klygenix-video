@@ -3,11 +3,12 @@ import { toast } from "sonner"
 import { useQueryClient } from "@tanstack/react-query"
 import { api, useAuthStore } from "@klygenixvideo/auth"
 import { cn } from "@klygenixvideo/ui"
-import { LANG_OPTIONS, useLang, type Lang } from "../i18n"
+import { LANG_OPTIONS, useLang, useT, type Lang } from "../i18n"
 import { detail } from "../lib/format"
 
 export function LanguagePicker({ compact = false, onSaved }: { compact?: boolean; onSaved?: (lang: Lang) => void }) {
   const lang = useLang()
+  const t = useT()
   const qc = useQueryClient()
   const [busy, setBusy] = useState(false)
 
@@ -25,7 +26,7 @@ export function LanguagePicker({ compact = false, onSaved }: { compact?: boolean
     } catch (err) {
       const now = useAuthStore.getState()
       if (now.token && now.user) now.setAuth(now.token, { ...now.user, settings: { ...(now.user.settings ?? {}), language: before } })
-      toast.error(detail(err, "Could not change the language"))
+      toast.error(detail(err, t("Could not change the language")))
     } finally {
       setBusy(false)
     }
@@ -33,7 +34,7 @@ export function LanguagePicker({ compact = false, onSaved }: { compact?: boolean
 
   return (
     <select
-      aria-label="Language"
+      aria-label={t("Language")}
       value={lang}
       disabled={busy}
       onChange={(e) => pick(e.target.value as Lang)}

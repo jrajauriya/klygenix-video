@@ -48,7 +48,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const fromAccount = user?.settings?.language
-    if (!fromAccount) return
+    if (fromAccount !== "en" && fromAccount !== "hi") return
     apply(toLang(fromAccount))
     SecureStore.setItemAsync(STORE, toLang(fromAccount)).catch(() => null)
   }, [user?.id, user?.settings?.language, apply])
@@ -57,7 +57,8 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     async (next: Lang) => {
       apply(next)
       await SecureStore.setItemAsync(STORE, next).catch(() => null)
-      if (!user) return
+      const account = user?.settings?.language
+      if (!user || (account && account !== "en" && account !== "hi")) return
       await session.remember({ settings: { ...user.settings, language: next } })
       await api.patch("/api/video/me", { language: next }).catch(() => null)
     },

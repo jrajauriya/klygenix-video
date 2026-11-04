@@ -1,10 +1,20 @@
 import { formatDate } from "@klygenixvideo/client"
+import { tr } from "../i18n"
 
 export const TZ = "Asia/Kolkata"
 export const WEB_URL: string = (import.meta.env.VITE_WEB_URL as string | undefined) || "http://localhost:5300"
 
 export const channelUrl = (handle: string) => `${WEB_URL.replace(/\/$/, "")}/@${handle}`
-export const watchUrl = (publicId: string) => `${WEB_URL.replace(/\/$/, "")}/watch/${publicId}`
+export const watchUrl = (publicId: string, ms?: number) =>
+  `${WEB_URL.replace(/\/$/, "")}/watch/${publicId}${ms ? `?t=${Math.round(ms)}` : ""}`
+
+export function parseClock(text: string): number | null {
+  const parts = text.trim().split(":")
+  if (parts.length < 1 || parts.length > 3 || parts.some((p) => !/^\d+$/.test(p))) return null
+  const nums = parts.map(Number)
+  if (nums.slice(1).some((n) => n > 59)) return null
+  return nums.reduce((acc, n) => acc * 60 + n, 0) * 1000
+}
 
 export function detail(err: unknown, fallback: string): string {
   const d = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail
@@ -40,11 +50,11 @@ export function compact(n: number | null | undefined): string {
 
 export function watchTime(ms: number): string {
   const minutes = Math.round(ms / 60_000)
-  if (ms > 0 && minutes === 0) return `${Math.round(ms / 1000)} s`
-  if (minutes < 60) return `${minutes} min`
+  if (ms > 0 && minutes === 0) return tr("{n} s", { n: Math.round(ms / 1000) })
+  if (minutes < 60) return tr("{n} min", { n: minutes })
   const h = Math.floor(minutes / 60)
   const m = minutes % 60
-  return m ? `${h} h ${m} min` : `${h} h`
+  return m ? tr("{h} h {m} min", { h, m }) : tr("{n} h", { n: h })
 }
 
 export function when(value: string | null | undefined, withTime = false): string {
@@ -86,4 +96,7 @@ export const LANGUAGES = [
   { value: "pa", label: "Punjabi" },
 ]
 
-export const languageName = (code: string) => LANGUAGES.find((l) => l.value === code)?.label ?? code.toUpperCase()
+export const languageName = (code: string) => {
+  const label = LANGUAGES.find((l) => l.value === code)?.label
+  return label ? tr(label) : code.toUpperCase()
+}

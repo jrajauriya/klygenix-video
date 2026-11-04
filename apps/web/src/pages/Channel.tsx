@@ -18,6 +18,7 @@ import { compactNumber, longDate } from "../lib/format"
 import { useTitle } from "../lib/title"
 import type { ChannelDetail, PlaylistSummary, VideoCard } from "../lib/types"
 import NotFound from "./NotFound"
+import { useT } from "../i18n"
 
 export default function ChannelPage() {
   const { channel: raw = "" } = useParams()
@@ -26,6 +27,7 @@ export default function ChannelPage() {
 }
 
 function Channel({ handle }: { handle: string }) {
+  const t = useT("channel")
   const signedIn = useSignedIn()
   const { data: me } = useMe()
   const navigate = useNavigate()
@@ -56,7 +58,7 @@ function Channel({ handle }: { handle: string }) {
   const c = ch.data
   const mine = me?.channel?.handle === handle
   const money = support.data
-  const hasTiers = (money?.tiers ?? []).some((t) => t.is_active)
+  const hasTiers = (money?.tiers ?? []).some((tier) => tier.is_active)
   const canTip = Boolean(money?.can_take_money && !money.is_owner && !mine)
 
   return (
@@ -76,11 +78,11 @@ function Channel({ handle }: { handle: string }) {
             <div className="min-w-0 flex-1">
               <h1 className="flex items-center gap-2 text-2xl font-bold sm:text-3xl">
                 <span className="truncate">{c.name}</span>
-                {c.verified && <BadgeCheck size={22} className="shrink-0 text-brand-soft" aria-label="Verified" />}
+                {c.verified && <BadgeCheck size={22} className="shrink-0 text-brand-soft" aria-label={t("Verified")} />}
               </h1>
               <p className="mt-1 text-sm text-muted">
-                @{c.handle} · {compactNumber(c.followers)} {c.followers === 1 ? "follower" : "followers"}
-                {c.created_at && <> · Joined {longDate(c.created_at)}</>}
+                @{c.handle} · {t(c.followers === 1 ? "{n} follower" : "{n} followers", { n: compactNumber(c.followers) })}
+                {c.created_at && <> · {t("Joined {date}", { date: longDate(c.created_at) })}</>}
               </p>
               {c.about && <p className="mt-2 line-clamp-3 max-w-2xl text-sm text-ink/80">{c.about}</p>}
               {(onAir.live || onAir.upcoming) && <div className="mt-3"><ChannelLiveLink live={onAir.live} upcoming={onAir.upcoming} /></div>}
@@ -89,11 +91,11 @@ function Channel({ handle }: { handle: string }) {
               {!mine && <FollowButton handle={c.handle} following={c.following} />}
               {canTip && (
                 <Btn tone="soft" onClick={() => (signedIn ? setTipOpen(true) : navigate(loginPath()))}>
-                  <Coins size={16} aria-hidden="true" /> Tip
+                  <Coins size={16} aria-hidden="true" /> {t("Tip")}
                 </Btn>
               )}
               {!mine && signedIn && (
-                <button type="button" onClick={() => setReport({ type: "channel", id: c.handle, label: "channel" })} className="rounded-full bg-white/10 p-2.5 text-muted hover:bg-white/15 hover:text-ink" aria-label="Report channel">
+                <button type="button" onClick={() => setReport({ type: "channel", id: c.handle, label: t("channel") })} className="rounded-full bg-white/10 p-2.5 text-muted hover:bg-white/15 hover:text-ink" aria-label={t("Report channel")}>
                   <Flag size={16} />
                 </button>
               )}
@@ -106,12 +108,12 @@ function Channel({ handle }: { handle: string }) {
           value={tab}
           onChange={setTab}
           tabs={[
-            { key: "long", label: <span className="inline-flex items-center gap-1.5"><Video size={15} /> Videos</span> },
-            { key: "reel", label: <span className="inline-flex items-center gap-1.5"><Clapperboard size={15} /> Reels</span> },
-            { key: "playlists", label: <span className="inline-flex items-center gap-1.5"><ListVideo size={15} /> Playlists</span> },
-            { key: "community", label: <span className="inline-flex items-center gap-1.5"><Megaphone size={15} /> Community</span> },
-            { key: "ask", label: <span className="inline-flex items-center gap-1.5"><MessageCircleQuestion size={15} /> Ask</span> },
-            ...(hasTiers ? [{ key: "membership" as const, label: <span className="inline-flex items-center gap-1.5"><Crown size={15} /> Membership</span> }] : []),
+            { key: "long", label: <span className="inline-flex items-center gap-1.5"><Video size={15} aria-hidden="true" /> {t("Videos")}</span> },
+            { key: "reel", label: <span className="inline-flex items-center gap-1.5"><Clapperboard size={15} aria-hidden="true" /> {t("Reels")}</span> },
+            { key: "playlists", label: <span className="inline-flex items-center gap-1.5"><ListVideo size={15} aria-hidden="true" /> {t("Playlists")}</span> },
+            { key: "community", label: <span className="inline-flex items-center gap-1.5"><Megaphone size={15} aria-hidden="true" /> {t("Community")}</span> },
+            { key: "ask", label: <span className="inline-flex items-center gap-1.5"><MessageCircleQuestion size={15} aria-hidden="true" /> {t("Ask")}</span> },
+            ...(hasTiers ? [{ key: "membership" as const, label: <span className="inline-flex items-center gap-1.5"><Crown size={15} aria-hidden="true" /> {t("Membership")}</span> }] : []),
           ]}
         />
 
@@ -120,7 +122,7 @@ function Channel({ handle }: { handle: string }) {
             c ? <CommunityPosts handle={handle} channel={c} onJoin={hasTiers ? () => setTab("membership") : undefined} /> : <Skel className="h-40 w-full rounded-2xl" />
           ) : tab === "ask" ? (
             <div className="mx-auto max-w-2xl">
-              <ScopedAsk endpoint={`/api/video/channels/${handle}/ask`} title="Ask this channel" blurb={`Ask a question and get answers from across ${c?.name ?? "this channel"}'s videos, with links to the moments they come from.`} />
+              <ScopedAsk endpoint={`/api/video/channels/${handle}/ask`} title={t("Ask this channel")} blurb={c?.name ? t("Ask a question and get answers from across {name}'s videos, with links to the moments they come from.", { name: c.name }) : t("Ask a question and get answers from across this channel's videos, with links to the moments they come from.")} />
             </div>
           ) : tab === "membership" ? (
             money && c ? <MembershipTiers support={money} channelName={c.name} onJoined={() => qc.invalidateQueries({ queryKey: ["support", handle] })} /> : <Skel className="h-64 w-full rounded-2xl" />
@@ -128,14 +130,14 @@ function Channel({ handle }: { handle: string }) {
             lists.isLoading || ch.isLoading ? (
               <div className="grid gap-x-4 gap-y-8 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4"><CardSkeletons count={4} /></div>
             ) : (lists.data ?? []).length === 0 ? (
-              <Empty icon={<ListVideo size={30} />} title="No playlists yet" body="Playlists and series from this channel will show up here." />
+              <Empty icon={<ListVideo size={30} />} title={t("No playlists yet")} body={t("Playlists and series from this channel will show up here.")} />
             ) : (
               <div className="grid gap-x-4 gap-y-8 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">{(lists.data ?? []).map((p) => <PlaylistTile key={p.id} playlist={p} />)}</div>
             )
           ) : vids.isLoading || ch.isLoading ? (
             <div className="grid gap-x-4 gap-y-8 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4"><CardSkeletons count={4} /></div>
           ) : (vids.data ?? []).length === 0 ? (
-            <Empty icon={tab === "reel" ? <Clapperboard size={30} /> : <Video size={30} />} title={tab === "reel" ? "No reels yet" : "No videos yet"} body="When this channel publishes, it will show up here." />
+            <Empty icon={tab === "reel" ? <Clapperboard size={30} /> : <Video size={30} />} title={tab === "reel" ? t("No reels yet") : t("No videos yet")} body={t("When this channel publishes, it will show up here.")} />
           ) : tab === "reel" ? (
             <div className="flex flex-wrap gap-3">{(vids.data ?? []).map((v) => <ReelTile key={v.id} video={v} />)}</div>
           ) : (

@@ -14,21 +14,23 @@ import { longDate } from "../lib/format"
 import { loadRazorpay } from "../lib/razorpay"
 import { useTitle } from "../lib/title"
 import type { Checkout, Me, Plan } from "../lib/types"
+import { useT, type T } from "../i18n"
+import { rich } from "../i18n/rich"
 
-const LIMIT_LABELS: Record<string, (v: number | boolean) => string | null> = {
-  ask_per_day: (v) => `${v} Ask questions a day`,
-  languages: (v) => (Number(v) >= 6 ? "Subtitles in every language" : `Subtitles in ${v} languages`),
-  notes: (v) => (v ? "Notes on videos" : null),
-  ai_minutes: (v) => `${v} AI minutes a month`,
-  renders: (v) => `${v} clip renders a month`,
-  seats: (v) => (Number(v) > 1 ? `${v} team seats` : "1 seat"),
-  watermark: (v) => (v ? "Klygenix watermark on clips" : "No watermark"),
-  priority: (v) => (v ? "Priority renders" : null),
+const LIMIT_LABELS: Record<string, (v: number | boolean, t: T) => string | null> = {
+  ask_per_day: (v, t) => t("{n} Ask questions a day", { n: Number(v) }),
+  languages: (v, t) => (Number(v) >= 6 ? t("Subtitles in every language") : t("Subtitles in {n} languages", { n: Number(v) })),
+  notes: (v, t) => (v ? t("Notes on videos") : null),
+  ai_minutes: (v, t) => t("{n} AI minutes a month", { n: Number(v) }),
+  renders: (v, t) => t("{n} clip renders a month", { n: Number(v) }),
+  seats: (v, t) => (Number(v) > 1 ? t("{n} team seats", { n: Number(v) }) : t("1 seat")),
+  watermark: (v, t) => (v ? t("Klygenix watermark on clips") : t("No watermark")),
+  priority: (v, t) => (v ? t("Priority renders") : null),
 }
 
-function features(plan: Plan): string[] {
+function features(plan: Plan, t: T): string[] {
   return Object.entries(plan.limits ?? {})
-    .map(([k, v]) => LIMIT_LABELS[k]?.(v) ?? null)
+    .map(([k, v]) => LIMIT_LABELS[k]?.(v, t) ?? null)
     .filter((x): x is string => Boolean(x))
 }
 
@@ -57,41 +59,42 @@ function PlanCard({ plan, current, sub, onUpgrade, onCancel, busy }: {
   onCancel: () => void
   busy: boolean
 }) {
+  const t = useT("plans")
   const highlight = !plan.free && (plan.key === "viewer_premium" || plan.key === "creator_pro")
   return (
     <div className={cn("relative flex flex-col rounded-3xl border p-5 sm:p-6", highlight ? "border-brand/70 bg-gradient-to-b from-brand/20 to-panel" : "border-line bg-panel")}>
-      {highlight && <span className="absolute -top-3 left-5 rounded-full bg-brand px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wide text-white">Popular</span>}
+      {highlight && <span className="absolute -top-3 left-5 rounded-full bg-brand px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wide text-white">{t("Popular")}</span>}
       <h3 className="text-lg font-bold">{plan.name}</h3>
       <p className="mt-1 min-h-10 text-sm text-muted">{plan.description}</p>
       <p className="mt-4">
-        <span className="text-3xl font-bold">{plan.free ? "Free" : formatMoney(plan.price_minor, plan.currency)}</span>
-        {!plan.free && <span className="ml-1 text-sm text-muted">/ month</span>}
+        <span className="text-3xl font-bold">{plan.free ? t("Free") : formatMoney(plan.price_minor, plan.currency)}</span>
+        {!plan.free && <span className="ml-1 text-sm text-muted">{t("/ month")}</span>}
       </p>
-      {!plan.free && <p className="text-xs text-faint">Taxes shown at checkout</p>}
+      {!plan.free && <p className="text-xs text-faint">{t("Taxes shown at checkout")}</p>}
       <ul className="mt-5 flex-1 space-y-2">
-        {features(plan).map((f) => (
-          <li key={f} className="flex items-start gap-2 text-sm text-ink/85"><Check size={16} className="mt-0.5 shrink-0 text-brand-soft" /> {f}</li>
+        {features(plan, t).map((f) => (
+          <li key={f} className="flex items-start gap-2 text-sm text-ink/85"><Check size={16} className="mt-0.5 shrink-0 text-brand-soft" aria-hidden="true" /> {f}</li>
         ))}
       </ul>
       <div className="mt-6">
         {current ? (
           <div className="space-y-2">
-            <div className="flex h-10 items-center justify-center rounded-full bg-white/10 text-sm font-semibold">Your current plan</div>
+            <div className="flex h-10 items-center justify-center rounded-full bg-white/10 text-sm font-semibold">{t("Your current plan")}</div>
             {sub && (
               <p className="text-center text-xs text-muted">
-                {sub.cancel_at_period_end ? `Ends on ${longDate(sub.current_period_end)}` : `Renews on ${longDate(sub.current_period_end)}`}
+                {sub.cancel_at_period_end ? t("Ends on {date}", { date: longDate(sub.current_period_end) }) : t("Renews on {date}", { date: longDate(sub.current_period_end) })}
               </p>
             )}
             {sub && !sub.cancel_at_period_end && !plan.free && (
-              <Btn tone="ghost" size="sm" className="w-full text-muted" onClick={onCancel}>Cancel plan</Btn>
+              <Btn tone="ghost" size="sm" className="w-full text-muted" onClick={onCancel}>{t("Cancel plan")}</Btn>
             )}
-            {sub?.cancel_at_period_end && <Btn tone="brand" className="w-full" onClick={onUpgrade} disabled={busy}>Resume plan</Btn>}
+            {sub?.cancel_at_period_end && <Btn tone="brand" className="w-full" onClick={onUpgrade} disabled={busy}>{t("Resume plan")}</Btn>}
           </div>
         ) : plan.free ? (
           <div className="h-10" />
         ) : (
           <Btn tone={highlight ? "brand" : "light"} className="w-full" onClick={onUpgrade} disabled={busy}>
-            {busy ? <Loader2 size={16} className="animate-spin" /> : null} Upgrade
+            {busy ? <Loader2 size={16} className="animate-spin" aria-hidden="true" /> : null} {t("Upgrade")}
           </Btn>
         )}
       </div>
@@ -100,7 +103,8 @@ function PlanCard({ plan, current, sub, onUpgrade, onCancel, busy }: {
 }
 
 export default function PlansPage() {
-  useTitle("Plans")
+  const t = useT("plans")
+  useTitle(t("Plans"))
   const signedIn = useSignedIn()
   const navigate = useNavigate()
   const confirm = useConfirm()
@@ -116,9 +120,9 @@ export default function PlansPage() {
   async function settle(plan: Plan, checkoutId: number) {
     const result = await waitForPlan(plan.key, plan.audience, checkoutId)
     await qc.invalidateQueries({ queryKey: ["me"] })
-    if (result === "active") toast.success(`You are on ${plan.name} now.`)
-    else if (result === "failed") toast.error("The payment did not go through. You have not been charged.")
-    else toast.message("Payment received. Your plan will update in a moment.")
+    if (result === "active") toast.success(t("You are on {plan} now.", { plan: plan.name }))
+    else if (result === "failed") toast.error(t("The payment did not go through. You have not been charged."))
+    else toast.message(t("Payment received. Your plan will update in a moment."))
   }
 
   async function upgrade(plan: Plan) {
@@ -146,19 +150,19 @@ export default function PlansPage() {
           prefill: { email: user?.email, name: user?.name, ...((client.prefill as Record<string, unknown>) ?? {}) },
           theme: { color: "#A21CAF" },
           handler: () => {
-            toast.message("Confirming your payment…")
+            toast.message(t("Confirming your payment…"))
             settle(plan, data.id)
           },
         })
-        rzp.on("payment.failed", () => toast.error("The payment did not go through."))
+        rzp.on("payment.failed", () => toast.error(t("The payment did not go through.")))
         rzp.open()
       } else if (typeof client.url === "string") {
         window.location.href = client.url
       } else {
-        toast.error("This payment method is not available here yet.")
+        toast.error(t("This payment method is not available here yet."))
       }
     } catch (err) {
-      toast.error(errText(err, "Checkout could not start. Try again."))
+      toast.error(errText(err, t("Checkout could not start. Try again.")))
     } finally {
       setBusyKey(null)
     }
@@ -171,10 +175,10 @@ export default function PlansPage() {
       await api.post(`/api/video/sandbox/pay/${sandbox.checkout.id}`, null, { params: { outcome } })
       const { plan, checkout } = sandbox
       setSandbox(null)
-      if (outcome === "failed") toast.message("Sandbox: payment marked as failed.")
+      if (outcome === "failed") toast.message(t("Sandbox: payment marked as failed."))
       await settle(plan, checkout.id)
     } catch (err) {
-      toast.error(errText(err, "The sandbox payment did not go through."))
+      toast.error(errText(err, t("The sandbox payment did not go through.")))
     } finally {
       setPaying(null)
     }
@@ -182,34 +186,34 @@ export default function PlansPage() {
 
   async function cancel(plan: Plan) {
     const ok = await confirm({
-      title: `Cancel ${plan.name}?`,
-      message: "You keep it until the end of the period you have paid for. After that you move to the free plan.",
-      confirmLabel: "Cancel plan",
-      cancelLabel: "Keep plan",
+      title: t("Cancel {plan}?", { plan: plan.name }),
+      message: t("You keep it until the end of the period you have paid for. After that you move to the free plan."),
+      confirmLabel: t("Cancel plan"),
+      cancelLabel: t("Keep plan"),
       variant: "destructive",
     })
     if (!ok) return
     try {
       const { data } = await api.post<{ cancelled: boolean; ends_at: string | null }>(`/api/video/me/plans/${plan.audience}/cancel`)
-      toast.success(data.ends_at ? `Cancelled. You keep ${plan.name} until ${longDate(data.ends_at)}.` : "Cancelled.")
+      toast.success(data.ends_at ? t("Cancelled. You keep {plan} until {date}.", { plan: plan.name, date: longDate(data.ends_at) }) : t("Cancelled."))
       qc.invalidateQueries({ queryKey: ["me"] })
     } catch (err) {
-      toast.error(errText(err, "The plan could not be cancelled."))
+      toast.error(errText(err, t("The plan could not be cancelled.")))
     }
   }
 
   const list = plans.data ?? []
   const groups: { audience: "viewer" | "creator"; title: string; blurb: string; icon: React.ReactNode }[] = [
-    { audience: "viewer", title: "For viewers", blurb: "Ask more, read subtitles in every language.", icon: <Crown size={18} className="text-brand-soft" /> },
-    { audience: "creator", title: "For creators", blurb: "More AI minutes and clip renders in Studio.", icon: <Video size={18} className="text-brand-soft" /> },
+    { audience: "viewer", title: t("For viewers"), blurb: t("Ask more, read subtitles in every language."), icon: <Crown size={18} className="text-brand-soft" aria-hidden="true" /> },
+    { audience: "creator", title: t("For creators"), blurb: t("More AI minutes and clip renders in Studio."), icon: <Video size={18} className="text-brand-soft" aria-hidden="true" /> },
   ]
 
   return (
     <PageShell className="max-w-6xl">
       <div className="mx-auto mb-10 max-w-2xl text-center">
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-brand/20 px-3 py-1 text-xs font-semibold text-brand-soft"><Sparkles size={13} /> Plans</span>
-        <h1 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">Watch free. Pay for more AI.</h1>
-        <p className="mt-2 text-sm text-muted">Every video is free to watch. Plans add AI questions, subtitle languages and creator tools. Cancel anytime.</p>
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-brand/20 px-3 py-1 text-xs font-semibold text-brand-soft"><Sparkles size={13} aria-hidden="true" /> {t("Plans")}</span>
+        <h1 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">{t("Watch free. Pay for more AI.")}</h1>
+        <p className="mt-2 text-sm text-muted">{t("Every video is free to watch. Plans add AI questions, subtitle languages and creator tools. Cancel anytime.")}</p>
       </div>
 
       {plans.isLoading ? (
@@ -247,28 +251,28 @@ export default function PlansPage() {
       )}
 
       <p className="mt-10 text-center text-xs text-faint">
-        Prices include the platform fee; GST or local tax is added at checkout where it applies. Questions? See the <Link to="/legal/terms" className="underline hover:text-ink">Terms</Link>.
+        {rich(t("Prices include the platform fee; GST or local tax is added at checkout where it applies. Questions? See the {terms}."), { terms: <Link to="/legal/terms" className="underline hover:text-ink">{t("Terms")}</Link> })}
       </p>
 
       <Sheet
         open={sandbox !== null}
         onClose={() => !paying && setSandbox(null)}
-        title={<span className="inline-flex items-center gap-2"><FlaskConical size={17} className="text-brand-soft" /> Sandbox payment</span>}
+        title={<span className="inline-flex items-center gap-2"><FlaskConical size={17} className="text-brand-soft" aria-hidden="true" /> {t("Sandbox payment")}</span>}
         footer={
           <>
-            <Btn tone="soft" onClick={() => paySandbox("failed")} disabled={paying !== null}>{paying === "failed" ? "Failing…" : "Fail (sandbox)"}</Btn>
-            <Btn tone="brand" onClick={() => paySandbox("captured")} disabled={paying !== null}>{paying === "captured" ? "Paying…" : "Pay (sandbox)"}</Btn>
+            <Btn tone="soft" onClick={() => paySandbox("failed")} disabled={paying !== null}>{paying === "failed" ? t("Failing…") : t("Fail (sandbox)")}</Btn>
+            <Btn tone="brand" onClick={() => paySandbox("captured")} disabled={paying !== null}>{paying === "captured" ? t("Paying…") : t("Pay (sandbox)")}</Btn>
           </>
         }
       >
         {sandbox && (
           <div className="space-y-4">
-            <p className="text-sm text-muted">This is a test checkout. No real money moves. Choose what the payment should do.</p>
+            <p className="text-sm text-muted">{t("This is a test checkout. No real money moves. Choose what the payment should do.")}</p>
             <dl className="divide-y divide-line rounded-2xl border border-line text-sm">
-              <div className="flex justify-between px-4 py-2.5"><dt className="text-muted">Plan</dt><dd className="font-semibold">{sandbox.plan.name}</dd></div>
-              <div className="flex justify-between px-4 py-2.5"><dt className="text-muted">Price</dt><dd>{formatMoney(sandbox.checkout.taxable_minor ?? sandbox.checkout.amount_minor - sandbox.checkout.tax_minor, sandbox.checkout.currency)}</dd></div>
-              <div className="flex justify-between px-4 py-2.5"><dt className="text-muted">Tax</dt><dd>{formatMoney(sandbox.checkout.tax_minor, sandbox.checkout.currency)}</dd></div>
-              <div className="flex justify-between px-4 py-2.5 font-bold"><dt>Total</dt><dd>{formatMoney(sandbox.checkout.amount_minor, sandbox.checkout.currency)}</dd></div>
+              <div className="flex justify-between px-4 py-2.5"><dt className="text-muted">{t("Plan")}</dt><dd className="font-semibold">{sandbox.plan.name}</dd></div>
+              <div className="flex justify-between px-4 py-2.5"><dt className="text-muted">{t("Price")}</dt><dd>{formatMoney(sandbox.checkout.taxable_minor ?? sandbox.checkout.amount_minor - sandbox.checkout.tax_minor, sandbox.checkout.currency)}</dd></div>
+              <div className="flex justify-between px-4 py-2.5"><dt className="text-muted">{t("Tax")}</dt><dd>{formatMoney(sandbox.checkout.tax_minor, sandbox.checkout.currency)}</dd></div>
+              <div className="flex justify-between px-4 py-2.5 font-bold"><dt>{t("Total")}</dt><dd>{formatMoney(sandbox.checkout.amount_minor, sandbox.checkout.currency)}</dd></div>
             </dl>
           </div>
         )}

@@ -162,8 +162,15 @@ def notify(db: Session, deal: SponsorDeal, what: str) -> None:
     from app.core.services import mailer
     from app.video.trust.service import owner_email
 
+    from app.video.commerce.quotas import owner_user_id
+    from app.video.services import inbox
+
     link = f"{settings.STUDIO_APP_URL.rstrip('/')}/sponsorships/deals/{deal.public_id}"
     for tid in (deal.tenant_id, deal.channel_tenant_id):
+        uid = owner_user_id(db, tid)
+        if uid:
+            inbox.add(db, uid, "deal", f"Sponsorship: {deal.title}", MESSAGES[what], f"/sponsorships/deals/{deal.public_id}",
+                      dedupe_key=f"deal:{deal.id}:{what}:{tid}")
         to, lang = owner_email(db, tid)
         if to:
             mailer.send(db, "deal_event", to, {"title": deal.title, "message": MESSAGES[what], "link": link}, lang, tenant_id=tid)

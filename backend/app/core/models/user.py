@@ -30,6 +30,7 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     email_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     session_epoch: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    home_region: Mapped[str] = mapped_column(String(4), nullable=False, default="in", server_default="in")
     totp_secret: Mapped[str | None] = mapped_column(Text)
     totp_enabled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     totp_last_step: Mapped[int | None] = mapped_column(BigInteger)

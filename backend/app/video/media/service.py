@@ -122,6 +122,11 @@ def publish_if_ready(db: Session, video: Video) -> None:
 
         later(db, notify_job, video.uploader_user_id, "published", "Your video is live", video.title,
               {"url": f"/watch/{video.public_id}"}, f"published:{video.id}")
+    if video.visibility == "public":
+        from app.video.after_commit import later as _later
+        from app.video.services.inbox import new_video
+
+        _later(db, new_video, video.id)
 
 
 def thumb(video: Video) -> str | None:

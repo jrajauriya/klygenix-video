@@ -1,18 +1,56 @@
 import { useCallback, useRef, useState } from "react"
-import { useInfiniteQuery } from "@tanstack/react-query"
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query"
 import { useIsFocused } from "expo-router"
-import { ActivityIndicator, FlatList, Pressable, Text, View } from "react-native"
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
+import { InboxBell } from "../../components/InboxBell"
 import { LiveNowRow } from "../../components/LiveNowRow"
 import { ReelItem } from "../../components/ReelItem"
+import { SubscriptionsList } from "../../components/SubscriptionsList"
 import { api, detail } from "../../lib/api"
 import { useAuth } from "../../lib/auth"
 import { useT } from "../../lib/i18n"
 import { colour, s } from "../../lib/theme"
-import type { VideoCard } from "../../lib/types"
+import type { Subscriptions, VideoCard } from "../../lib/types"
 
 const PAGE = 6
+const HEADER = 48
+
+type Mode = "reels" | "subs"
+
+function Segments({ mode, onChange, fresh }: { mode: Mode; onChange: (m: Mode) => void; fresh: number }) {
+  const { t } = useT()
+  const tabs: { key: Mode; label: string }[] = [
+    { key: "reels", label: t("feed.forYou") },
+    { key: "subs", label: t("feed.subscriptions") },
+  ]
+  return (
+    <View style={st.segments} accessibilityRole="tablist">
+      {tabs.map((tab) => {
+        const on = mode === tab.key
+        const badge = tab.key === "subs" && fresh > 0 ? t("feed.newCount", { n: fresh }) : null
+        return (
+          <Pressable
+            key={tab.key}
+            onPress={() => onChange(tab.key)}
+            style={[st.segment, on && st.segmentOn]}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: on }}
+            accessibilityLabel={badge ? `${tab.label}, ${badge}` : tab.label}
+          >
+            <Text style={[st.segmentText, on && st.segmentTextOn]}>{tab.label}</Text>
+            {badge && (
+              <View style={st.fresh}>
+                <Text style={st.freshText}>{fresh > 99 ? "99+" : fresh}</Text>
+              </View>
+            )}
+          </Pressable>
+        )
+      })}
+    </View>
+  )
+}
 
 export default function Feed() {
   const focused = useIsFocused()
@@ -22,6 +60,14 @@ export default function Feed() {
   const { user } = useAuth()
   const { t } = useT()
   const insets = useSafeAreaInsets()
+  const [mode, setMode] = useState<Mode>("reels")
+  const subsCount = useQuery({
+    queryKey: ["subs-count", user?.id],
+    enabled: Boolean(user) && focused && mode === "reels",
+    refetchInterval: 120_000,
+    queryFn: async () =>
+      (await api.get<Subscriptions>("/api/video/feed/subscriptions", { params: { limit: 1, mark_seen: false } })).data.new_count,
+  })
 
   const feed = useInfiniteQuery({
     queryKey: ["feed-reels", user?.id ?? null],
@@ -51,17 +97,19 @@ export default function Feed() {
       <ReelItem
         video={item}
         height={height}
-        active={focused && index === active}
+        active={focused && mode === "reels" && index === active}
         muted={muted}
         onToggleMute={() => setMuted((m) => !m)}
       />
     ),
-    [height, active, muted, focused],
+    [height, active, muted, focused, mode],
   )
 
   return (
     <View style={{ flex: 1, backgroundColor: colour.night }} onLayout={(e) => setHeight(e.nativeEvent.layout.height)}>
-      {feed.isLoading || height === 0 ? (
+      {mode === "subs" ? (
+        <SubscriptionsList top={insets.top + HEADER + 8} />
+      ) : feed.isLoading || height === 0 ? (
         <View style={s.centred}>
           <ActivityIndicator color={colour.brand} />
         </View>
@@ -99,7 +147,22 @@ export default function Feed() {
           onRefresh={() => feed.refetch()}
         />
       )}
-      {focused && <LiveNowRow top={insets.top + 8} />}
+      {focused && mode === "reels" && <LiveNowRow top={insets.top + HEADER + 8} />}
+      <View style={[st.header, { top: insets.top + 4 }]}>
+        <Segments mode={mode} onChange={setMode} fresh={user ? (subsCount.data ?? 0) : 0} />
+        <InboxBell />
+      </View>
     </View>
   )
 }
+
+const st = StyleSheet.create({
+  header: { position: "absolute", left: 12, right: 12, height: HEADER - 8, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  segments: { flexDirection: "row", gap: 4, borderRadius: 999, backgroundColor: "rgba(11,11,18,0.72)", padding: 3 },
+  segment: { flexDirection: "row", alignItems: "center", gap: 6, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 7 },
+  segmentOn: { backgroundColor: colour.white },
+  segmentText: { fontSize: 13, fontWeight: "700", color: colour.white },
+  segmentTextOn: { color: colour.navy },
+  fresh: { minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 4, backgroundColor: colour.brand, alignItems: "center", justifyContent: "center" },
+  freshText: { fontSize: 10, fontWeight: "800", color: colour.white },
+})

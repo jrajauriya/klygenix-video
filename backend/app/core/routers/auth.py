@@ -69,6 +69,9 @@ def _second_step(db: Session, user: User, code: str | None) -> None:
 
 
 def _issue(db: Session, user: User, request: Request) -> TokenResponse:
+    from app.core.services import region
+
+    region.guard(user.home_region or "in")
     user.last_login = datetime.now(timezone.utc)
     log_login(db, user, request)
     db.commit()

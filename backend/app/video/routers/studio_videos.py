@@ -113,6 +113,7 @@ class VideoIn(BaseModel):
     publish_at: datetime | None = None
     rights_declared: bool = False
     ai_generated: bool = False
+    made_for_kids: bool = False
     tags: list[str] = []
     filename: str = "video.mp4"
     size_bytes: int = 0
@@ -126,6 +127,7 @@ class VideoPatch(BaseModel):
     publish_at: datetime | None = None
     tags: list[str] | None = None
     ai_generated: bool | None = None
+    made_for_kids: bool | None = None
 
 
 def own_video(ctx: StudioCtx, video_id: int) -> Video:
@@ -175,6 +177,7 @@ def create_video(data: VideoIn, ctx: StudioCtx = Depends(studio("video.uploads",
         language=data.language, visibility=data.visibility, publish_at=data.publish_at,
         rights_declared=True, ai_generated=data.ai_generated, tags=[t.strip().lower()[:30] for t in data.tags if t.strip()][:12],
     )
+    video.made_for_kids = data.made_for_kids
     ticket = media.upload_ticket(ctx.db, video, data.filename)
     ctx.db.commit()
     return {"video": studio_video(video), "upload": ticket}
@@ -202,7 +205,8 @@ def get_video(video_id: int, ctx: StudioCtx = Depends(studio("video.uploads"))):
     out["suggestion_count"] = suggestions
     out["playback"] = media.playback(v)
     out["thumbnail_custom"] = bool(v.thumbnail_key)
-    out["thumbnail_ideas"] = [{"at_ms": i["at_ms"], "key": i["key"], "reason": i.get("reason", ""),
+    out["thumbnail_ai"] = v.thumbnail_ai
+    out["thumbnail_ideas"] = [{"at_ms": i["at_ms"], "key": i["key"], "reason": i.get("reason", ""), "ai": bool(i.get("ai")),
                                "url": images.public_url(i["key"]), "chosen": i["key"] == v.thumbnail_key}
                               for i in (v.thumbnail_ideas or [])]
     from app.video.models.media import CaptionTrack
@@ -229,6 +233,10 @@ def patch_video(video_id: int, data: VideoPatch, ctx: StudioCtx = Depends(studio
         v.tags = [t.strip().lower()[:30] for t in data.tags if t.strip()][:12]
     if data.ai_generated is not None:
         v.ai_generated = data.ai_generated
+    if data.made_for_kids is not None:
+        v.made_for_kids = data.made_for_kids
+    if any(x is not None for x in (data.title, data.description, data.tags, data.made_for_kids)):
+        v.safety_labels = None
     if data.visibility is not None:
         if data.visibility not in VISIBILITY + ("scheduled",):
             raise err(400, "action_not_allowed")
@@ -261,6 +269,7 @@ async def video_thumbnail(video_id: int, file: UploadFile = File(...),
                           ctx: StudioCtx = Depends(studio("video.uploads", "full"))):
     v = own_video(ctx, video_id)
     v.thumbnail_key = await _image(file, 1280)
+    v.thumbnail_ai = False
     ctx.db.commit()
     return studio_video(v)
 
@@ -275,6 +284,7 @@ def pick_thumbnail(video_id: int, data: PickIn, ctx: StudioCtx = Depends(studio(
     if data.key not in {i.get("key") for i in (v.thumbnail_ideas or [])}:
         raise err(404, "action_not_allowed")
     v.thumbnail_key = data.key
+    v.thumbnail_ai = any(i.get("key") == data.key and i.get("ai") for i in (v.thumbnail_ideas or []))
     ctx.db.commit()
     return studio_video(v)
 
@@ -283,6 +293,7 @@ def pick_thumbnail(video_id: int, data: PickIn, ctx: StudioCtx = Depends(studio(
 def reset_thumbnail(video_id: int, ctx: StudioCtx = Depends(studio("video.uploads", "full"))):
     v = own_video(ctx, video_id)
     v.thumbnail_key = None
+    v.thumbnail_ai = False
     ctx.db.commit()
     return studio_video(v)
 

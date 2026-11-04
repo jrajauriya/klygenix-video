@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query"
 import { HlsPlayer } from "@klygenixvideo/player"
 import { PUBLIC_DOMAIN, api, errStatus, errText, getJson, sameOrigin, useSignedIn } from "../lib/api"
 import { when } from "../lib/format"
+import { slot, useLang, useT } from "../lib/i18n"
 import type { LiveDetail, LiveMessage } from "../lib/types"
 import { Phone } from "../components/Tiles"
 
@@ -89,6 +90,8 @@ export default function Live() {
   const signedIn = useSignedIn()
   const navigate = useNavigate()
   const [chatOn, setChatOn] = useState(true)
+  const t = useT()
+  const lang = useLang()
   const q = useQuery({
     queryKey: ["live", id, signedIn],
     queryFn: () => getJson<LiveDetail>(`/api/video/live/${id}`),
@@ -112,20 +115,20 @@ export default function Live() {
   const ctl = "rounded-full bg-panel-3 px-7 py-3 text-2xl font-semibold text-white hover:bg-line focus:bg-white focus:text-black"
 
   let stage
-  if (q.isLoading) stage = <p role="status" className="text-3xl text-white/80">Loading…</p>
-  else if (q.isError || !data) stage = <p className="text-3xl">{errStatus(q.error) === 404 ? "This stream isn't here." : errText(q.error, "This stream did not load.")}</p>
-  else if (data.locked) stage = <div className="max-w-[48rem]"><Phone what="This stream is for channel members. To join," /></div>
+  if (q.isLoading) stage = <p role="status" className="text-3xl text-white/80">{t("Loading…")}</p>
+  else if (q.isError || !data) stage = <p className="text-3xl">{errStatus(q.error) === 404 ? t("This stream isn't here.") : errText(q.error, t("This stream did not load."))}</p>
+  else if (data.locked) stage = <div className="max-w-[48rem]"><Phone what={t("This stream is for channel members. To join,")} /></div>
   else if (data.status === "live" && data.playback) {
     stage = <HlsPlayer key={data.playback.url} src={sameOrigin(data.playback.url) ?? data.playback.url} live autoPlay controls={false} hotkeys={false} className="tv-player absolute inset-0 h-full w-full" />
-  } else if (data.status === "live") stage = <p className="text-3xl">The stream is starting. Stay here — it plays as soon as video arrives.</p>
-  else if (data.status === "scheduled") stage = <p className="text-3xl">Starts {when(data.scheduled_at)}</p>
+  } else if (data.status === "live") stage = <p className="text-3xl">{t("The stream is starting. Stay here — it plays as soon as video arrives.")}</p>
+  else if (data.status === "scheduled") stage = <p className="text-3xl">{t("Starts {when}", { when: when(data.scheduled_at, lang) })}</p>
   else {
     stage = (
       <div className="text-center">
-        <p className="text-4xl font-bold">This stream has ended.</p>
+        <p className="text-4xl font-bold">{t("This stream has ended.")}</p>
         {data.replay?.status === "published" && (
           <Link to={`/watch/${data.replay.id}`} data-autofocus className="mt-8 inline-block rounded-full bg-brand px-10 py-4 text-2xl font-semibold text-white">
-            Watch the replay
+            {t("Watch the replay")}
           </Link>
         )}
       </div>
@@ -138,18 +141,18 @@ export default function Live() {
         <div className="relative flex flex-1 items-center justify-center">{stage}</div>
         <div className="bg-gradient-to-t from-black via-black/80 to-transparent px-[6rem] pb-[3.375rem] pt-8">
           <div className="flex items-center gap-4">
-            {data?.status === "live" && <span className="rounded-md bg-live px-3 py-1 text-xl font-extrabold">LIVE</span>}
-            <h1 className="text-4xl font-bold">{data?.title ?? "Live"}</h1>
+            {data?.status === "live" && <span className="rounded-md bg-live px-3 py-1 text-xl font-extrabold">{t("LIVE")}</span>}
+            <h1 className="text-4xl font-bold">{data?.title ?? t("Live")}</h1>
           </div>
           <p className="mt-2 text-2xl text-white/80">
             {data?.channel?.name}
-            {data?.status === "live" ? ` · ${chat.viewers ?? data.viewers} watching` : ""}
+            {data?.status === "live" ? ` · ${t("{n} watching", { n: chat.viewers ?? data.viewers })}` : ""}
           </p>
           <div className="mt-5 flex flex-wrap gap-4" data-focus-group>
-            <button type="button" className={ctl} onClick={back} data-autofocus>‹ Back</button>
+            <button type="button" className={ctl} onClick={back} data-autofocus>‹ {t("Back")}</button>
             {open && (
               <button type="button" className={ctl} aria-pressed={chatOn} onClick={() => setChatOn(!chatOn)}>
-                Chat {chatOn ? "shown" : "hidden"}
+                {chatOn ? t("Chat shown") : t("Chat hidden")}
               </button>
             )}
             {data?.channel && <Link to={`/channel/${data.channel.handle}`} className={ctl}>{data.channel.name}</Link>}
@@ -158,10 +161,10 @@ export default function Live() {
       </div>
       {open && chatOn && (
         <aside aria-labelledby="chat-title" className="flex w-[30rem] flex-col border-l border-line bg-panel px-6 py-[3.375rem]">
-          <h2 id="chat-title" className="text-3xl font-bold">Live chat</h2>
-          <div ref={listRef} role="log" aria-label="Chat messages" tabIndex={0} data-focusable className="scrollbar-none mt-4 flex-1 overflow-y-auto rounded-lg">
+          <h2 id="chat-title" className="text-3xl font-bold">{t("Live chat")}</h2>
+          <div ref={listRef} role="log" aria-label={t("Chat messages")} tabIndex={0} data-focusable className="scrollbar-none mt-4 flex-1 overflow-y-auto rounded-lg">
             <ul className="space-y-3">
-            {chat.messages.length === 0 && <li className="text-xl text-muted">No messages yet.</li>}
+            {chat.messages.length === 0 && <li className="text-xl text-muted">{t("No messages yet.")}</li>}
             {chat.messages.map((m) => (
               <li key={m.id} className={`text-xl leading-snug ${m.paid_minor ? "rounded-lg bg-brand px-3 py-2" : ""}`}>
                 <span className={`font-bold ${m.paid_minor ? "text-white" : "text-brand-soft"}`}>{m.author}</span>{" "}
@@ -171,7 +174,7 @@ export default function Live() {
             </ul>
           </div>
           <p className="mt-4 text-lg leading-snug text-muted">
-            Chat is read-only on TV. To chat or send a Super Chat, open {PUBLIC_DOMAIN} on your phone.
+            {slot(t("Chat is read-only on TV. To chat or send a Super Chat, open {site} on your phone."), "site", PUBLIC_DOMAIN)}
           </p>
         </aside>
       )}

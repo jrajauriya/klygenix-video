@@ -2,6 +2,7 @@ import { useState } from "react"
 import { ActivityIndicator, Pressable, Text, TextInput, View } from "react-native"
 
 import { api, detail } from "../lib/api"
+import { CONTENT_LANGUAGES } from "../lib/languages"
 import { session } from "../lib/session"
 import { colour, s } from "../lib/theme"
 
@@ -13,14 +14,6 @@ const COUNTRIES = [
   { code: "SG", label: "Singapore" },
 ]
 
-const LANGUAGES = [
-  { code: "en", label: "English" },
-  { code: "hi", label: "हिन्दी" },
-  { code: "mr", label: "मराठी" },
-  { code: "bn", label: "বাংলা" },
-  { code: "ta", label: "தமிழ்" },
-  { code: "te", label: "తెలుగు" },
-]
 
 function Choice({ options, value, onChange }: { options: { code: string; label: string }[]; value: string; onChange: (v: string) => void }) {
   return (
@@ -103,7 +96,7 @@ export function SignUp({ onSignIn }: { onSignIn: () => void }) {
       <Text style={s.label}>Country</Text>
       <Choice options={COUNTRIES} value={country} onChange={setCountry} />
       <Text style={s.label}>Language</Text>
-      <Choice options={LANGUAGES} value={language} onChange={setLanguage} />
+      <Choice options={CONTENT_LANGUAGES} value={language} onChange={setLanguage} />
       {error && <Text style={s.error}>{error}</Text>}
       <Pressable onPress={submit} disabled={blocked} style={[s.button, blocked && s.disabled]}>
         {busy ? <ActivityIndicator color={colour.white} /> : <Text style={s.buttonText}>Create account</Text>}

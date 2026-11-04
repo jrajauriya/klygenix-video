@@ -179,3 +179,18 @@ Open questions
 
 **Closed beta** — waitlist and invite mails are transactional; confirm the privacy-notice wording for waitlist data
 (kept until joined or removed).
+
+## Run 5 additions — to confirm
+
+**View pool (V5.6)** — `ADS_VIEW_POOL_BPS` = 10% of net ad revenue (ad spend minus the creators' 55% ad share), split by
+qualified watch time (watch time × completion quality, free hosted videos only, minimum `VIEW_POOL_MIN_MINUTES`).
+Placeholders; rule V10 holds (paid only from ad money). Tax treatment as for the ad share — **confirm with the CA**.
+
+**Offline downloads** — Premium licence terms (30 days, removed when Premium ends or the creator deletes the video); the
+creator agreement should say hosted videos may be downloaded for offline viewing by Premium members.
+
+**Email digests** — opt-out by default (weekly); confirm under DPDP whether product digests need opt-in consent.
+
+**Advertising integrity** — publish an invalid-traffic policy (what is not billed and why) and the brand-safety categories.
+
+**US region (V5.4)** — data-residency statement for US users (accounts and media stay in the US region); CCPA notice.

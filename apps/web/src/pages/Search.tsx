@@ -9,6 +9,7 @@ import { api } from "@klygenixvideo/auth"
 import { useSignedIn } from "../lib/api"
 import { useTitle } from "../lib/title"
 import type { SearchResult } from "../lib/types"
+import { useT } from "../i18n"
 
 const PAGE = 20
 const MAX_OFFSET = 500
@@ -18,7 +19,8 @@ export default function SearchPage() {
   const navigate = useNavigate()
   const q = (params.get("q") ?? "").trim()
   const [draft, setDraft] = useState(q)
-  useTitle(q ? `${q} – Search` : "Search")
+  const t = useT("home")
+  useTitle(q ? t("{q} – Search", { q }) : t("Search"))
   const signedIn = useSignedIn()
   const res = useInfiniteQuery({
     queryKey: ["search", q, signedIn],
@@ -51,19 +53,19 @@ export default function SearchPage() {
             type="search"
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            placeholder="Search videos and moments inside them"
-            aria-label="Search"
+            placeholder={t("Search videos and moments inside them")}
+            aria-label={t("Search")}
             className="h-11 w-full rounded-full border border-line bg-panel pl-10 pr-4 text-sm text-ink placeholder:text-faint outline-none focus:border-brand"
           />
         </div>
       </form>
 
       {q.length < 2 ? (
-        <Empty icon={<SearchIcon size={30} />} title="Search inside every video" body="Klygenix Play searches what is said in videos, not just titles. Try a topic, a phrase or a question." />
+        <Empty icon={<SearchIcon size={30} />} title={t("Search inside every video")} body={t("Klygenix Play searches what is said in videos, not just titles. Try a topic, a phrase or a question.")} />
       ) : (
         <>
-          <h1 className="mb-1 text-lg font-bold">Results for “{q}”{total > 0 && <span className="ml-2 text-sm font-normal text-muted">{total} {total === 1 ? "video" : "videos"}</span>}</h1>
-          <p className="mb-5 flex items-center gap-1.5 text-xs text-muted"><Sparkles size={13} className="text-brand-soft" /> Matches inside videos open at the moment they are said.</p>
+          <h1 className="mb-1 text-lg font-bold">{t("Results for “{q}”", { q })}{total > 0 && <span className="ml-2 text-sm font-normal text-muted">{t(total === 1 ? "{n} video" : "{n} videos", { n: total })}</span>}</h1>
+          <p className="mb-5 flex items-center gap-1.5 text-xs text-muted"><Sparkles size={13} className="text-brand-soft" aria-hidden="true" /> {t("Matches inside videos open at the moment they are said.")}</p>
           {res.isLoading ? (
             <div className="space-y-4">
               {Array.from({ length: 5 }, (_, i) => (
@@ -71,9 +73,9 @@ export default function SearchPage() {
               ))}
             </div>
           ) : res.isError ? (
-            <Empty title="Search did not work" body="Check your connection and try again." />
+            <Empty title={t("Search did not work")} body={t("Check your connection and try again.")} />
           ) : results.length === 0 ? (
-            <Empty icon={<SearchIcon size={30} />} title="No matches" body="Try fewer or different words." />
+            <Empty icon={<SearchIcon size={30} />} title={t("No matches")} body={t("Try fewer or different words.")} />
           ) : (
             <div className="space-y-5">
               {results.map((r) => {
@@ -86,7 +88,7 @@ export default function SearchPage() {
                     snippet={
                       r.moment && (
                         <Link to={href} className="block rounded-xl border border-line bg-panel px-3 py-2 text-[13px] leading-relaxed text-ink/85 hover:border-brand/60">
-                          <span className="mr-2 inline-flex rounded-md bg-brand/25 px-1.5 py-0.5 text-xs font-semibold tabular-nums text-brand-soft">at {r.moment.label}</span>
+                          <span className="mr-2 inline-flex rounded-md bg-brand/25 px-1.5 py-0.5 text-xs font-semibold tabular-nums text-brand-soft">{t("at {time}", { time: r.moment.label })}</span>
                           <span className="line-clamp-2 sm:line-clamp-none">{r.moment.snippet}</span>
                         </Link>
                       )
@@ -97,7 +99,7 @@ export default function SearchPage() {
               {res.hasNextPage && (
                 <div className="flex justify-center pt-2">
                   <Btn tone="soft" size="sm" onClick={() => res.fetchNextPage()} disabled={res.isFetchingNextPage}>
-                    {res.isFetchingNextPage ? "Loading…" : "Load more"}
+                    {res.isFetchingNextPage ? t("Loading…") : t("Load more")}
                   </Btn>
                 </div>
               )}
