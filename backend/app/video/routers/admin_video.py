@@ -36,6 +36,15 @@ def _target_summary(db, target_type: str, target_id: int) -> dict:
         v = db.get(Video, row.video_id)
         return {"text": getattr(row, "body", None) or getattr(row, "text", ""), "status": row.status,
                 "video": v.public_id if v else None, "video_title": v.title if v else None}
+    if target_type == "live":
+        ch = db.get(Channel, row.channel_id)
+        return {"title": row.title, "public_id": row.public_id, "status": row.status, "channel": ch.handle if ch else None}
+    if target_type == "live_message":
+        from app.video.models.media import LiveStream
+
+        s = db.get(LiveStream, row.stream_id)
+        return {"text": row.body, "status": row.status, "kind": row.kind, "paid_minor": row.paid_minor,
+                "author": row.author_name, "live": s.public_id if s else None, "live_title": s.title if s else None}
     return {"handle": row.handle, "name": row.name, "suspended": row.is_suspended, "strikes": row.strike_count}
 
 
@@ -95,6 +104,16 @@ def act(data: ActionIn, ctx: Ctx = Depends(platform("admin.moderation", "full"))
     except LookupError:
         raise err(404, "video_not_found")
     ctx.db.commit()
+    if data.target_type in ("live", "live_message") and data.action in ("remove", "restrict"):
+        from app.video.models.community import LiveMessage
+        from app.video.models.media import LiveStream
+        from app.video.routers.live import emit
+
+        if data.target_type == "live":
+            emit(ctx.db.get(LiveStream, data.target_id), {"type": "ended", "reason": "platform"})
+        else:
+            m = ctx.db.get(LiveMessage, data.target_id)
+            emit(ctx.db.get(LiveStream, m.stream_id), {"type": "chat_removed", "id": m.id})
     return {"id": a.id, "action": a.action, "target": _target_summary(ctx.db, data.target_type, data.target_id)}
 
 
@@ -156,7 +175,9 @@ def takedown_out(t: Takedown) -> dict:
             "ack_due_at": iso(t.ack_due_at), "resolve_due_at": iso(t.resolve_due_at),
             "acknowledged_at": iso(t.acknowledged_at), "resolved_at": iso(t.resolved_at),
             "ack_overdue": t.acknowledged_at is None and t.ack_due_at < n,
-            "resolve_overdue": t.resolved_at is None and t.resolve_due_at < n, "decision_note": t.decision_note}
+            "resolve_overdue": t.resolved_at is None and t.resolve_due_at < n, "decision_note": t.decision_note,
+            "counter_notice": t.counter_notice, "countered_at": iso(t.countered_at), "restore_due_at": iso(t.restore_due_at),
+            "legal_action_at": iso(t.legal_action_at)}
 
 
 @router.get("/takedowns")
@@ -178,8 +199,16 @@ def decide_takedown(takedown_id: int, data: TakedownDecision, ctx: Ctx = Depends
     t = ctx.db.get(Takedown, takedown_id)
     if t is None:
         raise err(404, "action_not_allowed")
-    if data.status not in ("acknowledged", "actioned", "rejected", "restored"):
+    if data.status not in ("acknowledged", "actioned", "rejected", "restored", "upheld"):
         raise err(400, "action_not_allowed")
+    if data.status == "upheld":
+        if t.status != "countered":
+            raise err(409, "counter_notice_not_open")
+        t.legal_action_at = now()
+        t.status = "upheld"
+        t.decision_note = data.note or "The claimant filed a court action; the content stays down."
+        ctx.db.commit()
+        return takedown_out(t)
     if data.status == "acknowledged":
         t.acknowledged_at = t.acknowledged_at or now()
     else:
@@ -189,6 +218,15 @@ def decide_takedown(takedown_id: int, data: TakedownDecision, ctx: Ctx = Depends
             trust.apply_action(ctx.db, target_type="video", target_id=t.video_id, action="remove",
                                reason=f"Takedown {t.reference}: {data.note or t.kind}", actor_user_id=ctx.user.id,
                                takedown_id=t.id, strike=t.kind == "copyright")
+            from app.config import settings
+            from app.core.services import mailer
+
+            to, lang = trust.owner_email(ctx.db, t.target_tenant_id)
+            v = ctx.db.get(Video, t.video_id)
+            if to:
+                mailer.send(ctx.db, "takedown_removed", to,
+                            {"reference": t.reference, "title": v.title if v else t.target_url, "kind": t.kind.replace("_", " "),
+                             "link": f"{settings.STUDIO_APP_URL.rstrip('/')}/moderation"}, lang, tenant_id=t.target_tenant_id)
         if data.status == "restored" and t.video_id:
             trust.apply_action(ctx.db, target_type="video", target_id=t.video_id, action="restore",
                                reason=f"Takedown {t.reference} restored: {data.note}", actor_user_id=ctx.user.id,
@@ -268,3 +306,67 @@ def admin_videos(response: Response, status: str | None = None, q: str | None = 
         item["channel"] = chans[v.channel_id].handle if v.channel_id in chans else None
         out.append(item)
     return out
+
+
+@router.get("/compliance/report")
+def compliance_report(month: str = Query(pattern=r"^\d{4}-\d{2}$"), format: str = "json",
+                      ctx: Ctx = Depends(platform("admin.takedowns"))):
+    from app.video.clock import IST
+
+    y, m = (int(x) for x in month.split("-"))
+    if not 1 <= m <= 12:
+        raise err(400, "action_not_allowed")
+    start = datetime(y, m, 1, tzinfo=IST)
+    end = datetime(y + (m == 12), m % 12 + 1, 1, tzinfo=IST)
+    db = ctx.db
+    sysid = trust.system_user_id(db)
+    notices = db.execute(select(Takedown.kind, func.count(Takedown.id),
+                                func.count(Takedown.resolved_at),
+                                func.count(Takedown.id).filter(Takedown.resolved_at <= Takedown.resolve_due_at),
+                                func.count(Takedown.id).filter(Takedown.acknowledged_at <= Takedown.ack_due_at))
+                         .where(Takedown.received_at >= start, Takedown.received_at < end).group_by(Takedown.kind)).all()
+    reports_rows = db.execute(select(Report.reason, func.count(Report.id), func.count(Report.resolved_at))
+                              .where(Report.created_at >= start, Report.created_at < end).group_by(Report.reason)).all()
+    auto = (ModerationAction.actor_user_id == sysid) & (ModerationAction.reason.ilike("Automatic%")
+                                                        | ModerationAction.reason.ilike("% active strikes")
+                                                        | ModerationAction.reason.ilike("%counter-notice period ended%"))
+    acts = db.execute(select(ModerationAction.target_type, ModerationAction.action,
+                             func.count(ModerationAction.id).filter(auto),
+                             func.count(ModerationAction.id).filter(~auto))
+                      .where(ModerationAction.created_at >= start, ModerationAction.created_at < end)
+                      .group_by(ModerationAction.target_type, ModerationAction.action)).all()
+    open_end = db.execute(select(func.count(Takedown.id)).where(Takedown.received_at < end,
+                                                               (Takedown.resolved_at.is_(None)) | (Takedown.resolved_at >= end))).scalar() or 0
+    appeals_n = db.execute(select(Appeal.status, func.count(Appeal.id)).where(Appeal.created_at >= start, Appeal.created_at < end)
+                           .group_by(Appeal.status)).all()
+    body = {
+        "month": month, "timezone": "Asia/Kolkata", "generated_at": iso(now()),
+        "notices": [{"kind": k, "received": n, "resolved": r, "resolved_in_time": rt, "acknowledged_in_time": at}
+                    for k, n, r, rt, at in notices],
+        "user_reports": [{"reason": k, "received": n, "resolved": r} for k, n, r in reports_rows],
+        "actions": [{"target_type": t, "action": a, "automated": au, "by_moderators": mo} for t, a, au, mo in acts],
+        "appeals": [{"status": s, "count": n} for s, n in appeals_n],
+        "notices_open_at_month_end": open_end,
+    }
+    if format != "csv":
+        return body
+    import csv
+    import io
+
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(["section", "key", "metric", "value"])
+    for r in body["notices"]:
+        for k in ("received", "resolved", "resolved_in_time", "acknowledged_in_time"):
+            w.writerow(["notices", r["kind"], k, r[k]])
+    for r in body["user_reports"]:
+        w.writerow(["user_reports", r["reason"], "received", r["received"]])
+        w.writerow(["user_reports", r["reason"], "resolved", r["resolved"]])
+    for r in body["actions"]:
+        w.writerow(["actions", f"{r['target_type']}:{r['action']}", "automated", r["automated"]])
+        w.writerow(["actions", f"{r['target_type']}:{r['action']}", "by_moderators", r["by_moderators"]])
+    for r in body["appeals"]:
+        w.writerow(["appeals", r["status"], "count", r["count"]])
+    w.writerow(["notices", "all", "open_at_month_end", open_end])
+    return Response(buf.getvalue(), media_type="text/csv",
+                    headers={"Content-Disposition": f'attachment; filename="it-rules-report-{month}.csv"'})

@@ -10,12 +10,14 @@ import { Ban, ExternalLink, KeyRound, ShieldCheck, Upload } from "lucide-react"
 import type { NavItem, NavSection } from "@klygenixvideo/ui"
 import { sections, topLinks } from "./nav"
 import TwoStep from "../TwoStep"
+import { FeedbackButton } from "../FeedbackButton"
 import { LanguagePicker } from "../LanguagePicker"
 import { useChannel } from "../../lib/hooks"
 import { channelUrl } from "../../lib/format"
 import { useHtmlLang, useT } from "../../i18n"
 
 const OPEN_WITHOUT_CHANNEL = ["/welcome", "/settings", "/billing", "/moderation"]
+const OPEN_PREFIXES = ["/brand", "/sponsorships/deals/"]
 
 export function StudioLayout() {
   const { token, user } = useAuthStore()
@@ -43,7 +45,8 @@ export function StudioLayout() {
     return <Navigate to={`/login?returnUrl=${returnUrl}`} replace />
   }
 
-  const needsChannel = channel === null && !OPEN_WITHOUT_CHANNEL.includes(location.pathname)
+  const openPath = OPEN_WITHOUT_CHANNEL.includes(location.pathname) || OPEN_PREFIXES.some((p) => location.pathname.startsWith(p))
+  const needsChannel = channel === null && !openPath
   if (needsChannel) return <Navigate to="/welcome" replace />
 
   const canSee = (item: NavItem) => {
@@ -75,7 +78,9 @@ export function StudioLayout() {
           onMenu={onMenu}
           title={t("Klygenix Play Studio")}
           right={
-            channel ? (
+            <>
+            <FeedbackButton app="studio" label={t("Feedback")} />
+            {channel && (
               <>
                 <a
                   href={channelUrl(channel.handle)}
@@ -92,7 +97,8 @@ export function StudioLayout() {
                   <Upload size={15} /> <span className="hidden sm:inline">{t("Upload")}</span>
                 </Link>
               </>
-            ) : undefined
+            )}
+            </>
           }
           user={{
             name: user.name,

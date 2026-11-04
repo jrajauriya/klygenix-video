@@ -19,7 +19,14 @@ PUBLIC = {
     ("GET", "/api/video/videos/{public_id}/study/{kind}"),
     ("GET", "/api/video/live"), ("GET", "/api/video/live/{public_id}"), ("GET", "/api/video/channels/{handle}/live"),
     ("GET", "/api/video/live/{public_id}/chat"),
+    ("POST", "/api/video/waitlist"), ("POST", "/api/video/waitlist/confirm"), ("POST", "/api/video/invites/check"),
+    ("GET", "/api/video/beta"), ("POST", "/api/video/feedback"),
+    ("GET", "/api/video/ads/breaks"), ("GET", "/api/video/ads/decision"), ("POST", "/api/video/ads/events"),
+    ("GET", "/api/video/brands"),
 }
+NO_CHANNEL = {("GET", "/api/video/studio/channel"), ("GET", "/api/video/studio/onboarding"), ("GET", "/api/video/studio/brand"),
+              ("GET", "/api/video/studio/ads/campaigns"), ("GET", "/api/video/studio/sponsorships/my-briefs"),
+              ("GET", "/api/video/studio/sponsorships/deals")}
 SIGNED = {p for _, p in routes if p.startswith(("/api/video/webhooks/", "/api/video/sandbox/hls/", "/api/video/sandbox/hls-preview/", "/api/video/sandbox/thumb/", "/api/video/dubs/", "/api/video/sandbox/live/",
                                                  "/api/video/sandbox/upload/", "/api/video/studio/clip-files/"))}
 
@@ -61,7 +68,7 @@ check("no admin route answers a non-admin", sorted(set(leaks)), [])
 print("\n== Studio routes need a channel and the right tenant")
 leaks = []
 for m, p in routes:
-    if not p.startswith("/api/video/studio/") or p in SIGNED or (m, p) == ("GET", "/api/video/studio/channel"):
+    if not p.startswith("/api/video/studio/") or p in SIGNED or (m, p) in NO_CHANNEL:
         continue
     r = v.request(m, fill(p), json={})
     if r.status_code not in (401, 403, 404, 409, 422):

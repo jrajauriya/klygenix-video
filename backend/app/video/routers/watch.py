@@ -57,7 +57,7 @@ def video_detail(public_id: str, lang: str | None = None, viewer: Viewer = Depen
         },
         "embed": None if v.source != "embed" else {"platform": v.embed_platform, "url": v.embed_url,
                                                    "owner_verified": v.embed_owner_verified},
-        "liked": False, "following": False, "resume_ms": 0, "is_owner": False,
+        "paid_partnership": None, "liked": False, "following": False, "resume_ms": 0, "is_owner": False,
     })
     if v.access != "free":
         from app.video.commerce import access
@@ -66,6 +66,12 @@ def video_detail(public_id: str, lang: str | None = None, viewer: Viewer = Depen
         with platform_session() as pdb:
             out["locked"] = access.lock(pdb, viewer.user, v)
     out["playback"] = media.preview_playback(v) if out["locked"] else media.playback(v)
+    if v.sponsor_deal_id:
+        from app.video.ads.sponsorships import label
+        from app.video.sessions import platform_session
+
+        with platform_session() as pdb:
+            out["paid_partnership"] = label(pdb, v)
     from app.video.routers.products import public_links
 
     out["products"] = public_links(db, v.id)

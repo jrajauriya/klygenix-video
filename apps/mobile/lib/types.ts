@@ -88,6 +88,7 @@ export interface VideoDetail extends VideoCard {
   resume_ms: number
   is_owner: boolean
   ai_status: string | null
+  paid_partnership?: { brand: string; label: string } | null
 }
 
 export interface Comment {

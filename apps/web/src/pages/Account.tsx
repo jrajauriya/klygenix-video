@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react"
 import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom"
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
-import { Crown, Download, FileText, History, ListVideo, LogOut, PlayCircle, ShieldAlert, ShoppingBag, Trash2, UserX, Users, X } from "lucide-react"
+import { ChevronRight, Crown, Download, FileText, History, ListVideo, LogOut, PlayCircle, Scale, ShieldAlert, ShoppingBag, Trash2, UserX, Users, X } from "lucide-react"
 import { api, useAuthStore } from "@klygenixvideo/auth"
 import { formatMoney } from "@klygenixvideo/client"
 import { cn, saveBlob, useConfirm } from "@klygenixvideo/ui"
@@ -524,6 +524,14 @@ function Notices() {
   const data = q.data
   return (
     <div className="space-y-5">
+      <Link to="/account/notices" className="flex items-center gap-3 rounded-2xl border border-line bg-panel p-4 hover:border-brand/50 sm:px-6">
+        <Scale size={20} className="shrink-0 text-brand-soft" aria-hidden="true" />
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-semibold">Copyright notices and counter-notices</span>
+          <span className="block text-xs text-muted">See notices rights holders sent about your content and file a counter-notice.</span>
+        </span>
+        <ChevronRight size={18} className="shrink-0 text-muted" aria-hidden="true" />
+      </Link>
       <Panel title="Moderation notices">
         {q.isLoading ? (
           <Skel className="h-24 w-full" />

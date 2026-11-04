@@ -30,7 +30,9 @@ check("turning a kind off", c.put("/api/video/me/notifications", json={"render_r
 check("re-render accepted", c.post(f"/api/video/studio/clips/{cl['id']}/render").status_code, 200)
 time.sleep(1)
 ok("a turned-off kind is recorded as skipped, not sent",
-   wait_for(lambda: any(m["kind"] == "render_ready" and m["status"] == "skipped" for m in history(c)), 120))
+   wait_for(lambda: any(m["kind"] == "render_ready" and m["status"] == "skipped" for m in history(c)), 120),
+   [(m["kind"], m["status"], m["created_at"]) for m in history(c)] + [c.get(f"/api/video/studio/clips/{cl['id']}").json().get("status"),
+                                                                       c.get("/api/video/me/notifications").json()])
 
 print("\n== A followed channel goes live")
 fan, lazy = signup("Push Fan"), signup("Push Lazy")

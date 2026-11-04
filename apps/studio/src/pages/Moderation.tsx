@@ -6,6 +6,7 @@ import { api } from "@klygenixvideo/auth"
 import { Badge, Button, Card, Field, Modal, PageHeader, Spinner, Textarea } from "@klygenixvideo/ui"
 import { detail, when } from "../lib/format"
 import type { ModerationAction, Strike } from "../lib/types"
+import { Notices } from "../components/Notices"
 
 const APPEALABLE = ["remove", "restrict", "suspend"]
 
@@ -104,6 +105,8 @@ export default function Moderation() {
           </Card>
         </div>
       )}
+
+      <Notices />
 
       {appealing && <AppealModal action={appealing} onClose={() => setAppealing(null)} />}
     </div>

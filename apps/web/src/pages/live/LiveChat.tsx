@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react"
 import { Link } from "react-router-dom"
-import { ArrowDown, Loader2, MessageSquareHeart, Send, Timer, Users } from "lucide-react"
+import { ArrowDown, Flag, Loader2, MessageSquareHeart, Send, Timer, Users } from "lucide-react"
 import { api } from "@klygenixvideo/auth"
 import { cn } from "@klygenixvideo/ui"
 import { errStatus, errText, loginPath, useSignedIn } from "../../lib/api"
@@ -60,13 +60,14 @@ function Pinned({ pinned, support }: { pinned: LiveMessage[]; support: ChannelSu
 }
 
 export function LiveChat({
-  stream, room, support, onRefresh, onSupport, className,
+  stream, room, support, onRefresh, onSupport, onReport, className,
 }: {
   stream: LiveDetail
   room: LiveRoom
   support: ChannelSupport | undefined
   onRefresh: () => void
   onSupport?: () => void
+  onReport?: (m: LiveMessage) => void
   className?: string
 }) {
   const signedIn = useSignedIn()
@@ -76,7 +77,7 @@ export function LiveChat({
   const [waitUntil, setWaitUntil] = useState(0)
   const [isMod, setIsMod] = useState(false)
   const [atBottom, setAtBottom] = useState(true)
-  const log = useRef<HTMLOListElement>(null)
+  const log = useRef<HTMLDivElement>(null)
   const slow = room.slowMode ?? stream.slow_mode_seconds ?? 0
   const live = stream.status === "live"
   const timing = waitUntil > Date.now() || room.timedOutUntil > Date.now()
@@ -154,34 +155,49 @@ export function LiveChat({
       <Pinned pinned={room.pinned} support={support} />
 
       <div className="relative min-h-0 flex-1">
-        <ol
+        <div
           ref={log}
           onScroll={onScroll}
           role="log"
           aria-label="Chat messages"
           tabIndex={0}
-          className="h-full space-y-1.5 overflow-y-auto px-3 py-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand"
+          className="h-full overflow-y-auto outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand"
         >
+        <ol className="space-y-1.5 px-3 py-3 text-sm">
           {room.messages.length === 0 ? (
             <li className="py-8 text-center text-sm text-muted">
               {live ? "No messages yet. Say hello!" : stream.status === "scheduled" ? "Chat opens when the stream starts." : "No chat for this stream."}
             </li>
           ) : (
             room.messages.map((m) => (
-              <li key={m.id} className="break-words leading-snug">
-                {m.kind === "chat" ? (
-                  <>
-                    <span className="mr-1.5 font-semibold text-muted">{m.author}</span>
-                    {m.moderator && <span className="mr-1.5 rounded bg-brand/30 px-1 py-px text-[10px] font-bold uppercase text-brand-soft">Mod</span>}
-                    <span className="text-ink/90">{m.body}</span>
-                  </>
-                ) : (
-                  <PaidCard m={m} support={support} />
+              <li key={m.id} className="group flex items-start gap-1 break-words leading-snug">
+                <div className="min-w-0 flex-1">
+                  {m.kind === "chat" ? (
+                    <>
+                      <span className="mr-1.5 font-semibold text-muted">{m.author}</span>
+                      {m.moderator && <span className="mr-1.5 rounded bg-brand/30 px-1 py-px text-[10px] font-bold uppercase text-brand-soft">Mod</span>}
+                      <span className="text-ink/90">{m.body}</span>
+                    </>
+                  ) : (
+                    <PaidCard m={m} support={support} />
+                  )}
+                </div>
+                {onReport && !m.mine && (
+                  <button
+                    type="button"
+                    onClick={() => onReport(m)}
+                    aria-label={`Report message from ${m.author}`}
+                    title="Report message"
+                    className="-mr-1 shrink-0 rounded-full p-1 text-faint hover:bg-white/10 hover:text-ink focus-visible:opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100"
+                  >
+                    <Flag size={13} aria-hidden="true" />
+                  </button>
                 )}
               </li>
             ))
           )}
         </ol>
+        </div>
         {!atBottom && room.messages.length > 0 && (
           <button
             type="button"

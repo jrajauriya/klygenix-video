@@ -43,6 +43,13 @@ const HI: Record<string, string> = {
   "Your channel is suspended. Your videos are hidden until the suspension is lifted. See moderation notices for details.":
     "आपका चैनल निलंबित है। निलंबन हटने तक आपके वीडियो छिपे रहेंगे। विवरण के लिए मॉडरेशन सूचनाएँ देखें।",
   "Page not found": "पेज नहीं मिला",
+  Brand: "ब्रांड",
+  "Brand profile": "ब्रांड प्रोफ़ाइल",
+  "Ad campaigns": "विज्ञापन अभियान",
+  "Sponsorship briefs": "स्पॉन्सरशिप ब्रीफ़",
+  "Brand deals": "ब्रांड डील",
+  Sponsorships: "स्पॉन्सरशिप",
+  Feedback: "सुझाव",
 }
 
 export function useLang(): Lang {

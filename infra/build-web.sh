@@ -17,8 +17,9 @@ export VITE_WEB_URL="https://$DOMAIN$SUFFIX"
 export VITE_STUDIO_URL="https://studio.$DOMAIN$SUFFIX"
 export VITE_PUBLIC_DOMAIN="$DOMAIN"
 cd "$ROOT"
-for app in web studio admin; do
+export VITE_TV_URL="https://tv.$DOMAIN$SUFFIX"
+for app in web studio admin tv; do
   npm run build --workspace="apps/$app"
   test -f "apps/$app/dist/index.html" || { echo "apps/$app produced no index.html"; exit 1; }
 done
-echo "Built web, studio and admin against $VITE_API_URL"
+echo "Built web, studio, admin and tv against $VITE_API_URL"

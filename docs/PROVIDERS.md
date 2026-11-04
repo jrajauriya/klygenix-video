@@ -30,7 +30,7 @@ by the sandbox path's tests only.
 ## Order to switch on
 1. Bunny Stream (nothing plays without it), with `PLAYBACK_TTL_SECONDS` decided.
 2. Azure OpenAI + embeddings + Speech (one Azure resource group; budget alert at 80%).
-3. Safety vendor. **Until it is live, keep `SIGNUP_ENABLED=false` (Klygenix's own channel only) or route every upload to review.**
+3. Safety vendor. **Until it is live, keep `CREATOR_SIGNUP=invite` (run 4: invite codes and a waitlist) or route every upload to review.**
 4. Razorpay (Play's own key pair, not Store's), then Lemon Squeezy.
 5. Google OAuth verification for YouTube (weeks; start early).
 6. Creator money (Route) — **only after CA sign-off** on commission GST, TCS (s.52), TDS (194-O) and tips;
@@ -39,7 +39,12 @@ by the sandbox path's tests only.
    (without it Bunny playback URLs are public).
 7. Azure TTS for dubbing; YouTube upload for Shorts (needs step 5); Instagram after a Meta app review.
 8. Expo push: `eas init` for the project id, upload the APNs key and FCM service account to EAS, then `PUSH_PROVIDER=expo`.
-9. Live: Cloudflare Stream account and token, finish wiring `live/cloudflare.py` into `live/service.py`, then
-   `LIVE_PROVIDER=cloudflare`. Never run the sandbox `live` profile on the production host (it runs ffmpeg there).
+9. Live: Cloudflare Stream account and token, a signing key, the Stream webhook and a Notifications destination
+   (all in `docs/GO-LIVE.md`; wired and tested against a fake in run 4), then `LIVE_PROVIDER=cloudflare`. Never run the
+   sandbox `live` profile on the production host (it runs ffmpeg there).
+10. Product mail: `EMAIL_PROVIDER=graph` (or smtp) — waitlist, invites, notice receipts and deal events go through it;
+    in dev and staging they are captured in `kv_admin.mail_outbox` (Admin → Beta → Outbox).
+
+Run `make -C infra providers-check ENV_FILE=../backend/.env.prod` after each step; the `--live` probe is in `docs/GO-LIVE.md`.
 
 After each: `python -m app.readiness`, then `tests/smoke/post_deploy.py --skip-purchase` against the host.

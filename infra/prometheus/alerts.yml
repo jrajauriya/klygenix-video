@@ -177,6 +177,35 @@ groups:
           summary: "{{ $value | humanize }} realtime messages dropped in 5 minutes: sockets are falling behind"
           runbook: "infra/METRICS.md#kvlivefanoutslow"
 
+  - name: klygenix-video-trust-ads-reco
+    rules:
+      - alert: KvTrustOverdue
+        expr: sum by (kind) (kv_trust_overdue{stage="ack"}) > 0
+        for: 15m
+        labels: {severity: critical}
+        annotations:
+          summary: "{{ $value | humanize }} {{ $labels.kind }} notices are not acknowledged within their clock"
+          runbook: "infra/METRICS.md#kvtrustoverdue"
+
+      - alert: KvAdDeliveryErrors
+        expr: |
+          sum(rate(kv_http_requests_total{route=~"/api/video/ads/.*", status=~"5.."}[10m]))
+            / sum(rate(kv_http_requests_total{route=~"/api/video/ads/.*"}[10m])) > 0.05
+          and sum(rate(kv_http_requests_total{route=~"/api/video/ads/.*"}[10m])) > 0.1
+        for: 10m
+        labels: {severity: warning}
+        annotations:
+          summary: "{{ $value | humanizePercentage }} of ad decisions and events are failing"
+          runbook: "infra/METRICS.md#kvaddeliveryerrors"
+
+      - alert: KvRecoModelStale
+        expr: kv_reco_model_age_hours > 72
+        for: 1h
+        labels: {severity: warning}
+        annotations:
+          summary: "The active recommendation model is {{ $value | humanize }} hours old: nightly training is not promoting"
+          runbook: "infra/METRICS.md#kvrecomodelstale"
+
   - name: klygenix-video-host
     rules:
       - alert: KvDiskSpaceLow

@@ -102,7 +102,7 @@ class CreatorSplit(Base):
 class RouteTransfer(Base):
     __tablename__ = "route_transfers"
     __table_args__ = (
-        CheckConstraint("kind IN ('sale','reserve','recovery')", name="ck_route_transfers_kind"),
+        CheckConstraint("kind IN ('sale','reserve','recovery','ad_share')", name="ck_route_transfers_kind"),
         CheckConstraint("status IN ('pending','held','released','reversed','recovered','failed')",
                         name="ck_route_transfers_status"),
         Index("uq_route_transfers_split_kind", "split_id", "kind", unique=True,

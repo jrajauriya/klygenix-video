@@ -96,6 +96,7 @@ class Sale:
     tax_minor: int
     buyer_state_code: str | None
     taxed: bool = True
+    commission_bps: int | None = None
 
 
 def compute(db: Session, sale: Sale, *, platform_state_code: str | None) -> CreatorSplit:
@@ -106,7 +107,7 @@ def compute(db: Session, sale: Sale, *, platform_state_code: str | None) -> Crea
     seller_state = (gstin or "")[:2] or None
     pos = sale.buyer_state_code or seller_state
     taxable = sale.taxable_minor
-    bps = commission_bps(db, sale.tenant_id)
+    bps = sale.commission_bps if sale.commission_bps is not None else commission_bps(db, sale.tenant_id)
     commission = _pct(taxable, bps)
     rate, _sac = rate_for(db, "PLATFORM", on)
     c_tax = _pct(commission, rate)

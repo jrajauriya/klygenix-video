@@ -11,7 +11,7 @@ from app.video.models._base import created, pk, tenant_fk
 
 SCHEMA = "kv_trust"
 
-TARGETS = "target_type IN ('video','comment','danmaku','channel')"
+TARGETS = "target_type IN ('video','comment','danmaku','channel','live','live_message')"
 
 
 class ScanResult(Base):
@@ -44,7 +44,7 @@ class Report(Base):
     id: Mapped[int] = pk()
     tenant_id: Mapped[int] = tenant_fk()
     reporter_user_id: Mapped[int] = mapped_column(Integer, nullable=False)
-    target_type: Mapped[str] = mapped_column(String(8), nullable=False)
+    target_type: Mapped[str] = mapped_column(String(16), nullable=False)
     target_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
     target_tenant_id: Mapped[int] = mapped_column(Integer, nullable=False)
     reason: Mapped[str] = mapped_column(String(30), nullable=False)
@@ -68,7 +68,7 @@ class ModerationAction(Base):
 
     id: Mapped[int] = pk()
     tenant_id: Mapped[int] = tenant_fk()
-    target_type: Mapped[str] = mapped_column(String(8), nullable=False)
+    target_type: Mapped[str] = mapped_column(String(16), nullable=False)
     target_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
     action: Mapped[str] = mapped_column(String(10), nullable=False)
     reason: Mapped[str] = mapped_column(Text, nullable=False)
@@ -118,7 +118,7 @@ class Takedown(Base):
             "kind IN ('copyright','it_rules','intimate','court_order','other')", name="ck_takedowns_kind"
         ),
         CheckConstraint(
-            "status IN ('received','acknowledged','actioned','rejected','countered','restored')",
+            "status IN ('received','acknowledged','actioned','rejected','countered','restored','upheld')",
             name="ck_takedowns_status",
         ),
         {"schema": SCHEMA},
@@ -142,4 +142,7 @@ class Takedown(Base):
     acknowledged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     counter_notice: Mapped[dict | None] = mapped_column(JSONB)
+    countered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    restore_due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    legal_action_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     decision_note: Mapped[str | None] = mapped_column(Text)

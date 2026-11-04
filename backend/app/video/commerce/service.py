@@ -216,6 +216,16 @@ def fulfil(db: Session, fact) -> str:
         db.rollback()
         return "duplicate"
     chk.status, chk.paid_at = "paid", now()
+    if chk.purpose == "ad_budget":
+        from app.video.ads import service as ads
+
+        ads.fund(db, chk, payment)
+        return "paid"
+    if chk.purpose == "sponsorship":
+        from app.video.ads import sponsorships
+
+        sponsorships.fund(db, chk, payment)
+        return "paid"
     if chk.purpose != "plan":
         from app.video.commerce import support
 

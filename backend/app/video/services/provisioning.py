@@ -24,11 +24,15 @@ CHART = [
     ("2510", "Creator reserve", "liability", "seller_reserve"),
     ("2600", "TCS payable", "liability", "tcs_payable"),
     ("2610", "TDS payable", "liability", "tds_payable"),
+    ("2700", "Unearned advertising", "liability", "ad_unearned"),
     ("3100", "Retained earnings", "equity", "retained_earnings"),
     ("4100", "Subscription revenue", "income", "sales"),
     ("4200", "Platform commission", "income", "commission_income"),
+    ("4300", "Advertising revenue", "income", "ad_income"),
+    ("4400", "Ad revenue share", "income", "ad_share_income"),
     ("5100", "Gateway fees", "expense", "gateway_fees"),
     ("5200", "Platform commission", "expense", "commission_expense"),
+    ("5300", "Creators' ad revenue share", "expense", "ad_share_expense"),
 ]
 
 

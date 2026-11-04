@@ -4,7 +4,7 @@ from datetime import datetime
 
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
-    BigInteger, CheckConstraint, Computed, DateTime, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint,
+    BigInteger, Boolean, CheckConstraint, Computed, DateTime, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column
@@ -205,3 +205,45 @@ class TextTranslation(Base):
     text: Mapped[str] = mapped_column(Text, nullable=False)
     model: Mapped[str] = mapped_column(String(60), nullable=False)
     created_at: Mapped[datetime] = created()
+
+
+class RecoImpression(Base):
+    __tablename__ = "reco_impressions"
+    __table_args__ = (
+        Index("idx_reco_impressions_user", "user_id", "shown_at"),
+        Index("idx_reco_impressions_shown", "shown_at"),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[int] = pk()
+    user_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    video_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    position: Mapped[int] = mapped_column(Integer, nullable=False)
+    surface: Mapped[str] = mapped_column(String(8), nullable=False)
+    arm: Mapped[str] = mapped_column(String(10), nullable=False)
+    shown_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    clicked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    labelled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+
+
+class RecoModel(Base):
+    __tablename__ = "reco_models"
+    __table_args__ = (
+        UniqueConstraint("version", name="uq_reco_models_version"),
+        CheckConstraint("status IN ('candidate','active','retired','rejected')", name="ck_reco_models_status"),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[int] = pk()
+    version: Mapped[str] = mapped_column(String(20), nullable=False)
+    status: Mapped[str] = mapped_column(String(10), nullable=False, default="candidate")
+    features: Mapped[list] = mapped_column(JSONB, nullable=False)
+    weights: Mapped[list] = mapped_column(JSONB, nullable=False)
+    bias: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    mean: Mapped[list] = mapped_column(JSONB, nullable=False)
+    std: Mapped[list] = mapped_column(JSONB, nullable=False)
+    metrics: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    trained_at: Mapped[datetime] = created()
+    promoted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    promoted_by: Mapped[int | None] = mapped_column(Integer)
+    note: Mapped[str | None] = mapped_column(Text)

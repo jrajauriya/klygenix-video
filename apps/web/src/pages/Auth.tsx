@@ -1,15 +1,17 @@
-import { useState, type FormEvent, type ReactNode } from "react"
+import { useEffect, useState, type FormEvent } from "react"
 import { Link, useNavigate, useSearchParams } from "react-router-dom"
 import { useQueryClient } from "@tanstack/react-query"
 import { Eye, EyeOff } from "lucide-react"
 import {
   HANDLE_PATTERN, PLAY_COUNTRIES, PLAY_LANGUAGES, ageOn, api, countryCode, minimumAge, suggestHandle,
-  useAuthStore, useLogin, useSignupOpen,
+  useAuthStore, useLogin,
 } from "@klygenixvideo/auth"
 import type { UserInfo } from "@klygenixvideo/types"
-import { Logo } from "../components/Layout"
+import { AuthShell, ErrorNote } from "../components/AuthShell"
 import { Btn, Field, INPUT } from "../components/bits"
-import { errText } from "../lib/api"
+import { errStatus, errText } from "../lib/api"
+import { useSignupState } from "../lib/beta"
+import { WaitlistForm } from "./Waitlist"
 import { LANG_NAMES } from "../lib/format"
 import { useTitle } from "../lib/title"
 
@@ -23,34 +25,13 @@ function safeReturn(raw: string | null): string {
   return raw
 }
 
-function AuthShell({ title, subtitle, children, footer }: { title: string; subtitle?: string; children: ReactNode; footer?: ReactNode }) {
-  return (
-    <div className="relative flex min-h-[calc(100dvh-3.5rem)] items-start justify-center overflow-hidden px-4 py-10 sm:items-center">
-      <div className="pointer-events-none absolute -top-40 left-1/2 h-96 w-[42rem] -translate-x-1/2 rounded-full bg-brand/25 blur-[120px]" />
-      <div className="relative w-full max-w-[440px]">
-        <div className="mb-6 flex justify-center"><Logo /></div>
-        <div className="rounded-3xl border border-line bg-panel/90 p-6 shadow-2xl backdrop-blur sm:p-8">
-          <h1 className="text-center text-xl font-bold">{title}</h1>
-          {subtitle && <p className="mt-1 text-center text-sm text-muted">{subtitle}</p>}
-          <div className="mt-6">{children}</div>
-        </div>
-        {footer && <div className="mt-5 text-center text-sm text-muted">{footer}</div>}
-      </div>
-    </div>
-  )
-}
-
-function ErrorNote({ children }: { children: ReactNode }) {
-  return <div role="alert" className="rounded-xl border border-[#7f1d1d] bg-[#450a0a]/60 px-3 py-2 text-sm text-[#fecaca]">{children}</div>
-}
-
 export function LoginPage() {
   useTitle("Sign in")
   const [params] = useSearchParams()
   const navigate = useNavigate()
   const qc = useQueryClient()
   const login = useLogin()
-  const signupOpen = useSignupOpen()
+  const signup = useSignupState().data
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [code, setCode] = useState("")
@@ -83,7 +64,12 @@ export function LoginPage() {
       subtitle="Ask videos, send danmaku and pick up where you left off."
       footer={
         <>
-          {signupOpen !== false && <p>New here? <Link to={`/signup${back !== "/" ? `?returnUrl=${encodeURIComponent(back)}` : ""}`} className="font-semibold text-brand-soft hover:underline">Create an account</Link></p>}
+          {signup?.mode === "closed" ? (
+            <p>New here? <Link to="/waitlist" className="font-semibold text-brand-soft hover:underline">Join the waitlist</Link></p>
+          ) : (
+            <p>New here? <Link to={`/signup${back !== "/" ? `?returnUrl=${encodeURIComponent(back)}` : ""}`} className="font-semibold text-brand-soft hover:underline">Create an account</Link></p>
+          )}
+          {signup?.mode === "invite" && <p className="mt-1 text-xs">No invite code yet? <Link to="/waitlist" className="font-semibold text-brand-soft hover:underline">Join the waitlist</Link></p>}
           <p className="mt-2 text-xs text-faint">You can watch everything without an account.</p>
         </>
       }
@@ -118,13 +104,42 @@ export function SignupPage() {
   const navigate = useNavigate()
   const qc = useQueryClient()
   const setAuth = useAuthStore((s) => s.setAuth)
-  const open = useSignupOpen()
+  const state = useSignupState().data
   const back = safeReturn(params.get("returnUrl"))
-  const [form, setForm] = useState({ name: "", email: "", password: "", birthDate: "", country: "IN", language: "en", creator: false, handle: "", channelName: "" })
+  const [form, setForm] = useState({ name: "", email: "", password: "", birthDate: "", country: "IN", language: "en", creator: false, handle: "", channelName: "", invite: params.get("invite")?.trim() ?? "" })
+  const [check, setCheck] = useState<{ code: string; valid: boolean; role: string | null } | null>(null)
   const [handleTouched, setHandleTouched] = useState(false)
   const [error, setError] = useState("")
   const [pending, setPending] = useState(false)
   const today = new Date().toISOString().slice(0, 10)
+  const creatorMode = state?.creator ?? "open"
+  const inviteMode = state?.mode === "invite"
+  const needCreatorCode = form.creator && creatorMode === "invite"
+  const showInvite = inviteMode || needCreatorCode || Boolean(params.get("invite"))
+  const code = form.invite.trim()
+
+  useEffect(() => {
+    if (!showInvite || code.length < 4) return
+    let live = true
+    const t = window.setTimeout(() => {
+      api.post<{ valid: boolean; role: string | null }>("/api/video/invites/check", { code })
+        .then((r) => live && setCheck({ code, ...r.data }))
+        .catch(() => undefined)
+    }, 500)
+    return () => {
+      live = false
+      window.clearTimeout(t)
+    }
+  }, [code, showInvite])
+
+  const checked = check && check.code === code ? check : null
+  const inviteNote = !checked || code.length < 4
+    ? null
+    : !checked.valid
+      ? { ok: false, text: "That invite code is not valid, used up or expired." }
+      : needCreatorCode && checked.role !== "creator"
+        ? { ok: false, text: "This is a viewer invite. Opening a channel needs a creator invite code." }
+        : { ok: true, text: checked.role === "creator" ? "Creator invite code accepted." : "Invite code accepted." }
 
   function set<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((f) => {
@@ -154,21 +169,26 @@ export function SignupPage() {
         language: form.language,
         handle: form.creator && form.handle.trim() ? form.handle.trim().toLowerCase() : null,
         channel_name: form.creator ? form.channelName.trim() || form.name.trim() : null,
+        invite: code || null,
       })
       setAuth(data.access_token, data.user)
       qc.clear()
       navigate(back, { replace: true })
     } catch (err) {
-      setError(errText(err, "That account could not be created."))
+      setError(errStatus(err) === 403 ? errText(err, "Sign-up needs an invite code right now.") : errText(err, "That account could not be created."))
     } finally {
       setPending(false)
     }
   }
 
-  if (open === false) {
+  if (state?.mode === "closed") {
     return (
-      <AuthShell title="Sign-ups are closed for now" footer={<Link to="/" className="font-semibold text-brand-soft hover:underline">Keep watching</Link>}>
-        <p className="text-center text-sm text-muted">Klygenix Play isn't taking new accounts right now. You can still watch everything without one.</p>
+      <AuthShell
+        title="Sign-ups are closed for now"
+        subtitle="Klygenix Play isn't taking new accounts right now. Join the waitlist and we'll invite you when there's room."
+        footer={<Link to="/" className="font-semibold text-brand-soft hover:underline">Keep watching without an account</Link>}
+      >
+        <WaitlistForm defaultRole={params.get("role")} />
       </AuthShell>
     )
   }
@@ -205,13 +225,23 @@ export function SignupPage() {
           </Field>
         </div>
         <p className="rounded-xl bg-white/[0.04] px-3 py-2 text-xs text-muted">18+ in India (16+ in Germany), 13+ elsewhere. You can still watch without an account.</p>
-        <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-line p-3 hover:border-brand/50">
-          <input type="checkbox" checked={form.creator} onChange={(e) => set("creator", e.target.checked)} className="mt-0.5 h-4 w-4 accent-[#A21CAF]" />
-          <span>
-            <span className="block text-sm font-semibold">Open a creator channel</span>
-            <span className="block text-xs text-muted">Upload videos and reels under your own handle. You can also do this later in Studio.</span>
-          </span>
-        </label>
+        {creatorMode === "closed" ? (
+          <div className="rounded-xl border border-line p-3">
+            <p className="text-sm font-semibold">Creator channels open soon</p>
+            <p className="mt-0.5 text-xs text-muted">New channels aren't open yet. <Link to="/waitlist?role=creator" className="font-semibold text-brand-soft hover:underline">Join the waitlist as a creator</Link> and we'll invite you.</p>
+          </div>
+        ) : (
+          <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-line p-3 hover:border-brand/50">
+            <input type="checkbox" checked={form.creator} onChange={(e) => set("creator", e.target.checked)} className="mt-0.5 h-4 w-4 accent-[#A21CAF]" />
+            <span>
+              <span className="block text-sm font-semibold">Open a creator channel</span>
+              <span className="block text-xs text-muted">
+                Upload videos and reels under your own handle. You can also do this later in Studio.
+                {creatorMode === "invite" && " Opening a channel needs a creator invite code for now."}
+              </span>
+            </span>
+          </label>
+        )}
         {form.creator && (
           <div className="space-y-4 rounded-xl border border-brand/30 bg-brand/[0.06] p-3">
             <Field label="Channel handle" hint="3 to 40 letters, numbers or hyphens">
@@ -233,6 +263,30 @@ export function SignupPage() {
             <Field label="Channel name">
               <input className={INPUT} value={form.channelName} placeholder={form.name || "Your channel"} onChange={(e) => set("channelName", e.target.value)} maxLength={80} />
             </Field>
+          </div>
+        )}
+        {showInvite && (
+          <div className="space-y-1.5">
+            <Field label={needCreatorCode ? "Creator invite code" : "Invite code"} hint={inviteMode || needCreatorCode ? undefined : "Optional"}>
+              <input
+                className={`${INPUT} font-mono uppercase tracking-wider`}
+                value={form.invite}
+                onChange={(e) => set("invite", e.target.value)}
+                required={inviteMode || needCreatorCode}
+                minLength={4}
+                maxLength={40}
+                autoComplete="off"
+                autoCapitalize="characters"
+                spellCheck={false}
+                aria-describedby="invite-note"
+              />
+            </Field>
+            <p id="invite-note" aria-live="polite" className={`text-xs ${inviteNote ? (inviteNote.ok ? "text-[#4ade80]" : "text-[#fca5a5]") : "text-faint"}`}>
+              {inviteNote?.text ?? (inviteMode ? "Klygenix Play is invite-only for now." : "")}
+            </p>
+            {(inviteMode || needCreatorCode) && (
+              <p className="text-xs text-muted">No code? <Link to={`/waitlist${needCreatorCode ? "?role=creator" : ""}`} className="font-semibold text-brand-soft hover:underline">Join the waitlist</Link></p>
+            )}
           </div>
         )}
         {error && <ErrorNote>{error}</ErrorNote>}

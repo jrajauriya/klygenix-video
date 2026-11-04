@@ -479,13 +479,15 @@ export function CopyrightPage() {
       </S>
 
       <S title="3. Counter-notice">
-        <p>If your content was removed and you believe that was a mistake, or that you have the rights or a lawful defence such as fair dealing, you can send a counter-notice. Open <L to="/account?tab=notices">Account → Notices</L>, find the removal, choose Appeal, and include:</p>
+        <p>If your content was removed and you believe that was a mistake, or that you have the rights or a lawful defence such as fair dealing, you can send a counter-notice. Open <L to="/account/notices">Account → Copyright notices</L>, find the notice and choose File a counter-notice. The form asks for:</p>
         <ul>
-          <li>your name and contact details;</li>
-          <li>the removed content and the notice reference;</li>
+          <li>your full name, postal address, phone number and email;</li>
           <li>why you believe the removal was a mistake or that you have the right to use the material;</li>
-          <li>a statement in good faith that the information is accurate, and your consent to the jurisdiction of the courts at <Ph>jurisdiction city</Ph>.</li>
+          <li>a statement under penalty of perjury that you have a good faith belief the material was removed by mistake or misidentification;</li>
+          <li>your consent to the jurisdiction of the court for your address, and that you will accept service from the person who sent the notice <Ph>confirm jurisdiction wording</Ph>;</li>
+          <li>your signature, which is your full name typed again.</li>
         </ul>
+        <p>Other moderation decisions, such as removals for breaking the Community Guidelines, are appealed under <L to="/account?tab=notices">Account → Notices</L> instead.</p>
         <p>We send the counter-notice to the complainant. Unless the complainant tells us within <Ph>counter-notice waiting period, e.g. 21 days</Ph> that they have started court proceedings, we may restore the content and lift the strike. <Ph>decide whether to also follow the US DMCA counter-notice process and appoint a designated agent</Ph></p>
       </S>
 

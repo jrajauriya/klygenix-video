@@ -29,6 +29,7 @@ function prefetchVideo({ params }: LoaderFunctionArgs) {
       const v = queryClient.getQueryData<{ playback?: { type?: string; url?: string } | null }>(key)
       if (v?.playback?.type === "hls") warmHls(v.playback.url)
     })
+    void queryClient.prefetchQuery({ queryKey: ["ad-breaks", params.id, signedIn], queryFn: () => getJson(`/api/video/ads/breaks`, { video: params.id }), retry: false })
   }
   return null
 }
@@ -75,6 +76,11 @@ export const router = createBrowserRouter([
       { path: "/search", lazy: page(() => import("./pages/Search")) },
       { path: "/plans", lazy: page(() => import("./pages/Plans")) },
       { path: "/account", lazy: page(() => import("./pages/Account")) },
+      { path: "/account/notices", lazy: page(() => import("./pages/CopyrightNotices")) },
+      { path: "/activate", lazy: page(() => import("./pages/Activate")) },
+      { path: "/brands", lazy: page(() => import("./pages/Brands")) },
+      { path: "/waitlist", lazy: async () => ({ Component: (await import("./pages/Waitlist")).WaitlistPage }) },
+      { path: "/waitlist/confirm", lazy: async () => ({ Component: (await import("./pages/Waitlist")).WaitlistConfirmPage }) },
       { path: "/login", lazy: async () => ({ Component: (await import("./pages/Auth")).LoginPage }) },
       { path: "/signup", lazy: async () => ({ Component: (await import("./pages/Auth")).SignupPage }) },
       { path: "/legal/terms", lazy: async () => ({ Component: (await import("./pages/legal/Legal")).TermsPage }) },

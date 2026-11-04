@@ -1,6 +1,6 @@
 import {
-  Bot, Building2, FileClock, IndianRupee, Film, Gavel, Layers, LayoutDashboard, Mail, Radio, Rocket, ScrollText, Settings, ShieldAlert,
-  ShieldCheck, TriangleAlert,
+  Bot, Building2, FileBarChart, FileClock, FlaskConical, Handshake, IndianRupee, Film, Gavel, Inbox, Layers, LayoutDashboard, Mail,
+  MessageSquareText, MonitorPlay, Radio, Rocket, ScrollText, Settings, ShieldAlert, ShieldCheck, Sparkles, Ticket, TriangleAlert, Users,
 } from "lucide-react"
 import type { NavItem, NavSection } from "@klygenixvideo/ui"
 
@@ -16,8 +16,30 @@ export const sections: NavSection[] = [
     items: [
       { to: "/moderation", label: "Moderation", icon: ShieldAlert, permissionKey: "admin.moderation" },
       { to: "/takedowns", label: "Takedowns", icon: Gavel, permissionKey: "admin.takedowns" },
+      { to: "/takedowns/report", label: "Compliance report", icon: FileBarChart, permissionKey: "admin.takedowns" },
       { to: "/videos", label: "Videos", icon: Film, permissionKey: "admin.moderation" },
       { to: "/live", label: "Live streams", icon: Radio, permissionKey: "admin.moderation" },
+    ],
+  },
+  {
+    key: "growth",
+    label: "Growth",
+    icon: Sparkles,
+    items: [
+      { to: "/ads", label: "Advertising", icon: MonitorPlay, permissionKey: "admin.ads" },
+      { to: "/sponsorships", label: "Sponsorships", icon: Handshake, permissionKey: "admin.sponsorships" },
+      { to: "/reco", label: "Recommender", icon: FlaskConical, permissionKey: "admin.reco" },
+    ],
+  },
+  {
+    key: "beta",
+    label: "Beta",
+    icon: Users,
+    items: [
+      { to: "/beta", label: "Waitlist", icon: Users, permissionKey: "admin.beta" },
+      { to: "/beta/codes", label: "Invite codes", icon: Ticket, permissionKey: "admin.beta" },
+      { to: "/beta/outbox", label: "Email outbox", icon: Inbox, permissionKey: "admin.beta" },
+      { to: "/beta/feedback", label: "Feedback", icon: MessageSquareText, permissionKey: "admin.beta" },
     ],
   },
   {

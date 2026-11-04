@@ -73,9 +73,19 @@ Blocking checks include `sandbox.disabled`, every provider switch off `sandbox`,
 `scan.provider`, `age_gate`, sealed values, migrations at head, the default admin password changed.
 Each open warning needs a written reason.
 
+### 7a. Providers and the closed beta (run 4)
+- [ ] `make -C infra providers-check ENV_FILE=../backend/.env.prod` — every real provider has its keys, sealed, and the
+      webhook URLs it prints are registered; then the `--live` probe once (`docs/GO-LIVE.md`).
+- [ ] `SIGNUP_MODE=invite` and `CREATOR_SIGNUP=invite` until the safety vendor is live. Admin → Beta: confirm the
+      waitlist, invite people in batches, watch Admin → Beta → Feedback.
+- [ ] `EMAIL_PROVIDER=graph`: waitlist confirmation, invites, notice receipts and deal mails go out (check one of each).
+- [ ] `ADS_ENABLED` stays true but no campaign is approved until the CA has signed off on ad GST and the creator
+      share; `RECO_MODEL=off` until a nightly model beats the heuristic on real traffic (Admin → Recommender).
+- [ ] TV: `tv.play.klygenix.com` is in DNS and on the origin certificate; sign in on a TV browser with a device code.
+
 ## 8. Backups and monitoring
 - [ ] Cron `basebackup.sh` 02:30, `backup.sh` 03:00, `archive-metrics.sh` every 5 min (infra/BACKUPS.md). **Off-host copy:** set `BACKUP_TARGET` (+ `BACKUP_S3_*`); `backup.sh` ships, deep-verifies and prunes, and `KvBackupNotShipped` fires after 26 h without a verified copy. Rehearsal: `bash infra/backup-ship-rehearse.sh`. Media lives at Bunny; `private_uploads` (clip renders, images) is a Docker volume — include it in the off-host copy.
-- [ ] `bash infra/monitoring.sh check` then start `docker-compose.monitoring.yml`. Play alerts: `KvPipelineBacklog`, `KvRenderWaiting`, `KvAiJobsFailing`, `KvLlmBudgetHigh`, `KvTakedownsOverdue` (infra/METRICS.md).
+- [ ] `bash infra/monitoring.sh check` then start `docker-compose.monitoring.yml`. Play alerts: `KvPipelineBacklog`, `KvRenderWaiting`, `KvAiJobsFailing`, `KvLlmBudgetHigh`, `KvTakedownsOverdue`, `KvLiveIngestDown`, `KvLiveFanoutSlow`, `KvTrustOverdue`, `KvAdDeliveryErrors`, `KvRecoModelStale` (infra/METRICS.md).
 
 ## 9. Smoke test
 ```bash
@@ -83,7 +93,10 @@ backend/venv/bin/python tests/smoke/post_deploy.py --base https://play.klygenix.
 ```
 Health, share previews, headers, caching, compression, CORS for studio/admin, the consoles. On a
 staging host (sandbox on) run it without `--skip-purchase`: it signs up a creator, uploads a
-fixture, waits for publish through the workers, plays the HLS and buys Creator Pro on the sandbox rail.
+fixture, waits for publish through the workers, plays the HLS and buys Creator Pro on the sandbox rail; with admin
+credentials it also runs the creator-money journey and the run 4 journeys (an ad served and flushed into spend, a
+sponsorship funded, delivered with its label and approved, a counter-notice, the waitlist, an invite code, feedback
+and a TV device sign-in).
 
 ## 10. Go live
 - [ ] Razorpay and Lemon Squeezy live keys; readiness again.

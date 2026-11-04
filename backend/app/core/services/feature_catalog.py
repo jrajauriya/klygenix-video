@@ -51,6 +51,10 @@ FEATURE_CATALOG: dict[str, FeatureApp] = {
                     ("admin.money", "Creator money & refunds"),
                     ("admin.plans", "Plans"),
                     ("admin.logs", "Activity Log"),
+                    ("admin.beta", "Beta, waitlist & feedback"),
+                    ("admin.ads", "Advertising"),
+                    ("admin.sponsorships", "Sponsorships"),
+                    ("admin.reco", "Recommender"),
                 ),
             },
             {
@@ -92,6 +96,8 @@ FEATURE_CATALOG: dict[str, FeatureApp] = {
                 "label": "Operations",
                 "items": _items(
                     ("video.earnings", "Earnings & payouts"),
+                    ("video.sponsorships", "Sponsorships"),
+                    ("video.brand", "Brand campaigns"),
                     ("video.billing", "Plan & billing"),
                     ("video.users", "Users & Roles"),
                     ("video.settings", "Settings"),

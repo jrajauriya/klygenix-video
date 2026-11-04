@@ -14,7 +14,7 @@ declare global {
   }
 }
 
-function loadRazorpay(): Promise<void> {
+export function loadRazorpay(): Promise<void> {
   if (window.Razorpay) return Promise.resolve()
   return new Promise((resolve, reject) => {
     const s = document.createElement("script")

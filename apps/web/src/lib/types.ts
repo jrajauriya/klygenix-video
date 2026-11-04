@@ -92,6 +92,7 @@ export interface VideoDetail extends VideoCard {
   locked: VideoLock | null
   products?: { disclosure: string; items: ProductLink[] } | null
   dubs?: { language: string; name: string; label: string; url: string }[]
+  paid_partnership?: { brand: string; label: string } | null
 }
 
 export interface HistoryItem extends VideoCard {
@@ -454,4 +455,33 @@ export interface ProductLink {
   price_text: string
   position: number
   host: string
+}
+
+export interface AdBreaks {
+  eligible: boolean
+  reason: string | null
+  pre: boolean
+  mid: number[]
+}
+
+export interface MyTakedown {
+  reference: string
+  kind: string
+  status: string
+  received_at: string | null
+  complainant_name: string
+  details: string
+  target_url: string | null
+  video: { id: string; title: string; status: string } | null
+  counter_notice: Record<string, unknown> | null
+  countered_at: string | null
+  restore_due_at: string | null
+  can_counter: boolean
+  decision_note: string | null
+}
+
+export interface SignupState {
+  open: boolean
+  mode: "open" | "invite" | "closed"
+  creator: "open" | "invite" | "closed"
 }

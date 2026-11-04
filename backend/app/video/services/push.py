@@ -14,6 +14,7 @@ from app.video.models.social import DeviceToken, PushMessage
 
 logger = logging.getLogger(__name__)
 EXPO = "https://exp.host/--/api/v2/push/send"
+RECEIPTS = "https://exp.host/--/api/v2/push/getReceipts"
 KINDS = ("render_ready", "published", "live", "membership")
 DEFAULTS = {k: True for k in KINDS}
 
@@ -26,21 +27,27 @@ def provider() -> str:
     return "expo" if settings.PUSH_PROVIDER == "expo" else "sandbox"
 
 
-def _expo(tokens: list[str], title: str, body: str, data: dict) -> tuple[int, list[str], str | None]:
-    sent, dead = 0, []
+def _headers() -> dict:
+    return {"Accept": "application/json", **({"Authorization": f"Bearer {settings.EXPO_ACCESS_TOKEN}"}
+                                            if settings.EXPO_ACCESS_TOKEN else {})}
+
+
+def _expo(tokens: list[str], title: str, body: str, data: dict) -> tuple[int, list[str], str | None, dict]:
+    sent, dead, tickets = 0, [], {}
     for i in range(0, len(tokens), 100):
         batch = tokens[i:i + 100]
         r = httpx.post(EXPO, json=[{"to": t, "title": title, "body": body, "data": data, "sound": "default"} for t in batch],
-                       headers={"Accept": "application/json", **({"Authorization": f"Bearer {settings.EXPO_ACCESS_TOKEN}"}
-                                                              if settings.EXPO_ACCESS_TOKEN else {})}, timeout=20)
+                       headers=_headers(), timeout=20)
         if r.status_code >= 400:
-            return sent, dead, f"Expo push refused: {r.status_code}"
+            return sent, dead, f"Expo push refused: {r.status_code}", tickets
         for t, ticket in zip(batch, r.json().get("data", [])):
             if ticket.get("status") == "ok":
                 sent += 1
+                if ticket.get("id"):
+                    tickets[ticket["id"]] = t
             elif (ticket.get("details") or {}).get("error") == "DeviceNotRegistered":
                 dead.append(t)
-    return sent, dead, None
+    return sent, dead, None, tickets
 
 
 def notify(db: Session, user_id: int, kind: str, title: str, body: str, data: dict | None = None,
@@ -59,7 +66,8 @@ def notify(db: Session, user_id: int, kind: str, title: str, body: str, data: di
         msg.status, msg.error = "skipped", "no device"
     elif provider() == "expo":
         try:
-            sent, dead, error = _expo(tokens, msg.title, msg.body, msg.data)
+            sent, dead, error, tickets = _expo(tokens, msg.title, msg.body, msg.data)
+            msg.tickets = tickets or None
             if dead:
                 db.execute(delete(DeviceToken).where(DeviceToken.token.in_(dead)))
             msg.status, msg.error = ("failed", error) if error or not sent else ("sent", None)
@@ -101,3 +109,34 @@ def notify_followers_live(stream_id: int) -> int:
                 n += 1
         db.commit()
     return n
+
+
+def check_receipts(db: Session, older_than_minutes: int = 15) -> int:
+    from datetime import datetime, timedelta, timezone
+
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=older_than_minutes)
+    rows = db.execute(select(PushMessage).where(PushMessage.provider == "expo", PushMessage.tickets.is_not(None),
+                                                PushMessage.receipts_checked_at.is_(None),
+                                                PushMessage.created_at < cutoff).limit(300)).scalars().all()
+    dead: set[str] = set()
+    for m in rows:
+        ids = list((m.tickets or {}).keys())
+        try:
+            r = httpx.post(RECEIPTS, json={"ids": ids}, headers=_headers(), timeout=20)
+        except httpx.HTTPError:
+            continue
+        if r.status_code >= 400:
+            continue
+        failed = 0
+        for tid, receipt in (r.json().get("data") or {}).items():
+            if receipt.get("status") == "error":
+                failed += 1
+                if (receipt.get("details") or {}).get("error") == "DeviceNotRegistered" and tid in m.tickets:
+                    dead.add(m.tickets[tid])
+        if failed:
+            m.error = f"{failed} of {len(ids)} deliveries failed at Apple or Google"
+        m.receipts_checked_at = datetime.now(timezone.utc)
+    if dead:
+        db.execute(delete(DeviceToken).where(DeviceToken.token.in_(dead)))
+    db.flush()
+    return len(rows)

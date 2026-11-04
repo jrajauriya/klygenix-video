@@ -20,7 +20,7 @@ export const REPORT_REASONS: { key: string; label: string }[] = [
   { key: "other", label: "Something else" },
 ]
 
-export type ReportTarget = { type: "video" | "comment" | "danmaku" | "channel"; id: string | number; label?: string }
+export type ReportTarget = { type: "video" | "comment" | "danmaku" | "channel" | "live" | "live_message"; id: string | number; label?: string }
 
 export function ReportDialog({ target, onClose }: { target: ReportTarget | null; onClose: () => void }) {
   const [reason, setReason] = useState("")

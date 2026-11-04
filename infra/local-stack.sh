@@ -77,7 +77,7 @@ up() {
   ensure_keys
   check_ports
   if [[ -z "$skip_web" ]]; then
-    say "Building web, studio and admin against the staging API"
+    say "Building web, studio, admin and tv against the staging API"
     bash "$INFRA/build-web.sh" --env-file "$ENV_FILE"
   fi
   say "Building the backend image"
@@ -106,6 +106,7 @@ up() {
   web         https://$domain:$port/
   studio      https://studio.$domain:$port/login
   admin       https://admin.$domain:$port/login
+  tv          https://tv.$domain:$port/
   api         https://api.$domain:$port/health
   mail        http://127.0.0.1:$(value STAGING_MAIL_UI_PORT)/
   sign in     $(value GLOBAL_ADMIN_EMAIL) / $(value GLOBAL_ADMIN_PASSWORD)

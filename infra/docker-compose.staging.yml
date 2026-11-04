@@ -93,6 +93,7 @@ services:
       - ../apps/web/dist:/var/www/web:ro
       - ../apps/admin/dist:/var/www/admin:ro
       - ../apps/studio/dist:/var/www/studio:ro
+      - ../apps/tv/dist:/var/www/tv:ro
 
 volumes:
   walarchive:

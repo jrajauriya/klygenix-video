@@ -183,16 +183,7 @@ def moderate(public_id: str, data: ModerateIn, ctx: Ctx = Depends(signed_in)):
             m = db.get(LiveMessage, data.message_id)
             if m is None or m.stream_id != s.id:
                 raise err(404, "action_not_allowed")
-            refund = m.paid_minor and m.checkout_id and m.status == "visible"
-            m.status = "hidden"
-            if refund:
-                from app.video.commerce import refunds
-                from app.video.models.commerce import Payment
-
-                pay = db.execute(select(Payment).where(Payment.checkout_id == m.checkout_id)).scalars().first()
-                if pay is not None and refunds.refunded(db, pay.id) < pay.amount_minor:
-                    refunds.refund(db, payment_id=pay.id, amount_minor=None, reason="Removed by the channel",
-                                   actor_user_id=ctx.user.id, idempotency_key=f"live-removed-{m.id}")
+            refund = service.hide_message(db, m, ctx.user.id)
             db.commit()
             emit(s, {"type": "chat_removed", "id": m.id})
             return {"ok": True, "refunded": bool(refund)}
@@ -296,9 +287,15 @@ def studio_out(s: LiveStream) -> dict:
         replay = {"id": v.public_id, "video_id": v.id, "status": v.status} if v is not None else None
     out.update(db_id=s.id, error=s.error, replay_video_id=s.replay_video_id, provider=s.provider,
                playback=service.playback(s), replay=replay,
-               ingest={"protocol": "rtmp", "server": f"rtmp://{settings.LIVE_RTMP_HOST}:{s.ingest_port}/live",
-                       "browser": s.provider == "sandbox" and settings.SANDBOX_ENABLED})
+               ingest=_ingest(s))
     return out
+
+
+def _ingest(s: LiveStream) -> dict:
+    if s.provider == "cloudflare":
+        return {"protocol": "rtmps", "server": service.cloudflare.RTMPS, "browser": False}
+    return {"protocol": "rtmp", "server": f"rtmp://{settings.LIVE_RTMP_HOST}:{s.ingest_port}/live",
+            "browser": s.provider == "sandbox" and settings.SANDBOX_ENABLED}
 
 
 def _own(ctx: StudioCtx, public_id: str) -> LiveStream:
@@ -334,7 +331,7 @@ def studio_stream(public_id: str, ctx: StudioCtx = Depends(studio("video.live"))
 @router.get("/studio/live/{public_id}/key")
 def stream_key(public_id: str, ctx: StudioCtx = Depends(studio("video.live", "full"))):
     s = _own(ctx, public_id)
-    return {"server": f"rtmp://{settings.LIVE_RTMP_HOST}:{s.ingest_port}/live", "stream_key": service.key_of(s)}
+    return {"server": _ingest(s)["server"], "stream_key": service.key_of(s)}
 
 
 @router.post("/studio/live/{public_id}/rotate-key")
@@ -457,8 +454,7 @@ class StopIn(BaseModel):
 @router.post("/admin/live/{public_id}/stop")
 def admin_stop(public_id: str, data: StopIn, ctx: Ctx = Depends(platform("admin.moderation", "full"))):
     s = _stream(ctx.db, public_id)
-    service.end(ctx.db, s)
-    s.error = f"Stopped by the platform: {data.reason}"[:500]
+    service.stop(ctx.db, s, data.reason)
     audit.record(ctx.db, action="live.stop", target_table="kv_media.live_streams", target_id=s.id, after={"reason": data.reason})
     ctx.db.commit()
     emit(s, {"type": "ended", "reason": "platform"})

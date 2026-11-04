@@ -25,7 +25,11 @@ def system_user_id(db: Session) -> int:
 
 
 def target_row(db: Session, target_type: str, target_id: int):
-    model = {"video": Video, "comment": Comment, "danmaku": Danmaku, "channel": Channel}[target_type]
+    from app.video.models.community import LiveMessage
+    from app.video.models.media import LiveStream
+
+    model = {"video": Video, "comment": Comment, "danmaku": Danmaku, "channel": Channel, "live": LiveStream,
+             "live_message": LiveMessage}[target_type]
     return db.get(model, target_id)
 
 
@@ -37,8 +41,10 @@ def target_tenant(db: Session, target_type: str, target_id: int) -> int | None:
 def channel_for(db: Session, target_type: str, row) -> Channel | None:
     if target_type == "channel":
         return row
-    if target_type == "video":
+    if target_type in ("video", "live"):
         return db.get(Channel, row.channel_id)
+    if target_type == "live_message":
+        return None
     video = db.get(Video, row.video_id)
     return db.get(Channel, video.channel_id) if video else None
 
@@ -81,6 +87,18 @@ def apply_action(db: Session, *, target_type: str, target_id: int, action: str, 
             row.status = "hidden"
         elif action in ("approve", "restore"):
             row.status = "visible"
+    elif target_type == "live":
+        if action in ("remove", "restrict") and row.status in ("scheduled", "live"):
+            from app.video.live import service as live
+
+            live.stop(db, row, reason)
+    elif target_type == "live_message":
+        if action in ("remove", "restrict") and row.status == "visible":
+            from app.video.live import service as live
+
+            live.hide_message(db, row, actor_user_id, "Removed by the platform")
+        elif action in ("approve", "restore") and row.status == "hidden":
+            row.status = "visible"
     elif target_type == "channel":
         if action == "suspend":
             row.is_suspended = True
@@ -109,3 +127,63 @@ def auto_block(db: Session, video: Video, labels: list[str]) -> None:
 
 def admin_tenant_id(db: Session) -> int:
     return db.execute(select(Tenant.id).where(Tenant.slug == settings.ADMIN_TENANT_SLUG)).scalar()
+
+
+def sla_table() -> dict[str, tuple[timedelta, timedelta]]:
+    from app.config import settings
+
+    out = {}
+    for part in settings.TAKEDOWN_SLA_HOURS.split(","):
+        kind, _, hours = part.strip().partition(":")
+        ack, _, resolve = hours.partition("/")
+        if kind and ack.isdigit() and resolve.isdigit():
+            out[kind] = (timedelta(hours=int(ack)), timedelta(hours=int(resolve)))
+    out.setdefault("other", (timedelta(hours=24), timedelta(days=15)))
+    return out
+
+
+def business_days_after(start: datetime, days: int) -> datetime:
+    d, left = start, days
+    while left > 0:
+        d += timedelta(days=1)
+        if d.weekday() < 5:
+            left -= 1
+    return d
+
+
+def owner_email(db: Session, tenant_id: int | None) -> tuple[str | None, str]:
+    if not tenant_id:
+        return None, "en"
+    from app.video.commerce.quotas import owner_user_id
+
+    uid = owner_user_id(db, tenant_id)
+    u = db.get(User, uid) if uid else None
+    if u is None:
+        return None, "en"
+    from app.video.models.social import Profile
+
+    lang = db.execute(select(Profile.language).where(Profile.user_id == u.id)).scalar()
+    return u.email, "hi" if lang == "hi" else "en"
+
+
+def restore_countered(db: Session) -> int:
+    from app.core.services import mailer
+    from app.video.models.trust import Takedown
+
+    n = 0
+    for t in db.execute(select(Takedown).where(Takedown.status == "countered", Takedown.legal_action_at.is_(None),
+                                               Takedown.restore_due_at <= now())).scalars().all():
+        if t.video_id:
+            apply_action(db, target_type="video", target_id=t.video_id, action="restore",
+                         reason=f"Takedown {t.reference}: counter-notice period ended without a court action",
+                         actor_user_id=system_user_id(db), takedown_id=t.id)
+        t.status, t.resolved_at = "restored", now()
+        v = db.get(Video, t.video_id) if t.video_id else None
+        data = {"reference": t.reference, "title": v.title if v else t.target_url}
+        mailer.send(db, "takedown_restored", t.complainant_email, data)
+        to, lang = owner_email(db, t.target_tenant_id)
+        if to:
+            mailer.send(db, "takedown_restored", to, data, lang, tenant_id=t.target_tenant_id)
+        n += 1
+    db.flush()
+    return n

@@ -25,6 +25,7 @@ export interface HlsPlayerProps {
   chapters?: Chapter[]
   dubs?: DubTrack[]
   hotkeys?: boolean
+  hold?: boolean
   live?: boolean
   fit?: "contain" | "cover"
   onTime?: (ms: number) => void
@@ -34,6 +35,7 @@ export interface HlsPlayerProps {
   onDanmakuToggle?: () => void
   onCaptionChange?: (lang: string | null) => void
   onMutedChange?: (muted: boolean) => void
+  onError?: () => void
   className?: string
   videoRef?: RefObject<HTMLVideoElement | null>
   children?: ReactNode
@@ -64,8 +66,8 @@ function useLatest<T>(value: T) {
 
 export function HlsPlayer({
   src, poster, startMs, autoPlay = false, muted: mutedProp = false, loop = false, controls = true, captions,
-  captionLang: captionProp, chapters, dubs, hotkeys = true, live = false, fit = "contain", onTime, onEnded, onPlay, onPause,
-  onDanmakuToggle, onCaptionChange, onMutedChange, className, videoRef, children,
+  captionLang: captionProp, chapters, dubs, hotkeys = true, hold = false, live = false, fit = "contain", onTime, onEnded, onPlay, onPause,
+  onDanmakuToggle, onCaptionChange, onMutedChange, onError, className, videoRef, children,
 }: HlsPlayerProps) {
   const video = useRef<HTMLVideoElement>(null)
   const box = useRef<HTMLDivElement>(null)
@@ -97,11 +99,38 @@ export function HlsPlayer({
   const dub = dubs?.find((d) => d.language === dubLang) ?? null
   const dubRef = useLatest(dub)
   const [dubSrc, setDubSrc] = useState<string | null>(null)
-  const cb = useLatest({ onTime, onEnded, onPlay, onPause, onDanmakuToggle, onCaptionChange, onMutedChange })
+  const holdRef = useLatest(hold)
+  const resumeAfterHold = useRef(false)
+  const cb = useLatest({ onTime, onEnded, onPlay, onPause, onDanmakuToggle, onCaptionChange, onMutedChange, onError })
 
   useEffect(() => {
     if (videoRef) videoRef.current = video.current
   })
+
+  useEffect(() => {
+    if (failed) cb.current.onError?.()
+  }, [failed, cb])
+
+  useEffect(() => {
+    const v = video.current
+    if (!v) return
+    if (hold) {
+      const stop = () => {
+        resumeAfterHold.current = true
+        v.pause()
+      }
+      if (!v.paused) stop()
+      v.addEventListener("play", stop)
+      return () => v.removeEventListener("play", stop)
+    }
+    if (!resumeAfterHold.current) return
+    resumeAfterHold.current = false
+    v.play().catch(() => {
+      if (v.muted) return
+      v.muted = true
+      v.play().catch(() => undefined)
+    })
+  }, [hold])
 
   useEffect(() => {
     if (captionProp !== undefined) setCaptionLang(captionProp)
@@ -133,6 +162,10 @@ export function HlsPlayer({
     const safari = /^((?!chrome|android|crios|fxios).)*safari/i.test(navigator.userAgent)
     const kick = () => {
       if (!autoPlay || cancelled) return
+      if (holdRef.current) {
+        resumeAfterHold.current = true
+        return
+      }
       v.play().catch(() => {
         if (cancelled || v.muted) return
         v.muted = true
@@ -161,7 +194,12 @@ export function HlsPlayer({
         h.on(Hls.Events.LEVEL_SWITCHED, (_e, data) => setActualLevel(data.level))
         h.on(Hls.Events.ERROR, (_e, data) => {
           if (!data.fatal) return
-          if (data.type === Hls.ErrorTypes.NETWORK_ERROR) h.startLoad()
+          const manifest = data.details === Hls.ErrorDetails.MANIFEST_LOAD_ERROR || data.details === Hls.ErrorDetails.MANIFEST_PARSING_ERROR
+          if (data.type === Hls.ErrorTypes.NETWORK_ERROR && manifest && !live) {
+            h.destroy()
+            hls.current = null
+            setFailed(true)
+          } else if (data.type === Hls.ErrorTypes.NETWORK_ERROR) h.startLoad()
           else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) h.recoverMediaError()
           else {
             h.destroy()

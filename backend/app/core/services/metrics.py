@@ -187,6 +187,22 @@ def _db_lines() -> list[str]:
             out += ["# HELP kv_llm_cost_month_minor Language-model spend this month, paise.", "# TYPE kv_llm_cost_month_minor gauge"]
             n = cx.execute(text("select coalesce(sum(cost_minor), 0) from kv_ai.llm_calls where created_at >= date_trunc('month', now())")).scalar()
             out.append(f"kv_llm_cost_month_minor {n}")
+            out += ["# HELP kv_trust_overdue Takedown notices past their acknowledge or resolve clock, by kind.",
+                    "# TYPE kv_trust_overdue gauge"]
+            for stage, kind, n in cx.execute(text(
+                    "select 'ack', kind, count(*) from kv_trust.takedowns where acknowledged_at is null and ack_due_at < now() group by 2 "
+                    "union all select 'resolve', kind, count(*) from kv_trust.takedowns where resolved_at is null "
+                    "and status not in ('countered','upheld') and resolve_due_at < now() group by 2")):
+                out.append(f"kv_trust_overdue{_labels(stage=stage, kind=kind)} {n}")
+            out += ["# HELP kv_reco_ctr_bps Feed click-through in the last 24 h, basis points, by arm.", "# TYPE kv_reco_ctr_bps gauge"]
+            for arm, n, c in cx.execute(text("select arm, count(*), count(clicked_at) from kv_ai.reco_impressions "
+                                             "where shown_at > now() - interval '24 hours' group by 1")):
+                out.append(f"kv_reco_ctr_bps{_labels(arm=arm)} {int(c) * 10000 // int(n) if n else 0}")
+            out += ["# HELP kv_reco_model_age_hours Age of the active recommendation model (-1 when none).",
+                    "# TYPE kv_reco_model_age_hours gauge"]
+            age = cx.execute(text("select extract(epoch from now() - max(trained_at)) / 3600 from kv_ai.reco_models "
+                                  "where status = 'active'")).scalar()
+            out.append(f"kv_reco_model_age_hours {round(float(age), 1) if age is not None else -1}")
             out += ["# HELP kv_live_streams Live streams, by status (scheduled or live).", "# TYPE kv_live_streams gauge"]
             for status, n in cx.execute(text("select status, count(*) from kv_media.live_streams "
                                              "where status in ('scheduled','live') group by 1")):

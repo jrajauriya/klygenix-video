@@ -1,0 +1,36 @@
+{
+  "name": "@klygenixvideo/tv",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 5303",
+    "build": "tsc -b && vite build",
+    "typecheck": "tsc --noEmit -p tsconfig.app.json",
+    "preview": "vite preview",
+    "clean": "rm -rf dist dist-e2e node_modules/.vite"
+  },
+  "dependencies": {
+    "@klygenixvideo/auth": "*",
+    "@klygenixvideo/fonts": "*",
+    "@klygenixvideo/observe": "*",
+    "@klygenixvideo/player": "*",
+    "@klygenixvideo/types": "*",
+    "@tanstack/react-query": "^5.62.0",
+    "hls.js": "^1.6.2",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-router-dom": "^7.1.0",
+    "toqr": "^0.1.1"
+  },
+  "devDependencies": {
+    "@klygenixvideo/config": "*",
+    "@tailwindcss/vite": "^4.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.0",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.7.0",
+    "vite": "^6.0.0"
+  }
+}

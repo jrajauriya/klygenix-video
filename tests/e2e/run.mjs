@@ -5,6 +5,7 @@ const SERVERS = [
   { name: "web", dir: "apps/web", port: 5310, path: "/" },
   { name: "studio", dir: "apps/studio", port: 5311, path: "/" },
   { name: "admin", dir: "apps/admin", port: 5312, path: "/" },
+  { name: "tv", dir: "apps/tv", port: 5313, path: "/" },
 ]
 
 const started = []

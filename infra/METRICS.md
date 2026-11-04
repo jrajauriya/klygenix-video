@@ -317,3 +317,20 @@ The realtime hub dropped messages because sockets could not keep up (queue of 50
 
 ### KvTakedownsOverdue
 A takedown passed its resolve deadline (IT Rules: 24 h for intimate imagery, 15 days otherwise). Open Admin → Takedowns and decide it now.
+
+## Run 4 alerts
+
+### KvTrustOverdue
+A takedown or grievance notice was not acknowledged within its clock (`TAKEDOWN_SLA_HOURS`, 24 h by default — IT Rules
+2021). Resolution deadlines are `KvTakedownsOverdue`. Open Admin → Takedowns, acknowledge it (the complainant already got
+the automatic receipt mail) and decide it.
+
+### KvAdDeliveryErrors
+More than 5% of `/api/video/ads/*` calls fail. Viewers still get the video (the player skips a failed ad), but campaigns
+under-deliver. Check the API log for the traceback, Redis health (impressions and caps live there) and the creative's
+playback (a deleted or blocked creative video). Pausing a campaign in Admin → Advertising stops its decisions at once.
+
+### KvRecoModelStale
+The active recommendation model is over three days old: the nightly job (02:30 IST) is training but not promoting, or
+not training. Admin → Recommender shows the last candidates and their offline metrics; a candidate that does not beat
+the heuristic is never promoted automatically. Setting `RECO_MODEL=off` returns every viewer to the heuristic feed.

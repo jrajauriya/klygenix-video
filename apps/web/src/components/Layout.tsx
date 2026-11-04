@@ -1,11 +1,13 @@
-import { useEffect, useRef, useState, type FormEvent } from "react"
+import { Suspense, lazy, useEffect, useRef, useState, type FormEvent } from "react"
 import { Link, NavLink, Outlet, useLocation, useNavigate, useSearchParams } from "react-router-dom"
-import { Clapperboard, CreditCard, Home, LogOut, Search, Upload, User, UserCircle2, X } from "lucide-react"
+import { Clapperboard, CreditCard, Home, LogOut, MessageSquareText, Search, Upload, User, UserCircle2, X } from "lucide-react"
 import { useAuthStore, useSession } from "@klygenixvideo/auth"
 import { cn } from "@klygenixvideo/ui"
 import { STUDIO_URL, useMe, useSignedIn } from "../lib/api"
 import { hue, initials } from "../lib/format"
 import { useNavTrail } from "../lib/traffic"
+
+const FeedbackDialog = lazy(() => import("./Feedback"))
 
 export function Logo({ compact = false }: { compact?: boolean }) {
   return (
@@ -60,7 +62,7 @@ function SearchBox({ className, autoFocus, onDone }: { className?: string; autoF
   )
 }
 
-function AccountMenu() {
+function AccountMenu({ onFeedback }: { onFeedback: () => void }) {
   const user = useAuthStore((s) => s.user)
   const clearAuth = useAuthStore((s) => s.clearAuth)
   const { data: me } = useMe()
@@ -125,6 +127,9 @@ function AccountMenu() {
           <Link to="/plans" className={item} onClick={() => setOpen(false)} role="menuitem">
             <CreditCard size={17} className="text-muted" /> Plans
           </Link>
+          <button type="button" className={item} onClick={() => { setOpen(false); onFeedback() }} role="menuitem">
+            <MessageSquareText size={17} className="text-muted" /> Send feedback
+          </button>
           <button type="button" className={cn(item, "border-t border-line")} onClick={signOut} role="menuitem">
             <LogOut size={17} className="text-muted" /> Sign out
           </button>
@@ -134,7 +139,7 @@ function AccountMenu() {
   )
 }
 
-function TopBar() {
+function TopBar({ onFeedback }: { onFeedback: () => void }) {
   const signedIn = useSignedIn()
   const location = useLocation()
   const [searching, setSearching] = useState(false)
@@ -170,7 +175,7 @@ function TopBar() {
                 <span className="hidden sm:inline">Upload</span>
               </a>
               {signedIn ? (
-                <AccountMenu />
+                <AccountMenu onFeedback={onFeedback} />
               ) : (
                 <Link to="/login" className="inline-flex h-9 items-center gap-2 rounded-full border border-brand/60 px-3.5 text-sm font-semibold text-brand-soft hover:bg-brand/15">
                   <UserCircle2 size={17} aria-hidden="true" />
@@ -217,7 +222,7 @@ function BottomNav() {
   )
 }
 
-export function Footer() {
+export function Footer({ onFeedback }: { onFeedback?: () => void }) {
   const links = [
     { to: "/legal/terms", label: "Terms" },
     { to: "/legal/privacy", label: "Privacy" },
@@ -227,6 +232,7 @@ export function Footer() {
     { to: "/legal/monetisation", label: "Creator monetisation" },
     { to: "/legal/live", label: "Live rules" },
     { to: "/plans", label: "Plans" },
+    { to: "/brands", label: "For brands" },
   ]
   return (
     <footer className="mt-16 border-t border-line">
@@ -239,6 +245,7 @@ export function Footer() {
           {links.map((l) => (
             <li key={l.to}><Link to={l.to} className="hover:text-ink">{l.label}</Link></li>
           ))}
+          {onFeedback && <li><button type="button" onClick={onFeedback} className="hover:text-ink">Send feedback</button></li>}
         </ul>
       </div>
     </footer>
@@ -250,6 +257,12 @@ export function Layout() {
   useNavTrail()
   const location = useLocation()
   const immersive = location.pathname.startsWith("/reels")
+  const [feedback, setFeedback] = useState(false)
+  const [feedbackUsed, setFeedbackUsed] = useState(false)
+  const openFeedback = () => {
+    setFeedbackUsed(true)
+    setFeedback(true)
+  }
 
   useEffect(() => {
     if (!immersive) window.scrollTo(0, 0)
@@ -258,13 +271,18 @@ export function Layout() {
   return (
     <div className="min-h-dvh bg-bg text-ink">
       <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[60] focus:rounded-lg focus:bg-brand focus:px-3 focus:py-2 focus:text-white">Skip to content</a>
-      <TopBar />
+      <TopBar onFeedback={openFeedback} />
       <main id="main">
         <Outlet />
       </main>
-      {!immersive && <Footer />}
+      {!immersive && <Footer onFeedback={openFeedback} />}
       {!immersive && <div className="h-14 md:hidden" />}
       <BottomNav />
+      {feedbackUsed && (
+        <Suspense fallback={null}>
+          <FeedbackDialog open={feedback} onClose={() => setFeedback(false)} />
+        </Suspense>
+      )}
     </div>
   )
 }

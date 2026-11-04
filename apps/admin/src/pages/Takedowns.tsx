@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react"
-import { useSearchParams } from "react-router-dom"
+import { Link, useSearchParams } from "react-router-dom"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
-import { ExternalLink } from "lucide-react"
+import { ExternalLink, FileBarChart } from "lucide-react"
 import { api } from "@klygenixvideo/auth"
-import { Badge, Button, DataTable, Drawer, Field, PageHeader, SectionHeading, Select, Textarea, useConfirm } from "@klygenixvideo/ui"
+import { Badge, Button, DataTable, Drawer, Field, PageHeader, SectionHeading, Select, Textarea, buttonVariants, useConfirm } from "@klygenixvideo/ui"
 import { Note, Row, Status, TAKEDOWN_STATUS, VIDEO_ADMIN, detail, humanise, relative, useCanAct, when } from "../lib/shared"
 import type { Takedown } from "../lib/types"
 
@@ -16,7 +16,9 @@ const FILTERS = [
   { value: "acknowledged", label: "Acknowledged" },
   { value: "actioned", label: "Actioned" },
   { value: "rejected", label: "Rejected" },
+  { value: "countered", label: "Counter-notice" },
   { value: "restored", label: "Restored" },
+  { value: "upheld", label: "Upheld" },
 ]
 
 const DECISIONS: { status: string; label: string; hint: string; destructive?: boolean }[] = [
@@ -24,9 +26,16 @@ const DECISIONS: { status: string; label: string; hint: string; destructive?: bo
   { status: "actioned", label: "Take down", hint: "Removes the video. Copyright notices also add a strike.", destructive: true },
   { status: "rejected", label: "Reject", hint: "The notice does not hold up; the video stays." },
   { status: "restored", label: "Restore", hint: "Puts a taken-down video back after a counter-notice." },
+  {
+    status: "upheld",
+    label: "Claimant filed a court action",
+    hint: "The claimant has shown they went to court. The video stays down and is not restored when the waiting period ends.",
+    destructive: true,
+  },
 ]
 
 function SlaBadge({ t }: { t: Takedown }) {
+  if (t.status === "countered" && t.restore_due_at) return <Badge color="purple">Restores {relative(t.restore_due_at)}</Badge>
   if (t.resolved_at) return <Badge color="slate">Resolved</Badge>
   if (t.ack_overdue) return <Badge color="red">Acknowledgement overdue</Badge>
   if (t.resolve_overdue) return <Badge color="red">Resolution overdue</Badge>
@@ -56,7 +65,15 @@ function TakedownDrawer({ t, onClose }: { t: Takedown | null; onClose: () => voi
   if (!t) return null
 
   async function choose(d: (typeof DECISIONS)[number]) {
-    if (d.destructive) {
+    if (d.status === "upheld") {
+      const ok = await confirm({
+        title: "Record the court action?",
+        message: "The video stays down and will not be restored when the counter-notice period ends. Put the case details in the note.",
+        confirmLabel: "Keep it down",
+        variant: "destructive",
+      })
+      if (!ok) return
+    } else if (d.destructive) {
       const ok = await confirm({
         title: "Take the video down?",
         message: t?.kind === "copyright" ? "The video is removed and the channel gets a copyright strike." : "The video is removed.",
@@ -71,9 +88,11 @@ function TakedownDrawer({ t, onClose }: { t: Takedown | null; onClose: () => voi
   const resolved = Boolean(t.resolved_at)
   const available = DECISIONS.filter((d) => {
     if (d.status === "acknowledged") return !t.acknowledged_at && !resolved
-    if (d.status === "restored") return t.status === "actioned"
+    if (d.status === "restored") return t.status === "actioned" || t.status === "countered"
+    if (d.status === "upheld") return t.status === "countered"
     return !resolved
   })
+  const cn = t.counter_notice
 
   return (
     <Drawer open onClose={onClose} width="lg" title={`${t.reference} · ${humanise(t.kind)}`} subtitle={`Received ${when(t.received_at, true)}`}>
@@ -128,6 +147,41 @@ function TakedownDrawer({ t, onClose }: { t: Takedown | null; onClose: () => voi
             {t.decision_note && <Row label="Decision note" value={t.decision_note} wide />}
           </dl>
         </section>
+
+        {cn && (
+          <section>
+            <SectionHeading>Counter-notice</SectionHeading>
+            <dl className="grid grid-cols-2 gap-4">
+              <Row label="Filed" value={t.countered_at ? when(t.countered_at, true) : "—"} />
+              <Row
+                label="Restore on"
+                value={
+                  t.legal_action_at
+                    ? `Not restored: court action recorded ${when(t.legal_action_at, true)}`
+                    : t.restore_due_at
+                      ? `${when(t.restore_due_at, true)} (${relative(t.restore_due_at)})`
+                      : "—"
+                }
+              />
+              <Row label="Name" value={cn.full_name} />
+              <Row label="Signature" value={cn.signature} />
+              <Row label="Email" value={cn.email} />
+              <Row label="Phone" value={cn.phone} />
+              <Row label="Address" value={cn.address} wide />
+              <Row label="Statement" value={cn.statement} wide />
+              <Row
+                label="Sworn statements"
+                wide
+                value={cn.good_faith && cn.consent_jurisdiction ? "Good faith and jurisdiction both affirmed" : "Not both affirmed"}
+              />
+            </dl>
+            {t.status === "countered" && (
+              <p className="mt-3 text-xs text-slate-500">
+                The claimant has a copy. If they do not show a court action before the restore date, the scheduler puts the video back.
+              </p>
+            )}
+          </section>
+        )}
 
         {canAct && available.length > 0 && (
           <section>
@@ -185,7 +239,11 @@ export default function Takedowns() {
 
   return (
     <>
-      <PageHeader title="Takedowns" subtitle="Legal notices — copyright, IT Rules, intimate imagery and court orders" />
+      <PageHeader
+        title="Takedowns"
+        subtitle="Legal notices — copyright, IT Rules, intimate imagery and court orders"
+        actions={<Link to="/takedowns/report" className={buttonVariants({ variant: "outline", size: "sm" })}><FileBarChart size={14} /> Compliance report</Link>}
+      />
       {overdue > 0 && (
         <Note className="mb-4">
           <p>

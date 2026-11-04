@@ -84,5 +84,17 @@ class SandboxProvider:
         shutil.copyfile(path, self.source_path(video))
         return f"sbx-{video.id}"
 
+    def ingest_url(self, video, url: str) -> str:
+        import httpx
+
+        dst = self.source_path(video)
+        with httpx.stream("GET", url, timeout=httpx.Timeout(600.0, connect=10.0), follow_redirects=True) as resp:
+            if resp.status_code >= 400:
+                raise RuntimeError(f"the recording could not be fetched: {resp.status_code}")
+            with open(dst, "wb") as fh:
+                for chunk in resp.iter_bytes(1 << 20):
+                    fh.write(chunk)
+        return f"sbx-{video.id}"
+
     def delete(self, video) -> None:
         shutil.rmtree(video_dir(video.id), ignore_errors=True)

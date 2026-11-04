@@ -1,5 +1,6 @@
 import { ExternalLink } from "lucide-react"
 import { Badge } from "@klygenixvideo/ui"
+import { formatMoney } from "@klygenixvideo/client"
 import { Row, Status, VIDEO_STATUS, humanise, watchUrl } from "../../lib/shared"
 import type { TargetSummary, TargetType } from "../../lib/types"
 
@@ -41,6 +42,39 @@ export function TargetPreview({ type, id, target }: { type: TargetType; id: numb
         </div>
         {target.description && <p className="whitespace-pre-line text-sm text-slate-600">{target.description}</p>}
         {target.public_id && <WatchLink publicId={target.public_id} label="Open the watch page" />}
+      </div>
+    )
+  }
+
+  if (type === "live") {
+    return (
+      <div className="space-y-3">
+        <div>
+          <p className="font-semibold text-navy">{target.title || "Untitled stream"}</p>
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+            {target.channel && <span>@{target.channel}</span>}
+            <Badge color="red">Live stream</Badge>
+            {target.status && <Badge color={target.status === "live" ? "green" : "slate"}>{humanise(target.status)}</Badge>}
+          </div>
+        </div>
+        {target.public_id && <WatchLink publicId={target.public_id} label="Open the stream" />}
+      </div>
+    )
+  }
+
+  if (type === "live_message") {
+    return (
+      <div className="space-y-3">
+        <blockquote className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800">
+          {target.text || "—"}
+        </blockquote>
+        <dl className="grid grid-cols-2 gap-3">
+          <Row label="Author" value={target.author} />
+          <Row label="Kind" value={target.paid_minor ? `${humanise(target.kind ?? "chat")} · ${formatMoney(target.paid_minor, "INR")}` : humanise(target.kind ?? "chat")} />
+          <Row label="Status" value={target.status ? humanise(target.status) : "—"} />
+          <Row label="In stream" value={target.live_title} />
+        </dl>
+        {target.live && <WatchLink publicId={target.live} label="Open the stream" />}
       </div>
     )
   }

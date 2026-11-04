@@ -22,6 +22,14 @@ import Money from "./pages/Money"
 import AuditLog from "./pages/AuditLog"
 import FailedJobs from "./pages/FailedJobs"
 import LiveStreams from "./pages/LiveStreams"
+import ComplianceReport from "./pages/ComplianceReport"
+import Advertising from "./pages/Advertising"
+import Sponsorships from "./pages/Sponsorships"
+import Recommender from "./pages/Recommender"
+import Waitlist from "./pages/beta/Waitlist"
+import InviteCodes from "./pages/beta/InviteCodes"
+import Outbox from "./pages/beta/Outbox"
+import Feedback from "./pages/beta/Feedback"
 
 const gate = (key: string, el: ReactNode) => <ProtectedRoute permissionKey={key}>{el}</ProtectedRoute>
 
@@ -35,6 +43,14 @@ export const router = createBrowserRouter([
       { path: "/moderation/actions", element: gate("admin.moderation", <ModerationActions />) },
       { path: "/moderation/appeals", element: gate("admin.moderation", <Appeals />) },
       { path: "/takedowns", element: gate("admin.takedowns", <Takedowns />) },
+      { path: "/takedowns/report", element: gate("admin.takedowns", <ComplianceReport />) },
+      { path: "/ads", element: gate("admin.ads", <Advertising />) },
+      { path: "/sponsorships", element: gate("admin.sponsorships", <Sponsorships />) },
+      { path: "/reco", element: gate("admin.reco", <Recommender />) },
+      { path: "/beta", element: gate("admin.beta", <Waitlist />) },
+      { path: "/beta/codes", element: gate("admin.beta", <InviteCodes />) },
+      { path: "/beta/outbox", element: gate("admin.beta", <Outbox />) },
+      { path: "/beta/feedback", element: gate("admin.beta", <Feedback />) },
       { path: "/videos", element: gate("admin.moderation", <Videos />) },
       { path: "/live", element: gate("admin.moderation", <LiveStreams />) },
       { path: "/ai-usage", element: gate("admin.ai_usage", <AiUsage />) },

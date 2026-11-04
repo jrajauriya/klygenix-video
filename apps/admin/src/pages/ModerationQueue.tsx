@@ -15,6 +15,8 @@ function targetLabel(q: QueueItem): string {
   if (t.missing) return `#${q.target_id} (gone)`
   if (q.target_type === "video") return t.title ?? `Video #${q.target_id}`
   if (q.target_type === "channel") return t.name ? `${t.name} (@${t.handle})` : `Channel #${q.target_id}`
+  if (q.target_type === "live") return t.title ?? `Live stream #${q.target_id}`
+  if (q.target_type === "live_message") return `${t.author ? `${t.author}: ` : ""}${t.text ?? `#${q.target_id}`}`
   return t.text ?? `#${q.target_id}`
 }
 
@@ -85,6 +87,12 @@ export default function ModerationQueue() {
                   )}
                   {(r.target_type === "comment" || r.target_type === "danmaku") && r.target.video_title && (
                     <p className="truncate text-xs text-slate-500">on {r.target.video_title}</p>
+                  )}
+                  {r.target_type === "live" && r.target.channel && (
+                    <p className="truncate text-xs text-slate-500">@{r.target.channel}</p>
+                  )}
+                  {r.target_type === "live_message" && r.target.live_title && (
+                    <p className="truncate text-xs text-slate-500">in {r.target.live_title}</p>
                   )}
                 </div>
               </div>

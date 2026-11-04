@@ -48,6 +48,7 @@ class Channel(Base):
     strike_count: Mapped[int] = mapped_column(SmallInteger, nullable=False, default=0, server_default="0")
     is_suspended: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
     reviewed_uploads: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    ads_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
     created_at: Mapped[datetime] = created()
     updated_at: Mapped[datetime] = updated()
 
@@ -241,4 +242,6 @@ class PushMessage(Base):
     status: Mapped[str] = mapped_column(String(8), nullable=False)
     tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     error: Mapped[str | None] = mapped_column(Text)
+    tickets: Mapped[dict | None] = mapped_column(JSONB)
+    receipts_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = created()

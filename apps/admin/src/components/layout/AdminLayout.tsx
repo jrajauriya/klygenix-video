@@ -6,6 +6,7 @@ import { usePermissions, roleLabel } from "@klygenixvideo/client"
 import type { NavItem } from "@klygenixvideo/ui"
 import { topLinks, sections } from "./nav"
 import { VIDEO_ADMIN } from "../../lib/shared"
+import { FeedbackButton } from "../feedback/FeedbackButton"
 
 export function AdminLayout() {
   const { token, user } = useAuthStore()
@@ -68,6 +69,7 @@ export function AdminLayout() {
         <Header
           onMenu={onMenu}
           title="Admin Console"
+          right={<FeedbackButton app="admin" />}
           user={{
             name: user.name,
             email: user.email,

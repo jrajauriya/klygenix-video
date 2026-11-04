@@ -51,7 +51,8 @@ class Settings(BaseSettings):
 
     CORS_ORIGINS: str = (
         "http://localhost:5300,http://localhost:5301,http://localhost:5302,"
-        "http://localhost:5310,http://localhost:5311,http://localhost:5312,http://localhost:8082"
+        "http://localhost:5310,http://localhost:5311,http://localhost:5312,http://localhost:8082,"
+        "http://localhost:5303,http://localhost:5313"
     )
 
     REDIS_URL: str = "redis://localhost:16383/0"
@@ -74,6 +75,25 @@ class Settings(BaseSettings):
     SANDBOX_WEBHOOK_SECRET: str = "sandbox-webhook-secret"
     SANDBOX_ENABLED: bool = True
     SIGNUP_ENABLED: bool = True
+    SIGNUP_MODE: str = ""
+    CREATOR_SIGNUP: str = "open"
+    EMAIL_PROVIDER: str = "sandbox"
+    COUNTER_NOTICE_RESTORE_DAYS: int = 10
+    ADS_ENABLED: bool = True
+    ADS_CREATOR_SHARE_BPS: int = 5500
+    ADS_FREQ_CAP: int = 3
+    ADS_PER_VIEWER_HOUR: int = 6
+    ADS_MIN_CPM_MINOR: int = 5000
+    ADS_MIN_TOPUP_MINOR: int = 100000
+    ADS_MAX_TOPUP_MINOR: int = 100000000
+    SPONSORSHIP_COMMISSION_BPS: int = 1000
+    SPONSORSHIP_AUTO_APPROVE_DAYS: int = 7
+    RECO_MODEL: str = "off"
+    RECO_AB_PERCENT: int = 50
+    RECO_LOG_SAMPLE: float = 1.0
+    RECO_MIN_ROWS: int = 200
+    RECO_MIN_TEST_ROWS: int = 100
+    TAKEDOWN_SLA_HOURS: str = "intimate:24/24,court_order:24/36,copyright:24/360,it_rules:24/360,other:24/360"
     WEB_INDEX_PATH: str = "../apps/web/dist/index.html"
 
     ACTIVITY_LOG_RETENTION_DAYS: int = 90
@@ -168,6 +188,10 @@ class Settings(BaseSettings):
     EXPO_ACCESS_TOKEN: str = ""
     CF_STREAM_TOKEN: str = ""
     CF_STREAM_CUSTOMER_HOST: str = ""
+    CF_STREAM_SIGNING_KEY_ID: str = ""
+    CF_STREAM_SIGNING_KEY: str = ""
+    CF_STREAM_WEBHOOK_SECRET: str = ""
+    CF_NOTIFY_SECRET: str = ""
     TTS_PROVIDER: str = "sandbox"
     AZURE_TTS_KEY: str = ""
     AZURE_TTS_REGION: str = "centralindia"
@@ -181,7 +205,8 @@ class Settings(BaseSettings):
         "RAZORPAY_KEY_SECRET", "RAZORPAY_WEBHOOK_SECRET", "LEMONSQUEEZY_API_KEY",
         "LEMONSQUEEZY_WEBHOOK_SECRET", "BUNNY_API_KEY", "BUNNY_TOKEN_KEY", "BUNNY_WEBHOOK_SECRET",
         "AZURE_SPEECH_KEY", "OPENAI_TRANSCRIBE_KEY", "LLM_API_KEY", "LLM_BASE_URL",
-        "SCAN_API_KEY", "GOOGLE_CLIENT_SECRET",
+        "SCAN_API_KEY", "GOOGLE_CLIENT_SECRET", "INSTAGRAM_APP_SECRET", "EXPO_ACCESS_TOKEN", "AZURE_TTS_KEY",
+        "CF_STREAM_TOKEN", "CF_STREAM_SIGNING_KEY", "CF_STREAM_WEBHOOK_SECRET", "CF_NOTIFY_SECRET",
         mode="after",
     )
     @classmethod

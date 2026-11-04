@@ -13,5 +13,10 @@ export function Toaster(props: ComponentProps<typeof Sonner>) {
     quiet()
     return () => watch.disconnect()
   }, [])
-  return <Sonner ref={ref} {...props} />
+  return (
+    <>
+      <style>{"html [data-sonner-toaster][data-theme=light]{--success-text:hsl(140,100%,22%);--info-text:hsl(210,92%,38%);--warning-text:hsl(31,92%,30%);--error-text:hsl(360,100%,40%)}"}</style>
+      <Sonner ref={ref} {...props} />
+    </>
+  )
 }

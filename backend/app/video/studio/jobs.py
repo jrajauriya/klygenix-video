@@ -63,7 +63,7 @@ def render_clip(clip_id: int, per: str | None = None) -> None:
                     from app.video.services.push import notify
 
                     notify(db, owner, "render_ready", "Your clip is ready", clip.title, {"url": f"/clips/{clip.id}"},
-                           f"render:{clip.id}:{key}:{int(time.time())}")
+                           f"render:{clip.id}:{time.time_ns() // 1_000_000}")
                 if per and owner:
                     quotas.commit(db, clip.tenant_id, owner, "renders", 1, per)
             except Exception as exc:

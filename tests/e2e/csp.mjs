@@ -6,6 +6,7 @@ const suffix = PORT === "443" ? "" : `:${PORT}`
 const WEB = `https://${DOMAIN}${suffix}`
 const STUDIO = `https://studio.${DOMAIN}${suffix}`
 const ADMIN = `https://admin.${DOMAIN}${suffix}`
+const TV = `https://tv.${DOMAIN}${suffix}`
 const API = `https://api.${DOMAIN}${suffix}`
 const ADMIN_EMAIL = process.env.KV_ADMIN_EMAIL ?? "admin@klygenix.com"
 const ADMIN_PASSWORD = process.env.KV_ADMIN_PASSWORD ?? "admin123"
@@ -61,6 +62,9 @@ async function main() {
     await probe(page, label, WEB + path, WEB)
   }
   for (const [label, origin] of [["studio login", STUDIO], ["admin login", ADMIN]]) await probe(page, label, `${origin}/login`, origin)
+  await probe(page, "tv home", `${TV}/`, TV)
+  await probe(page, "web activate", `${WEB}/activate?code=ABCD-2345`, WEB)
+  await probe(page, "web waitlist", `${WEB}/waitlist`, WEB)
 
   await page.goto(`${ADMIN}/login`)
   await page.getByLabel("Email").fill(ADMIN_EMAIL)

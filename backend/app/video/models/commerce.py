@@ -40,14 +40,14 @@ class Checkout(Base):
         UniqueConstraint("tenant_id", "idempotency_key", name="uq_checkouts_idem"),
         UniqueConstraint("gateway_order_id", name="uq_checkouts_gateway_order"),
         CheckConstraint("status IN ('created','paid','failed','expired')", name="ck_checkouts_status"),
-        CheckConstraint("purpose IN ('plan','tip','boost','membership','video','series','superchat','gift')", name="ck_checkouts_purpose"),
+        CheckConstraint("purpose IN ('plan','tip','boost','membership','video','series','superchat','gift','ad_budget','sponsorship')", name="ck_checkouts_purpose"),
         {"schema": SCHEMA},
     )
 
     id: Mapped[int] = pk()
     tenant_id: Mapped[int] = tenant_fk()
     user_id: Mapped[int] = mapped_column(Integer, nullable=False)
-    purpose: Mapped[str] = mapped_column(String(10), nullable=False, default="plan")
+    purpose: Mapped[str] = mapped_column(String(16), nullable=False, default="plan")
     plan_key: Mapped[str | None] = mapped_column(String(30))
     target: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict, server_default="{}")
     taxable_minor: Mapped[int] = minor()

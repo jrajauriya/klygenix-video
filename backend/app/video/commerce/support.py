@@ -190,7 +190,8 @@ def _invoice(db: Session, chk: Checkout, buyer: User, channel: Channel) -> TaxIn
     acct = splits.payout_account(db, channel.tenant_id)
     title = {"superchat": "Super chat", "gift": f"Live gift — {(chk.target or {}).get('gift', '')}",
              "boost": "Boosted danmaku", "membership": f"Membership — {chk.target.get('tier_name', '')} (30 days)",
-             "video": f"Video — {chk.target.get('title', '')}", "series": f"Series — {chk.target.get('title', '')}"}[chk.purpose]
+             "video": f"Video — {chk.target.get('title', '')}", "series": f"Series — {chk.target.get('title', '')}",
+             "sponsorship": f"Sponsored content — {chk.target.get('title', '')}"}[chk.purpose]
     inv = TaxInvoice(
         tenant_id=channel.tenant_id, kind="invoice",
         number=next_number(db, tenant_id=channel.tenant_id, series="KVC", day=ist_today()),

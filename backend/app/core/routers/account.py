@@ -40,6 +40,7 @@ class SignupIn(BaseModel):
     language: str = "en"
     handle: str | None = None
     channel_name: str | None = None
+    invite: str | None = None
 
 
 class TokenIn(BaseModel):
@@ -128,7 +129,10 @@ def _chosen_handle(db: Session, wanted: str | None) -> str | None:
 
 @router.get("/signup/open")
 def signup_open():
-    return {"open": settings.SIGNUP_ENABLED}
+    from app.core.services import beta
+
+    mode = beta.signup_mode()
+    return {"open": mode != "closed", "mode": mode, "creator": beta.creator_mode()}
 
 
 @router.post("/signup", response_model=TokenResponse, status_code=201)
@@ -137,7 +141,9 @@ def signup(data: SignupIn, request: Request, db: Session = Depends(get_db)):
     from app.video.services.provisioning import open_channel
     from app.video.trust.age import minimum_age, old_enough
 
-    if not settings.SIGNUP_ENABLED:
+    from app.core.services import beta
+
+    if beta.signup_mode() == "closed":
         raise err(403, "sign_ups_closed")
     from app.core.services.rate_limit import _exempt
 
@@ -158,6 +164,7 @@ def signup(data: SignupIn, request: Request, db: Session = Depends(get_db)):
     if db.query(User).filter(User.email == email).first():
         raise err(409, "address_already_has_account_sign_reset")
     handle = _chosen_handle(db, data.handle)
+    beta.gate_signup(db, email=email, invite=data.invite, opens_channel=bool(handle))
 
     tenant, owner, _ = create_tenant_with_admin(
         db, name=data.name.strip(), slug=account.slug_for(db, data.name), owner_email=email,

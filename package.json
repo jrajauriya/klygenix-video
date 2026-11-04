@@ -11,6 +11,8 @@
     "dev:studio": "npm run dev --workspace=apps/studio",
     "dev:admin": "npm run dev --workspace=apps/admin",
     "dev:mobile": "npm run start --workspace=apps/mobile",
+    "dev:tv": "npm run dev --workspace=apps/tv",
+    "build:tv": "npm run build --workspace=apps/tv",
     "dev": "turbo run dev",
     "build": "turbo run build",
     "typecheck": "turbo run typecheck",

@@ -21,6 +21,8 @@ POLICY = {
     "deleted_media_days": 30,
     "live_segments_hours": 24,
     "unstarted_live_hours": 24,
+    "reco_impressions_days": 90,
+    "mail_outbox_days": 180,
 }
 
 
@@ -38,6 +40,11 @@ def run(db: Session, now: datetime | None = None) -> dict:
     out["quiz_attempts"] = db.execute(delete(QuizAttempt).where(QuizAttempt.created_at < older(POLICY["quiz_attempts_days"]))).rowcount
     out["push_messages"] = db.execute(delete(PushMessage).where(PushMessage.created_at < older(POLICY["push_messages_days"]))).rowcount
     out["translations"] = db.execute(delete(TextTranslation).where(TextTranslation.created_at < older(POLICY["translations_days"]))).rowcount
+    from app.core.models.beta import MailOutbox
+    from app.video.models.ai import RecoImpression
+
+    out["reco_impressions"] = db.execute(delete(RecoImpression).where(RecoImpression.shown_at < older(POLICY["reco_impressions_days"]))).rowcount
+    out["mail_outbox"] = db.execute(delete(MailOutbox).where(MailOutbox.created_at < older(POLICY["mail_outbox_days"]))).rowcount
     old_streams = select(LiveStream.id).where(LiveStream.status.in_(("ended", "failed")),
                                               LiveStream.ended_at < older(POLICY["live_messages_days"]))
     out["live_messages"] = db.execute(delete(LiveMessage).where(LiveMessage.stream_id.in_(old_streams))).rowcount

@@ -56,7 +56,16 @@ def ranked(db: Session, *, user_id: int | None, lang: str | None, kind: str | No
 
         affinity, seen = reco.affinity(db, user_id, [r.id for r in rows])
 
+    model = None
+    if user_id is not None and not following_only:
+        from app.video.reco import service as reco_model
+
+        if reco_model.arm(db, user_id) == "model":
+            model = reco_model.scores(db, user_id, rows, lang)
+
     def score(v: Video) -> float:
+        if model is not None:
+            return model.get(v.id, 0.0) * (0.35 if v.id in seen else 1.0)
         s = _score(v, pend.get(v.id, {}), followed, lang, kind == "reel")
         s *= 1 + RECO_WEIGHT * max(0.0, affinity.get(v.id, 0.0))
         return s * (0.35 if v.id in seen else 1.0)

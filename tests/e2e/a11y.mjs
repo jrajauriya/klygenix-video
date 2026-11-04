@@ -5,6 +5,7 @@ import { chromium } from "playwright"
 const WEB = process.env.KV_WEB ?? "http://localhost:5310"
 const STUDIO = process.env.KV_STUDIO ?? "http://localhost:5311"
 const ADMIN = process.env.KV_ADMIN ?? "http://localhost:5312"
+const TV = process.env.KV_TV ?? "http://localhost:5313"
 const API = process.env.KV_API ?? "http://localhost:9300"
 const CREATOR = process.env.KV_CREATOR ?? "asha@demo.klygenix.com"
 const VIEWER = process.env.KV_VIEWER ?? "rohan@demo.klygenix.com"
@@ -86,6 +87,24 @@ async function main() {
       await ctx.close()
     }
   }
+
+  console.log("\n== a11y: tv")
+  const streams = await (await fetch(`${API}/api/video/live?limit=1`)).json()
+  const tvScreens = [["home", "/"], ["search", "/search?q=azure"], ["watch", long ? `/watch/${long.id}` : "/"], ["channel", `/channel/${handle}`],
+                     ["profile", "/profile"], ["sign-in", "/login"], ["feedback", "/feedback"], ["404", "/no-such-page"]]
+  if (streams[0]) tvScreens.push(["live", `/live/${streams[0].id}`])
+  ctx = await browser.newContext({ viewport: { width: 1920, height: 1080 }, colorScheme: "dark" })
+  page = await ctx.newPage()
+  for (const [label, path] of tvScreens) await audit(page, `tv ${label}`, TV + path)
+  await ctx.close()
+  const tvLogin = await (await fetch(`${API}/api/auth/login`, { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email: VIEWER, password: DEMO_PASSWORD }) })).json()
+  ctx = await browser.newContext({ viewport: { width: 1920, height: 1080 }, colorScheme: "dark" })
+  await ctx.addInitScript((auth) => localStorage.setItem("klygenix-video-auth", JSON.stringify({ state: auth, version: 0 })),
+    { token: tvLogin.access_token, user: tvLogin.user })
+  page = await ctx.newPage()
+  for (const [label, path] of [["home", "/"], ["profile", "/profile"], ["channel", `/channel/${handle}`]]) await audit(page, `tv ${label} (signed in)`, TV + path)
+  await ctx.close()
 
   await browser.close()
   console.log(`\na11y: ${PASS} passed, ${FAIL} failed`)

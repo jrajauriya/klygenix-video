@@ -36,7 +36,7 @@ if [[ -z "$VPS_HOST" ]]; then
   fi
 fi
 
-APPS=(web studio admin)
+APPS=(web studio admin tv)
 APP_UID=10001
 if [[ "$STAGING" == "1" ]]; then
   TARGET="staging"

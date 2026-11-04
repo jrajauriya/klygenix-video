@@ -15,6 +15,7 @@ import {
 } from "react-native"
 import { useVideoPlayer, VideoView } from "expo-video"
 
+import { ReportSheet, type ReportTarget } from "../../components/ReportSheet"
 import { detail, openWeb, statusOf } from "../../lib/api"
 import { useAuth } from "../../lib/auth"
 import { compact, price } from "../../lib/format"
@@ -38,17 +39,26 @@ function Player({ url }: { url: string }) {
   return <VideoView player={player} style={{ flex: 1 }} contentFit="contain" nativeControls />
 }
 
-function Bubble({ m }: { m: LiveMessage }) {
+function Bubble({ m, onReport }: { m: LiveMessage; onReport: (m: LiveMessage) => void }) {
   const { t } = useT()
   const paid = m.paid_minor > 0
+  const reportable = !m.mine
   return (
-    <View style={[st.bubble, m.mine && st.mine, paid && st.paid]}>
+    <Pressable
+      style={[st.bubble, m.mine && st.mine, paid && st.paid]}
+      onLongPress={reportable ? () => onReport(m) : undefined}
+      delayLongPress={350}
+      accessible
+      accessibilityHint={reportable ? t("report.hint") : undefined}
+      accessibilityActions={reportable ? [{ name: "report", label: t("report.message") }] : undefined}
+      onAccessibilityAction={(e) => e.nativeEvent.actionName === "report" && onReport(m)}
+    >
       <Text style={[st.author, m.mine && { color: colour.brand }]}>
         {m.mine ? `${m.author} (${t("live.you")})` : m.author}
         {paid ? <Text style={st.amount}>{`  ${price(m.paid_minor)}${m.tier ? ` · ${m.tier}` : ""}`}</Text> : null}
       </Text>
       {m.body ? <Text style={st.body}>{m.body}</Text> : null}
-    </View>
+    </Pressable>
   )
 }
 
@@ -66,6 +76,7 @@ export default function Live() {
   const [sending, setSending] = useState(false)
   const [now, setNow] = useState(Date.now())
   const [stream, setStream] = useState<{ url: string; expires_at: number } | null>(null)
+  const [report, setReport] = useState<ReportTarget | null>(null)
 
   const live = useQuery({
     queryKey: ["live", id, user?.id ?? null],
@@ -261,12 +272,24 @@ export default function Live() {
           <Text style={[s.text, { flex: 1, fontWeight: "700" }]} numberOfLines={2}>
             {data.title}
           </Text>
+          {!data.is_owner && (
+            <Pressable
+              onPress={() => setReport({ type: "live", id: data.id, title: data.title })}
+              style={st.flag}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel={t("report.stream")}
+            >
+              <Text style={st.flagText}>⚑ {t("report.action")}</Text>
+            </Pressable>
+          )}
         </View>
         <Text style={s.subtitle}>
           {data.channel ? `@${data.channel.handle}` : ""}
           {viewers !== null && isLive ? ` · ${t("live.viewers", { n: compact(viewers) })}` : ""}
           {open && isLive && !connected ? ` · ${t("live.reconnecting")}` : ""}
         </Text>
+        {open && messages.length > 0 ? <Text style={[s.note, { marginTop: 4 }]}>{t("report.hint")}</Text> : null}
       </View>
 
       {shownPinned.length > 0 && (
@@ -298,7 +321,9 @@ export default function Live() {
           data={[...messages].reverse()}
           inverted
           keyExtractor={(m) => String(m.id)}
-          renderItem={({ item }) => <Bubble m={item} />}
+          renderItem={({ item }) => (
+            <Bubble m={item} onReport={(m) => setReport({ type: "live_message", id: String(m.id), title: `${m.author}: ${m.body}` })} />
+          )}
           contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 8 }}
           ListEmptyComponent={
             history.isLoading ? undefined : <Text style={[s.note, { textAlign: "center" }]}>{t("live.chatEmpty")}</Text>
@@ -358,6 +383,7 @@ export default function Live() {
           </Pressable>
         )}
       </View>
+      <ReportSheet target={report} onClose={() => setReport(null)} />
     </KeyboardAvoidingView>
   )
 }
@@ -382,5 +408,7 @@ const st = StyleSheet.create({
   body: { marginTop: 1, fontSize: 15, color: colour.navy, lineHeight: 20 },
   composer: { borderTopWidth: 1, borderTopColor: colour.slate200, paddingHorizontal: 16, paddingTop: 6, paddingBottom: 16 },
   hint: { fontSize: 12, color: colour.amber600 },
+  flag: { borderRadius: 999, borderWidth: 1, borderColor: colour.slate300, paddingHorizontal: 10, paddingVertical: 4 },
+  flagText: { fontSize: 12, fontWeight: "600", color: colour.slate500 },
   send: { borderRadius: 12, backgroundColor: colour.brand, paddingHorizontal: 16, paddingVertical: 12 },
 })

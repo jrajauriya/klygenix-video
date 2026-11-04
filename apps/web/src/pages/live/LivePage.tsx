@@ -1,7 +1,7 @@
 import { Suspense, lazy, useCallback, useEffect, useState } from "react"
 import { Link, useNavigate, useParams } from "react-router-dom"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { CalendarClock, Clapperboard, Gift, Loader2, Lock, MessageSquareHeart, Radio, Users } from "lucide-react"
+import { CalendarClock, Clapperboard, Flag, Gift, Loader2, Lock, MessageSquareHeart, Radio, Users } from "lucide-react"
 import { useAuthStore } from "@klygenixvideo/auth"
 import { cn } from "@klygenixvideo/ui"
 import { HlsPlayer } from "@klygenixvideo/player"
@@ -16,6 +16,7 @@ import { FollowButton } from "../../components/FollowButton"
 import { LiveBadge, watching } from "../../components/Live"
 import { Sheet } from "../../components/Sheet"
 import { MembershipTiers } from "../../components/Support"
+import { ReportDialog, type ReportTarget } from "../../components/ReportDialog"
 import NotFound from "../NotFound"
 import { LiveChat } from "./LiveChat"
 import type { SupportMode } from "./LiveSupportSheet"
@@ -114,6 +115,7 @@ export default function LivePage() {
   const [supportUsed, setSupportUsed] = useState(false)
   const [joinOpen, setJoinOpen] = useState(false)
   const [src, setSrc] = useState<{ url: string; exp: number } | null>(null)
+  const [report, setReport] = useState<ReportTarget | null>(null)
 
   const detail = useQuery({
     queryKey: ["live", publicId, signedIn],
@@ -185,6 +187,10 @@ export default function LivePage() {
     setSupportUsed(true)
     setSupportOpen(true)
   }
+  const askReport = (target: ReportTarget) => {
+    if (!signedIn) navigate(loginPath())
+    else setReport(target)
+  }
   const viewers = room.viewers ?? d.viewers
   const live = d.status === "live"
 
@@ -250,6 +256,11 @@ export default function LivePage() {
               {canPay && (money?.gifts?.length ?? 0) > 0 && (
                 <Btn tone="soft" onClick={() => openSupport("gift")}><Gift size={16} className="text-brand-soft" aria-hidden="true" /> Send a gift</Btn>
               )}
+              {!d.is_owner && (
+                <Btn tone="soft" onClick={() => askReport({ type: "live", id: d.id, label: "live stream" })} aria-label="Report live stream">
+                  <Flag size={16} aria-hidden="true" /> <span className="hidden sm:inline">Report</span>
+                </Btn>
+              )}
             </div>
 
             {d.description && (
@@ -275,11 +286,14 @@ export default function LivePage() {
               support={money}
               onRefresh={refresh}
               onSupport={canPay && (money?.superchat_tiers?.length ?? 0) > 0 ? () => openSupport("superchat") : undefined}
+              onReport={(m) => askReport({ type: "live_message", id: m.id, label: "message" })}
               className="h-[70dvh] lg:sticky lg:top-20 lg:h-[calc(100dvh-7rem)]"
             />
           )}
         </aside>
       </div>
+
+      <ReportDialog target={report} onClose={() => setReport(null)} />
 
       {money && d.channel && supportUsed && (
         <Suspense fallback={null}>

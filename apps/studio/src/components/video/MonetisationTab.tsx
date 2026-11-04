@@ -4,7 +4,7 @@ import { useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { Save } from "lucide-react"
 import { api } from "@klygenixvideo/auth"
-import { Button, Card, Field, Input, Select, Spinner, cn } from "@klygenixvideo/ui"
+import { Button, Card, Field, Input, Select, Spinner, ToggleField, cn } from "@klygenixvideo/ui"
 import { fromMinor, useHasPermission } from "@klygenixvideo/client"
 import { STUDIO } from "../../lib/hooks"
 import { detail } from "../../lib/format"
@@ -157,13 +157,49 @@ export function MonetisationTab({ video }: { video: StudioVideoDetail }) {
         )}
       </Card>
 
-      <Card className="space-y-2 p-5 text-sm text-slate-600 lg:col-span-2">
+      <div className="space-y-5 lg:col-span-2">
+      {!embed && video.kind === "long" && <VideoAds video={video} />}
+      <Card className="space-y-2 p-5 text-sm text-slate-600">
         <h2 className="text-sm font-bold text-navy">How it works</h2>
         <p>Klygenix Play keeps {earnings ? earnings.commission_bps / 100 : 20}% commission plus GST. Your share is held for the {earnings?.refund_window_days ?? 7}-day refund window, then released to your bank.</p>
         <p>Viewers who bought a video, or are members at the right level, see it in full. Everyone else sees the preview.</p>
         <p>Captions, AI chapters and Ask-the-video work the same for everyone who can watch.</p>
         <Link to="/earnings" className="inline-block font-semibold text-brand hover:underline">See your earnings</Link>
       </Card>
+      </div>
     </div>
+  )
+}
+
+function VideoAds({ video }: { video: StudioVideoDetail & { ads_enabled?: boolean } }) {
+  const canEdit = useHasPermission("video.uploads", "full")
+  const [on, setOn] = useState(video.ads_enabled ?? true)
+  const [busy, setBusy] = useState(false)
+
+  async function change(next: boolean) {
+    setBusy(true)
+    try {
+      const { data } = await api.put<{ ads_enabled: boolean }>(`${STUDIO}/ads/videos/${video.public_id}`, { ads_enabled: next })
+      setOn(data.ads_enabled)
+      toast.success(data.ads_enabled ? "Ads can show on this video" : "No ads on this video")
+    } catch (err) {
+      toast.error(detail(err, "Could not change ads for this video"))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Card className="p-5">
+      <h2 className="text-sm font-bold text-navy">Ads</h2>
+      <ToggleField
+        label="Allow ads on this video"
+        hint="Ads only run when they are also on for your channel (Earnings, Ads). Never on members-only or paid videos, or for Premium viewers."
+        checked={on}
+        onChange={change}
+        disabled={!canEdit || busy}
+      />
+      <Link to="/earnings?tab=ads" className="text-sm font-semibold text-brand hover:underline">Channel ad settings</Link>
+    </Card>
   )
 }

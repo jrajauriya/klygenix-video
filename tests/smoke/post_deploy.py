@@ -179,7 +179,7 @@ def run(args: argparse.Namespace) -> None:
         record("SKIP", "/metrics with the token", "no --metrics-token / KV_METRICS_TOKEN")
 
     section("CORS for the consoles")
-    for label, origin in (("studio", studio), ("admin", admin)):
+    for label, origin in (("studio", studio), ("admin", admin), ("tv", sibling(base, "tv"))):
         r = client.options(f"{api}/api/auth/login", headers={"Origin": origin, "Access-Control-Request-Method": "POST",
                                                             "Access-Control-Request-Headers": "content-type"})
         check(f"{label} origin allowed by the API", r.headers.get("access-control-allow-origin") == origin,
@@ -189,6 +189,7 @@ def run(args: argparse.Namespace) -> None:
     section("studio and admin")
     spa("studio", client, studio, "/login", "DENY", [api])
     spa("admin", client, admin, "/login", "DENY", [api])
+    spa("tv", client, sibling(base, "tv"), "/", "DENY", [api])
 
     section("sandbox journey")
     if args.skip_purchase:
@@ -410,6 +411,138 @@ def money(client: httpx.Client, args: argparse.Namespace, api: str, auth: dict, 
     tip_split = next((x["id"] for x in client.get(f"{api}/api/video/studio/earnings/sales?purpose=tip", headers=auth).json()), None)
     tr = [t for t in client.get(f"{api}/api/video/studio/earnings/transfers", headers=auth).json() if t["split_id"] == tip_split]
     check("the tip's held transfers are reversed", bool(tr) and all(t["status"] == "reversed" for t in tr), str(tr))
+    section("run 4: ads, sponsorships, notices, beta, TV sign-in")
+    run4(client, args, api, auth, adm)
+
+
+def _upload(client: httpx.Client, api: str, auth: dict, path: str, title: str, visibility: str, timeout: float) -> dict | None:
+    r = client.post(f"{api}/api/video/studio/videos", headers=auth, json={"title": title, "rights_declared": True, "visibility": visibility})
+    if r.status_code != 201:
+        return None
+    d = r.json()
+    with open(path, "rb") as fh:
+        client.put(d["upload"]["url"], content=fh.read(), headers=d["upload"]["headers"], timeout=300)
+    deadline = time.time() + timeout
+    v: dict = {}
+    while time.time() < deadline:
+        v = client.get(f"{api}/api/video/studio/videos/{d['video']['id']}", headers=auth).json()
+        if v.get("status") in ("published", "in_review", "blocked", "failed"):
+            break
+        time.sleep(1)
+    return v if v.get("status") == "published" else None
+
+
+def _outbox(client: httpx.Client, api: str, adm: dict, to: str, template: str, timeout: float) -> dict | None:
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        rows = client.get(f"{api}/api/video/admin/beta/outbox?to={to}&template={template}", headers=adm).json()
+        if rows:
+            return rows[0]
+        time.sleep(0.5)
+    return None
+
+
+def run4(client: httpx.Client, args: argparse.Namespace, api: str, auth: dict, adm: dict) -> None:
+    media = os.path.dirname(os.path.abspath(args.fixture))
+    long_path = os.path.join(media, "azure-apim-auth.mp4")
+    host = _upload(client, api, auth, long_path, "Smoke long video", "public", args.paid_timeout * 3)
+    if not check("a long hosted video for ads", host is not None and host.get("kind") == "long", str(host)[:160]):
+        return
+    client.put(f"{api}/api/video/studio/ads/settings", headers=auth, json={"ads_enabled": True})
+    brand = _signup(client, api, "Smoke Brand", f"smoke-brand-{uuid.uuid4().hex[:6]}")
+    client.put(f"{api}/api/video/studio/brand", headers=brand, json={"name": "Smoke Brand Co", "contact_email": "brand@smoke.example"})
+    creative = _upload(client, api, brand, args.fixture, "Smoke ad", "unlisted", args.paid_timeout * 3)
+    if not check("ad creative published (unlisted)", creative is not None, "creative did not publish"):
+        return
+    r = client.post(f"{api}/api/video/studio/ads/campaigns", headers=brand, json={
+        "name": "Smoke campaign", "creative_video_id": creative["public_id"], "click_url": "https://example.com/smoke",
+        "cpm_minor": 1_000_000, "countries": []})
+    if not check("campaign created", r.status_code == 201, f"HTTP {r.status_code} {r.text[:160]}"):
+        return
+    camp = r.json()
+    client.post(f"{api}/api/video/studio/ads/campaigns/{camp['id']}/submit", headers=brand)
+    r = client.post(f"{api}/api/video/admin/ads/campaigns/{camp['id']}/review", headers=adm, json={"decision": "approve"})
+    check("admin approved the campaign", r.status_code == 200 and r.json()["status"] == "active", f"HTTP {r.status_code} {r.text[:120]}")
+    r = client.post(f"{api}/api/video/studio/ads/campaigns/{camp['id']}/fund", headers=brand,
+                    json={"amount_minor": 100000, "idempotency_key": uuid.uuid4().hex})
+    chk = r.json()
+    client.post(f"{api}/api/video/sandbox/pay/{chk['id']}", headers=brand)
+    check("campaign funded through the payments worker (₹1,000 + GST)", _paid(client, api, brand, chk["id"], args.paid_timeout)
+          and chk["amount_minor"] == 118000, str(chk)[:160])
+    viewer = _signup(client, api, "Smoke Ad Viewer")
+    ad = None
+    deadline = time.time() + 30
+    while time.time() < deadline and ad is None:
+        ad = client.get(f"{api}/api/video/ads/decision?video={host['public_id']}", headers=viewer).json().get("ad")
+        if ad is None:
+            time.sleep(2)
+    if check("an ad is served on the long video", ad is not None and ad.get("label") == "Ad", "no ad (campaign cache refreshes every 15 s)"):
+        for ev in ("start", "complete", "click"):
+            client.post(f"{api}/api/video/ads/events", json={"token": ad["token"], "event": ev})
+        spent = 0
+        deadline = time.time() + 150
+        while time.time() < deadline and not spent:
+            spent = client.get(f"{api}/api/video/studio/ads/campaigns/{camp['id']}", headers=brand).json().get("spent_minor", 0)
+            if not spent:
+                time.sleep(3)
+        check("the scheduler flushed the impression into spend", spent == 1000, f"spent {spent}")
+    r = client.post(f"{api}/api/video/studio/ads/campaigns/{camp['id']}/state", headers=brand, json={"action": "end"})
+    check("ending refunds the unspent budget", r.status_code == 200 and r.json().get("refunded_now_minor", 0) > 0, r.text[:160])
+
+    r = client.post(f"{api}/api/video/studio/sponsorships/briefs", headers=brand, json={
+        "title": "Smoke sponsorship", "description": "A short integration for the smoke test journey.", "deliverable": "integration",
+        "budget_min_minor": 100000, "budget_max_minor": 500000})
+    if not check("brief posted", r.status_code == 201, f"HTTP {r.status_code} {r.text[:160]}"):
+        return
+    brief = r.json()
+    r = client.post(f"{api}/api/video/studio/sponsorships/briefs/{brief['id']}/apply", headers=auth,
+                    json={"pitch": "Smoke creator would love to feature this.", "quote_minor": 200000})
+    check("creator applied", r.status_code == 201, f"HTTP {r.status_code} {r.text[:160]}")
+    apps = client.get(f"{api}/api/video/studio/sponsorships/briefs/{brief['id']}/applications", headers=brand).json()
+    deal = client.post(f"{api}/api/video/studio/sponsorships/applications/{apps[0]['id']}/accept", headers=brand,
+                       json={"deliverables": "Thirty seconds on screen."}).json()
+    r = client.post(f"{api}/api/video/studio/sponsorships/deals/{deal['id']}/fund", headers=brand, json={"idempotency_key": uuid.uuid4().hex})
+    client.post(f"{api}/api/video/sandbox/pay/{r.json()['id']}", headers=brand)
+    check("deal funded into escrow", _paid(client, api, brand, r.json()["id"], args.paid_timeout))
+    r = client.post(f"{api}/api/video/studio/sponsorships/deals/{deal['id']}/deliver", headers=auth, json={"video_id": host["public_id"]})
+    check("delivered", r.status_code == 200 and r.json()["status"] == "delivered", f"HTTP {r.status_code} {r.text[:160]}")
+    label = client.get(f"{api}/api/video/videos/{host['public_id']}").json().get("paid_partnership") or {}
+    check("watchers see “Paid partnership”", label.get("label") == "Paid partnership with Smoke Brand Co", str(label))
+    r = client.post(f"{api}/api/video/studio/sponsorships/deals/{deal['id']}/approve", headers=brand)
+    check("brand approved; the creator's transfer is released", r.status_code == 200 and r.json()["status"] == "approved", r.text[:160])
+
+    r = client.post(f"{api}/api/video/takedowns", json={
+        "kind": "copyright", "complainant_name": "Smoke Claimant", "complainant_email": "claimant@smoke.example",
+        "target_url": f"https://play.klygenix.com/watch/{host['public_id']}", "details": "Smoke test copyright notice.", "sworn": True})
+    ref = r.json().get("reference")
+    check("the claimant is mailed a receipt", _outbox(client, api, adm, "claimant@smoke.example", "takedown_received", 15) is not None)
+    td = next((t for t in client.get(f"{api}/api/video/admin/takedowns", headers=adm).json() if t["reference"] == ref), None)
+    client.post(f"{api}/api/video/admin/takedowns/{td['id']}", headers=adm, json={"status": "actioned", "note": "smoke"})
+    r = client.post(f"{api}/api/video/me/takedowns/{ref}/counter-notice", headers=auth, json={
+        "full_name": "Smoke Creator", "address": "1 Test Road, Bengaluru 560001", "phone": "9876543210",
+        "email": "smoke@example.com", "statement": "This is my own recording; the notice is mistaken.", "good_faith": True,
+        "consent_jurisdiction": True, "signature": "Smoke Creator"})
+    check("counter-notice filed with a restore date", r.status_code == 200 and r.json()["status"] == "countered"
+          and bool(r.json().get("restore_due_at")), r.text[:160])
+
+    wl = f"smoke-wait-{uuid.uuid4().hex[:8]}@example.com"
+    client.post(f"{api}/api/video/waitlist", json={"email": wl, "name": "Smoke Wait", "role": "creator"})
+    mail = _outbox(client, api, adm, wl, "waitlist_confirm", 15)
+    if check("waitlist confirmation mailed", mail is not None):
+        token = mail["body_text"].split("token=")[1].split()[0]
+        r = client.post(f"{api}/api/video/waitlist/confirm", json={"token": token})
+        check("waitlist confirmed", r.status_code == 200 and r.json()["status"] == "confirmed", r.text[:120])
+    r = client.post(f"{api}/api/video/admin/beta/codes", headers=adm, json={"role": "creator"})
+    code = r.json().get("code", "")
+    check("invite code made and valid", client.post(f"{api}/api/video/invites/check", json={"code": code}).json()
+          == {"valid": True, "role": "creator"})
+    r = client.post(f"{api}/api/video/feedback", json={"kind": "bug", "body": "Smoke feedback", "app": "tv", "page": "/"})
+    check("feedback accepted", r.status_code == 201, f"HTTP {r.status_code}")
+
+    d = client.post(f"{api}/api/auth/device/start", json={"client": "tv"}).json()
+    client.post(f"{api}/api/auth/device/approve", headers=viewer, json={"user_code": d["user_code"]})
+    r = client.post(f"{api}/api/auth/device/poll", json={"device_code": d["device_code"]})
+    check("TV signs in with a device code", r.status_code == 200 and "access_token" in r.text, f"HTTP {r.status_code} {r.text[:120]}")
 
 
 def main() -> int:

@@ -131,6 +131,10 @@ def refund(db: Session, *, payment_id: int, amount_minor: int | None, reason: st
         r.credit_note_id = _credit_note(db, inv, amount, r).id
     if chk.purpose == "plan":
         _plan_reversal(db, chk, payment, inv, amount, r)
+    elif chk.purpose == "ad_budget":
+        from app.video.ads import service as ads
+
+        ads.on_refund(db, chk, payment, amount)
     else:
         split = db.execute(select(CreatorSplit).where(CreatorSplit.source_key == f"{chk.purpose}:{chk.id}")).scalars().first()
         if split is not None:

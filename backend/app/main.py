@@ -178,6 +178,7 @@ app.add_middleware(ReaderMiddleware)
 # ── Control plane ────────────────────────────────────────────────────────────
 from app.core.routers.auth import router as auth_router  # noqa: E402
 from app.core.routers.account import router as account_router  # noqa: E402
+from app.core.routers.device import router as device_router  # noqa: E402
 from app.core.routers.admin import router as admin_router  # noqa: E402
 from app.core.routers.admin_team import router as admin_team_router  # noqa: E402
 from app.core.routers.activity import router as activity_router  # noqa: E402
@@ -189,6 +190,7 @@ from app.core.routers.permissions import (  # noqa: E402
 
 app.include_router(auth_router)
 app.include_router(account_router)
+app.include_router(device_router)
 app.include_router(admin_router)
 app.include_router(admin_team_router)
 app.include_router(admin_permissions_router)

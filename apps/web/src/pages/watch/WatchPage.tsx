@@ -2,7 +2,7 @@ import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } fro
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
-import { Coins, ExternalLink, Flag, Heart, PartyPopper, Share2, ShieldCheck } from "lucide-react"
+import { Coins, ExternalLink, Flag, Handshake, Heart, PartyPopper, Share2, ShieldCheck } from "lucide-react"
 import { api } from "@klygenixvideo/auth"
 import { cn } from "@klygenixvideo/ui"
 import {
@@ -30,6 +30,7 @@ import { ProductStrip } from "./Products"
 import { useDanmakuTranslation } from "./useDanmakuTranslation"
 import { LockedAi, PreviewBadge } from "./lockBits"
 import { GuestStrip, PartyPanel, partyLink, useParty, usePartySync, type PartyState } from "./Party"
+import { useWatchAds } from "./ads"
 
 const LockedOverlay = lazy(() => import("./Paywall").then((m) => ({ default: m.LockedOverlay })))
 const LockedPanel = lazy(() => import("./Paywall").then((m) => ({ default: m.LockedPanel })))
@@ -185,6 +186,8 @@ export default function WatchPage() {
   const me = useMe().data
   const [tLang, setTLang] = useTranslateLang(me?.profile?.language)
   const shownDanmaku = useDanmakuTranslation(danmaku.items, currentMs, prefs.translate, tLang, !bilibili)
+  const ads = useWatchAds({ videoId: id, signedIn, on: Boolean(video && hosted && !lock && !partyCode && !video.is_owner), videoRef })
+  const adTime = ads.onTime
 
   const startMs = useMemo(() => {
     if (lock) return undefined
@@ -207,7 +210,8 @@ export default function WatchPage() {
   const onTime = useCallback((ms: number) => {
     setCurrentMs(ms)
     progress.onTime(ms)
-  }, [progress])
+    adTime(ms)
+  }, [progress, adTime])
 
   const seek = useCallback((ms: number) => {
     if (hosted && videoRef.current) {
@@ -336,12 +340,15 @@ export default function WatchPage() {
         <div className="min-w-0">
           <div ref={playerBox} className="sticky top-14 z-30 bg-black sm:relative sm:top-0 sm:z-auto sm:rounded-t-2xl">
             {hosted && playback?.type === "hls" ? (
+              <div inert={ads.active || undefined}>
               <HlsPlayer
                 key={`${video.id}-${lock ? "preview" : "full"}`}
                 src={playback.url}
                 poster={video.thumbnail ?? undefined}
                 startMs={partyCode ? undefined : startMs}
                 autoPlay={!partyCode}
+                hold={ads.held}
+                hotkeys={!ads.active}
                 captions={captions}
                 chapters={video.insight?.chapters}
                 dubs={lock ? undefined : video.dubs}
@@ -363,6 +370,7 @@ export default function WatchPage() {
                   blocked={prefs.blocked}
                 />
               </HlsPlayer>
+              </div>
             ) : playback?.type === "youtube" ? (
               <YouTubeEmbed
                 key={video.id}
@@ -380,6 +388,7 @@ export default function WatchPage() {
             ) : (
               <div className="flex aspect-video w-full items-center justify-center bg-panel-2 text-sm text-muted sm:rounded-t-2xl">{lock ? "" : "This video is not ready to play yet."}</div>
             )}
+            {hosted && ads.overlay}
             {lock && !paywallUp && <PreviewBadge lock={lock} className="pointer-events-none absolute left-2 top-2 z-10" />}
             {lock && paywallUp && <Suspense fallback={null}><LockedOverlay video={video} lock={lock} onUnlocked={onUnlocked} onReplay={hosted ? replayPreview : undefined} /></Suspense>}
           </div>
@@ -412,6 +421,11 @@ export default function WatchPage() {
             {!desktop && rail}
             {lock && <Suspense fallback={null}><LockedPanel video={video} lock={lock} onUnlocked={onUnlocked} fee={feeText(money)} /></Suspense>}
             <div>
+              {video.paid_partnership && (
+                <p className="mb-1.5 inline-flex items-center gap-1.5 rounded-md bg-white/10 px-2 py-0.5 text-xs font-semibold text-ink">
+                  <Handshake size={13} aria-hidden="true" /> {video.paid_partnership.label}
+                </p>
+              )}
               <h1 className="text-lg font-bold leading-snug sm:text-xl">{video.title}</h1>
               {video.ai_generated && <AiBadge className="mt-2" />}
             </div>

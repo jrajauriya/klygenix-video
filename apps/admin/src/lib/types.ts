@@ -1,4 +1,4 @@
-export type TargetType = "video" | "comment" | "danmaku" | "channel"
+export type TargetType = "video" | "comment" | "danmaku" | "channel" | "live" | "live_message"
 
 export interface VideoTarget {
   missing?: boolean
@@ -19,6 +19,15 @@ export interface TextTarget {
   video_title?: string | null
 }
 
+export interface LiveMessageTarget {
+  missing?: boolean
+  kind?: string
+  paid_minor?: number | null
+  author?: string | null
+  live?: string | null
+  live_title?: string | null
+}
+
 export interface ChannelTarget {
   missing?: boolean
   handle?: string
@@ -27,7 +36,7 @@ export interface ChannelTarget {
   strikes?: number
 }
 
-export type TargetSummary = VideoTarget & TextTarget & ChannelTarget
+export type TargetSummary = VideoTarget & TextTarget & ChannelTarget & LiveMessageTarget
 
 export interface QueueItem {
   target_type: TargetType
@@ -91,6 +100,21 @@ export interface Takedown {
   ack_overdue: boolean
   resolve_overdue: boolean
   decision_note: string | null
+  counter_notice: CounterNotice | null
+  countered_at: string | null
+  restore_due_at: string | null
+  legal_action_at: string | null
+}
+
+export interface CounterNotice {
+  full_name?: string
+  address?: string
+  phone?: string
+  email?: string
+  statement?: string
+  signature?: string
+  good_faith?: boolean
+  consent_jurisdiction?: boolean
 }
 
 export interface VideoStats {

@@ -12,7 +12,8 @@ from collections import defaultdict
 import httpx
 import websockets
 
-DESCRIPTION = ("Viewer load test: virtual viewers open the home feed, the reels feed, a watch page, its danmaku "
+DESCRIPTION = ("Viewer load test: virtual viewers open the home feed, the reels feed, a watch page, its ad breaks and "
+               "pre-roll decision, its danmaku "
                "bucket and comments, and report progress, while others hold WebSocket rooms open and receive "
                "live danmaku. Exits 1 when a threshold fails.")
 
@@ -86,6 +87,8 @@ async def viewer(client: httpx.AsyncClient, videos: list[str], stats: Stats, sto
         await timed(stats, "feed_reels", client.get("/api/video/feed/reels", params={"limit": 10}))
         pid = random.choice(videos)
         await timed(stats, "watch", client.get(f"/api/video/videos/{pid}"))
+        await timed(stats, "ad_breaks", client.get("/api/video/ads/breaks", params={"video": pid}))
+        await timed(stats, "ad_decision", client.get("/api/video/ads/decision", params={"video": pid, "slot": "pre"}))
         start = random.randint(0, 3) * 60000
         await timed(stats, "danmaku_bucket", client.get(f"/api/video/videos/{pid}/danmaku",
                                                           params={"from_ms": start, "to_ms": start + 60000}))

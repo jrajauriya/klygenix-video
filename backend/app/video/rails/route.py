@@ -98,6 +98,10 @@ class RouteClient:
     def reverse(self, transfer_id: str, amount_minor: int) -> str:
         return self._call("POST", f"/v1/transfers/{transfer_id}/reversals", json={"amount": amount_minor})["id"]
 
+    def direct_transfer(self, *, account_id: str, amount_minor: int, notes: dict) -> str:
+        return self._call("POST", "/v1/transfers", json={"account": account_id, "amount": amount_minor, "currency": "INR",
+                                                          "notes": {k: str(v)[:250] for k, v in notes.items()}})["id"]
+
 
 class SandboxRoute:
     name = "sandbox"
@@ -127,6 +131,11 @@ class SandboxRoute:
 
     def reverse(self, transfer_id: str, amount_minor: int) -> str:
         return f"rvrsl_sbx_{secrets.token_hex(7)}"
+
+    def direct_transfer(self, *, account_id: str, amount_minor: int, notes: dict) -> str:
+        if amount_minor <= 0:
+            raise RailError("A transfer needs a positive amount.")
+        return f"trf_sbx_{secrets.token_hex(7)}"
 
 
 def route_client():

@@ -112,6 +112,13 @@ class BunnyProvider:
             self._api("PUT", f"/videos/{guid}", content=fh.read())
         return guid
 
+    def ingest_url(self, video, url: str) -> str:
+        made = self._api("POST", "/videos/fetch", json={"url": url, "title": video.title[:200]})
+        guid = made.get("id") or made.get("guid")
+        if not guid:
+            raise BunnyError("Bunny accepted the fetch but returned no video id.")
+        return guid
+
     def delete(self, video) -> None:
         if video.provider_video_id:
             self._api("DELETE", f"/videos/{video.provider_video_id}")

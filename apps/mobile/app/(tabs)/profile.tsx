@@ -5,6 +5,7 @@ import { ActivityIndicator, Image, KeyboardAvoidingView, Linking, Platform, Pres
 import { SafeAreaView } from "react-native-safe-area-context"
 import { formatMoney } from "@klygenixvideo/client/src/native"
 
+import { FeedbackForm } from "../../components/FeedbackForm"
 import { LanguageSwitch } from "../../components/LanguageSwitch"
 import { NotificationSettings } from "../../components/NotificationSettings"
 import { SignIn } from "../../components/SignIn"
@@ -145,65 +146,69 @@ function Account() {
   })
 
   return (
-    <ScrollView contentContainerStyle={s.body}>
-      <Text style={s.title}>{me?.profile.display_name ?? user?.name}</Text>
-      <Text style={s.subtitle}>{user?.email}</Text>
-      {me?.channel && (
-        <View style={[s.chip, { marginTop: 10 }]}>
-          <Text style={s.chipText}>@{me.channel.handle}</Text>
-        </View>
-      )}
-
-      {isLoading ? (
-        <ActivityIndicator style={{ marginTop: 24 }} color={colour.brand} />
-      ) : me ? (
-        <>
-          <Text style={s.heading}>{t("profile.plans")}</Text>
-          <View style={{ flexDirection: "row", gap: 12 }}>
-            <PlanCard title={t("profile.watching")} plan={me.plans.viewer} />
-            <PlanCard title={t("profile.creating")} plan={me.plans.creator} />
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <ScrollView contentContainerStyle={s.body} keyboardShouldPersistTaps="handled">
+        <Text style={s.title}>{me?.profile.display_name ?? user?.name}</Text>
+        <Text style={s.subtitle}>{user?.email}</Text>
+        {me?.channel && (
+          <View style={[s.chip, { marginTop: 10 }]}>
+            <Text style={s.chipText}>@{me.channel.handle}</Text>
           </View>
-          <Pressable onPress={() => Linking.openURL(`${WEB_URL}/plans`)} style={s.quiet} accessibilityRole="link" accessibilityLabel={t("profile.managePlan")}>
-            <Text style={s.quietText}>
-              {t("profile.managePlan")} <Text style={s.link}>{t("profile.openSite")}</Text>
-            </Text>
-          </Pressable>
+        )}
 
-          <Text style={s.heading}>{t("profile.memberships")}</Text>
-          <Memberships />
-
-          <Text style={s.heading}>{t("profile.purchases")}</Text>
-          <Purchases />
-
-          <Text style={s.heading}>{t("profile.usage")}</Text>
-          {me.usage.map((u) => (
-            <View key={u.metric} style={[s.row, { marginTop: 10 }]}>
-              <Text style={s.text}>{humanise(u.label)}</Text>
-              <Text style={{ fontWeight: "700", color: colour.navy }}>
-                {u.used}
-                {u.limit !== null ? ` / ${u.limit}` : ""}
-              </Text>
+        {isLoading ? (
+          <ActivityIndicator style={{ marginTop: 24 }} color={colour.brand} />
+        ) : me ? (
+          <>
+            <Text style={s.heading}>{t("profile.plans")}</Text>
+            <View style={{ flexDirection: "row", gap: 12 }}>
+              <PlanCard title={t("profile.watching")} plan={me.plans.viewer} />
+              <PlanCard title={t("profile.creating")} plan={me.plans.creator} />
             </View>
-          ))}
-        </>
-      ) : null}
+            <Pressable onPress={() => Linking.openURL(`${WEB_URL}/plans`)} style={s.quiet} accessibilityRole="link" accessibilityLabel={t("profile.managePlan")}>
+              <Text style={s.quietText}>
+                {t("profile.managePlan")} <Text style={s.link}>{t("profile.openSite")}</Text>
+              </Text>
+            </Pressable>
 
-      {me?.channel && (
-        <>
-          <Text style={s.heading}>{t("profile.myVideos")}</Text>
-          <MyVideos />
-        </>
-      )}
+            <Text style={s.heading}>{t("profile.memberships")}</Text>
+            <Memberships />
 
-      <NotificationSettings />
+            <Text style={s.heading}>{t("profile.purchases")}</Text>
+            <Purchases />
 
-      <Text style={s.heading}>{t("profile.language")}</Text>
-      <LanguageSwitch />
+            <Text style={s.heading}>{t("profile.usage")}</Text>
+            {me.usage.map((u) => (
+              <View key={u.metric} style={[s.row, { marginTop: 10 }]}>
+                <Text style={s.text}>{humanise(u.label)}</Text>
+                <Text style={{ fontWeight: "700", color: colour.navy }}>
+                  {u.used}
+                  {u.limit !== null ? ` / ${u.limit}` : ""}
+                </Text>
+              </View>
+            ))}
+          </>
+        ) : null}
 
-      <Pressable onPress={signOut} style={[s.outline, { marginTop: 32 }]} accessibilityRole="button" accessibilityLabel={t("profile.signOut")}>
-        <Text style={s.outlineText}>{t("profile.signOut")}</Text>
-      </Pressable>
-    </ScrollView>
+        {me?.channel && (
+          <>
+            <Text style={s.heading}>{t("profile.myVideos")}</Text>
+            <MyVideos />
+          </>
+        )}
+
+        <NotificationSettings />
+
+        <Text style={s.heading}>{t("profile.language")}</Text>
+        <LanguageSwitch />
+
+        <FeedbackForm />
+
+        <Pressable onPress={signOut} style={[s.outline, { marginTop: 32 }]} accessibilityRole="button" accessibilityLabel={t("profile.signOut")}>
+          <Text style={s.outlineText}>{t("profile.signOut")}</Text>
+        </Pressable>
+      </ScrollView>
+    </KeyboardAvoidingView>
   )
 }
 
@@ -228,6 +233,7 @@ export default function Profile() {
           <ScrollView contentContainerStyle={[s.body, { paddingTop: 48 }]} keyboardShouldPersistTaps="handled">
             {mode === "in" ? <SignIn onSignUp={() => setMode("up")} /> : <SignUp onSignIn={() => setMode("in")} />}
             <LanguageSwitch />
+            <FeedbackForm />
           </ScrollView>
         </KeyboardAvoidingView>
       )}

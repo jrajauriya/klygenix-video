@@ -61,3 +61,41 @@ def exchange(code: str, tenant_id: int) -> Account:
                    timeout=TIMEOUT).json()
     return Account(str(me.get("user_id") or short.get("user_id")), me.get("username", ""), long["access_token"],
                    datetime.now(timezone.utc) + timedelta(seconds=int(long.get("expires_in", 5_184_000))))
+
+
+def refresh(token: str) -> tuple[str, datetime]:
+    if sandbox():
+        return token, datetime.now(timezone.utc) + timedelta(days=60)
+    r = httpx.get(f"{GRAPH}/refresh_access_token", params={"grant_type": "ig_refresh_token", "access_token": token},
+                  timeout=TIMEOUT)
+    if r.status_code >= 400:
+        raise InstagramError(f"Instagram refused the refresh: {r.status_code}")
+    body = r.json()
+    return body["access_token"], datetime.now(timezone.utc) + timedelta(seconds=int(body.get("expires_in", 5_184_000)))
+
+
+def refresh_due(db, within_days: int = 10) -> dict:
+    from sqlalchemy import select
+
+    from app.core.services import secrets as sealed
+    from app.video.models.social import ConnectedChannel
+
+    now = datetime.now(timezone.utc)
+    out = {"refreshed": 0, "expired": 0, "failed": 0}
+    for cc in db.execute(select(ConnectedChannel).where(ConnectedChannel.platform == "instagram",
+                                                        ConnectedChannel.status == "active",
+                                                        ConnectedChannel.expires_at < now + timedelta(days=within_days))
+                         ).scalars().all():
+        if cc.expires_at <= now:
+            cc.status = "expired"
+            out["expired"] += 1
+            continue
+        try:
+            token, expires = refresh(sealed.resolve(cc.access_token))
+        except (InstagramError, httpx.HTTPError):
+            out["failed"] += 1
+            continue
+        cc.access_token, cc.expires_at = sealed.seal(token), expires
+        out["refreshed"] += 1
+    db.flush()
+    return out

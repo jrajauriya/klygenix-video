@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import date, datetime, timedelta
 
 from fastapi import APIRouter, Depends, Query, Response
+from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 
 from app.core import audit
@@ -127,3 +128,65 @@ def retry(kind: str, item_id: int, ctx: Ctx = Depends(platform("admin.dashboard"
     db.commit()
     job.enqueue(*args)
     return {"ok": True, "kind": kind, "id": item_id}
+
+
+
+def _model_out(m) -> dict:
+    return {"id": m.id, "version": m.version, "status": m.status, "metrics": m.metrics, "features": m.features,
+            "weights": m.weights, "trained_at": iso(m.trained_at), "promoted_at": iso(m.promoted_at), "note": m.note}
+
+
+@router.get("/reco")
+def reco_state(ctx: Ctx = Depends(platform("admin.reco"))):
+    from app.config import settings
+    from app.video.models.ai import RecoImpression, RecoModel
+    from app.video.reco import service as reco_model
+
+    rows = ctx.db.execute(select(RecoModel).order_by(RecoModel.id.desc()).limit(20)).scalars().all()
+    total = ctx.db.execute(select(func.count(RecoImpression.id))).scalar() or 0
+    labelled = ctx.db.execute(select(func.count(RecoImpression.id)).where(RecoImpression.labelled.is_(True))).scalar() or 0
+    return {"enabled": settings.RECO_MODEL == "on", "ab_percent": settings.RECO_AB_PERCENT, "impressions": total,
+            "labelled": labelled, "ctr": reco_model.ctr(ctx.db), "models": [_model_out(m) for m in rows]}
+
+
+@router.post("/reco/train")
+def reco_train(ctx: Ctx = Depends(platform("admin.reco", "full"))):
+    from app.video.reco import service as reco_model
+    from app.video.sessions import platform_session
+
+    with platform_session() as db:
+        reco_model.flush(db)
+        reco_model.label(db)
+        m = reco_model.train(db, auto_promote=False)
+        db.commit()
+        if m is None:
+            raise err(409, "reco_not_enough_data")
+        audit.record(db, action="reco.train", target_table="kv_ai.reco_models", target_id=m.id, after={"metrics": m.metrics})
+        db.commit()
+        return _model_out(m)
+
+
+class RecoDecision(BaseModel):
+    note: str = Field(default="", max_length=500)
+
+
+@router.post("/reco/models/{model_id}/{decision}")
+def reco_decide(model_id: int, decision: str, data: RecoDecision, ctx: Ctx = Depends(platform("admin.reco", "full"))):
+    from app.video.models.ai import RecoModel
+    from app.video.reco import service as reco_model
+
+    m = ctx.db.get(RecoModel, model_id)
+    if m is None or decision not in ("promote", "reject"):
+        raise err(404, "action_not_allowed")
+    if decision == "promote":
+        reco_model.promote(ctx.db, m, ctx.user.id, data.note or "Promoted by an admin")
+    else:
+        m.status, m.note = ("rejected" if m.status != "active" else "retired"), data.note or "Rolled back by an admin"
+        prev = ctx.db.execute(select(RecoModel).where(RecoModel.status == "retired", RecoModel.id != m.id)
+                              .order_by(RecoModel.promoted_at.desc().nulls_last())).scalars().first()
+        if prev is not None and m.status == "retired":
+            reco_model.promote(ctx.db, prev, ctx.user.id, "Restored after a rollback")
+        reco_model.forget()
+    audit.record(ctx.db, action=f"reco.{decision}", target_table="kv_ai.reco_models", target_id=m.id, after={"status": m.status})
+    ctx.db.commit()
+    return _model_out(m)

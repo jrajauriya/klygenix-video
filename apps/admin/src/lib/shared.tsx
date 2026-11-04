@@ -103,6 +103,8 @@ export const TAKEDOWN_STATUS: Record<string, Tone> = {
   actioned: { label: "Actioned", color: "red" },
   rejected: { label: "Rejected", color: "slate" },
   restored: { label: "Restored", color: "green" },
+  countered: { label: "Counter-notice", color: "purple" },
+  upheld: { label: "Upheld (court action)", color: "red" },
 }
 
 export const REPORT_STATUS: Record<string, Tone> = {

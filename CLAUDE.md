@@ -25,8 +25,9 @@ comments) over the player in realtime; creator plans and viewer Premium (Razorpa
 merchant of record abroad); trust & safety with scans, reports, strikes, appeals, takedowns.
 
 ## Status
-V0 + V1 (run 1), V2 Earn + V3 Community & learning (run 2) and V4 Live + mobile store-ready + launch hardening (run 3)
-built and running **locally on sandbox
+V0 + V1 (run 1), V2 Earn + V3 Community & learning (run 2), V4 Live + mobile store-ready + launch hardening (run 3)
+and run 4 (provider go-live readiness, trust & safety gaps, closed beta, and V5.1 ads / V5.2 sponsorships / V5.3 TV web
+app / V5.5 trained recommender started early by the owner) built and running **locally on sandbox
 providers**, not deployed (Nov 2026). Creator money runs on the sandbox rail only: live money waits for
 CA sign-off, creator KYC and Play's Razorpay Route keys. Every provider has a sandbox adapter and a real
 one behind the same interface, switched by `.env`. See `docs/BUILD-PLAN.md` for what is proven,
@@ -38,6 +39,7 @@ sandbox-only and blocked.
 | apps/web | 5300 | 5310 | play.klygenix.com |
 | apps/studio | 5301 | 5311 | studio.play.klygenix.com |
 | apps/admin | 5302 | 5312 | admin.play.klygenix.com |
+| apps/tv (10-foot web) | 5303 | 5313 | tv.play.klygenix.com |
 | apps/mobile (Metro) | 8082 | — | iOS / Android (Expo) |
 | API (+ WebSocket) | 9300 | — | api.play.klygenix.com |
 | PostgreSQL 17 + pgvector | 25436 | — | 127.0.0.1:5432 |
@@ -51,6 +53,7 @@ and Insurance (25435).
 ```
 backend/app/
 ├── main.py, config.py        every setting has a dev default; sandbox providers by default
+├── providers_check.py        which providers are real, missing/unsealed keys, webhook URLs; --live probe (launch day)
 ├── core/                     FORKED FROM STORE — tenants, users, auth, two gates, audit, api keys, readiness, metrics
 ├── ai/                       llm.py (Insurance: Azure Responses, breaker, budget, llm_calls) · stt · embed (1536) · textkit · captions · intel
 └── video/
@@ -64,7 +67,12 @@ backend/app/
     │                         · reco (video vectors, viewer taste) · cards (viewer state) · filter
     ├── realtime/rooms.py     WebSocket rooms over Redis pub/sub (stateless gateway) · hub.py (one pubsub per process)
     ├── live/                 service (streams, keys, signed playback) · worker (Supervisor: gates, ffmpeg listeners, go-live,
-    │                         idle end, replay) · gate (RTMP publish-key check) · cloudflare (written, not wired)
+    │                         idle end, replay) · gate (RTMP publish-key check) · cloudflare (inputs, RS256 playback tokens,
+    │                         webhook checks) · cf_events (record → process; idle end and replay import sweep)
+    ├── ads/                  service (eligibility, decisions, Redis events, flush, accrual, creator share, refunds)
+    │                         · sponsorships (escrowed deals, delivery label, approve/auto-approve, disputes)
+    ├── reco/                 model (numpy logistic ranker, AUC/NDCG, synthetic viewers) · service (features, impression log,
+    │                         labels, train/promote, A/B arm)
     ├── services/push.py      sandbox | Expo push, per-user switches, dedupe keys · retention.py (sweep policy)
     ├── channels/             youtube.py (OAuth, own videos, captions; sandbox fake channel) · embeds
     ├── trust/                age gate · scan (sandbox markers + hash list) · reports, strikes, appeals, takedowns
@@ -80,10 +88,12 @@ backend/app/
     │                         · support · studio_earnings (payouts, tiers, prices) · admin_money (refunds, transfers, tax files)
     │                         · products · learning (study sets, notes, quiz, Ask across a channel/series)
     │                         · community (posts, polls, moderators, translation, comment summary) · dubbing
+    │                         · beta (waitlist, invites, feedback, onboarding, outbox) · ads · sponsorships
     ├── jobs/                 RQ queues ai / render / default · scheduler · sweeps
     └── sessions.py           tenant_session() / platform_session()
 packages/  ui auth client types config fonts observe (from Store) · player (hls.js, DanmakuLayer, ChapterBar, YouTube/Bilibili embeds, DanmakuRail)
-apps/      web (viewer) · studio (creator) · admin (platform) · mobile (Expo: Feed, Watch, Create, Profile)
+apps/      web (viewer) · studio (creator + brand mode) · admin (platform) · mobile (Expo: Feed, Watch, Create, Profile)
+           · tv (10-foot web: D-pad focus, device-code sign-in)
 db-scripts/ 01-schema.sql + 02-reference-data.sql (dump-schema.sh) · make_fixtures.py · seed-demo.py
 tests/     python suites against a live API (harness.py) · fixtures/media · e2e/ · smoke/ · load/
 infra/     docker-compose.{dev,prod,staging}.yml · nginx templates + render.sh · deploy.sh · local-stack.sh · prometheus · security
@@ -212,6 +222,25 @@ RLS: `tenant_isolation` (`tenant_id = current_tenant() OR is_platform()`) on eve
   viewers measures its own lag (600 ms "p95" while the server's histogram said 10 ms).
 - `platform_session()` records audit rows as `system`/"background" unless given an `Actor`; platform admin routes
   set the admin as actor. A live chat timeout can target a `message_id` (user ids are not published).
+- **Never run a migration while suites run against the dev API** — `apply_tenancy()` takes locks and deadlocked a
+  running test (run 4). Stop, migrate, restart the API, then test.
+- **Real adapters are tested with `tests/fakehttp.py`**: it swaps `httpx.request/get/post/put/patch/delete/stream` for a
+  `MockTransport`, so adapters keep calling `httpx.*` directly. In-process suites use `TestClient(app,
+  client=("127.0.0.1", 50000))` — the default "testclient" host is not loopback and hits the sign-up rate limit.
+- A new ORM row's server/column default is not set until flush (`WaitlistEntry(...).status` is `None` before it) —
+  set state fields explicitly when code branches on them before a flush.
+- Cloudflare events must broadcast to the room **inside** the session after commit (detached instances raise).
+- `kv_admin` tables (invite codes, waitlist, mail outbox, feedback) have no RLS by design (only platform code reads them);
+  ads and sponsorship tables live in `kv_commerce` (tenant = the brand; creators read deals through a platform session
+  filtered by `channel_tenant_id`). `kv_ai.reco_impressions` / `reco_models` are shared, no tenant.
+- Ads: decisions mint a Redis impression token (3 h); counters `kv:ads:counts` are renamed and flushed by the sweep into
+  `kv_commerce.ad_daily`; spend = impressions × CPM ÷ 1000 per campaign, capped at the budget; the API caches active
+  campaigns for 15 s, so suites close leftover active campaigns first.
+- Sponsorship money reuses `splits.record_split` (purpose `sponsorship`, commission override) and holds the creator's
+  `sale` transfer ~10 years until approval sets `hold_until = now`; `release_due()` then releases it.
+- Ad revenue share is a monthly Route **direct transfer** (`route.direct_transfer`, `RouteTransfer.kind = 'ad_share'`).
+- `SIGNUP_MODE` (open|invite|closed) overrides the legacy `SIGNUP_ENABLED`; `CREATOR_SIGNUP` gates opening a channel.
+  Product mail goes through `core/services/mailer.py` (`EMAIL_PROVIDER=sandbox` captures to the outbox).
 
 ## Dev accounts
 `admin@klygenix.com` / `admin123` — global admin (admin console, tenant 1 = Klygenix's own channel
@@ -222,7 +251,7 @@ RLS: `tenant_isolation` (`tenant_id = current_tenant() OR is_platform()`) on eve
 ```bash
 docker compose -f infra/docker-compose.dev.yml up -d
 cd backend && ./venv/bin/alembic upgrade head && ./venv/bin/uvicorn app.main:app --reload --port 9300
-npm run dev:web | dev:studio | dev:admin | dev:mobile
+npm run dev:web | dev:studio | dev:admin | dev:tv | dev:mobile
 python3 db-scripts/make_fixtures.py && backend/venv/bin/python db-scripts/seed-demo.py
 make -C infra test                              # every suite; CI runs them twice
 db-scripts/dump-schema.sh && (cd tests && ../backend/venv/bin/python test_migration_parity.py)
@@ -231,3 +260,4 @@ bash infra/local-stack.sh up && bash infra/local-stack.sh smoke   # production s
 `JOBS_MODE=inline` (dev default) runs jobs in-process; `rq` needs `make -C infra worker-ai worker-render scheduler`
 (and `make -C infra live` with `LIVE_WORKER_INLINE=false`).
 `VPS_HOST=… bash infra/deploy.sh --rollback` restores the previous image and frontends (one step back).
+`make -C infra providers-check ENV_FILE=../backend/.env.prod` before switching a provider on (`docs/GO-LIVE.md`).

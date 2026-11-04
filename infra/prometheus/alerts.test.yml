@@ -250,3 +250,39 @@ tests:
       - eval_time: 9m
         alertname: KvLiveFanoutSlow
         exp_alerts: []
+
+  - interval: 1m
+    input_series:
+      - series: 'kv_trust_overdue{kind="copyright",stage="ack"}'
+        values: '0 0 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1'
+      - series: 'kv_reco_model_age_hours'
+        values: '80+0x90'
+      - series: 'kv_http_requests_total{method="GET",route="/api/video/ads/decision",status="200"}'
+        values: '0+60x30'
+      - series: 'kv_http_requests_total{method="GET",route="/api/video/ads/decision",status="500"}'
+        values: '0+12x30'
+    alert_rule_test:
+      - eval_time: 18m
+        alertname: KvTrustOverdue
+        exp_alerts:
+          - exp_labels: {severity: critical, kind: copyright}
+            exp_annotations:
+              summary: "1 copyright notices are not acknowledged within their clock"
+              runbook: "infra/METRICS.md#kvtrustoverdue"
+      - eval_time: 10m
+        alertname: KvTrustOverdue
+        exp_alerts: []
+      - eval_time: 25m
+        alertname: KvAdDeliveryErrors
+        exp_alerts:
+          - exp_labels: {severity: warning}
+            exp_annotations:
+              summary: "16.67% of ad decisions and events are failing"
+              runbook: "infra/METRICS.md#kvaddeliveryerrors"
+      - eval_time: 75m
+        alertname: KvRecoModelStale
+        exp_alerts:
+          - exp_labels: {severity: warning}
+            exp_annotations:
+              summary: "The active recommendation model is 80 hours old: nightly training is not promoting"
+              runbook: "infra/METRICS.md#kvrecomodelstale"

@@ -10,6 +10,7 @@ import { ChannelAvatar } from "../components/ChannelAvatar"
 import { AiStatusBadge, VideoStatusPill } from "../components/StatusChips"
 import { UsageMeters } from "../components/UsageMeters"
 import { DailyChart } from "../components/DailyChart"
+import { OnboardingChecklist } from "../components/OnboardingChecklist"
 
 const BUSY = ["uploading", "processing", "scanning"]
 
@@ -132,6 +133,7 @@ export default function Dashboard() {
         </div>
 
         <div className="min-w-0 space-y-4">
+          <OnboardingChecklist />
           {channel && (
             <Card className="flex items-center gap-4 p-5">
               <ChannelAvatar channel={channel} size={56} />

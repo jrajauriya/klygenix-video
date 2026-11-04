@@ -334,6 +334,11 @@ FEED_CACHE_SECONDS = 15
 def home(response: Response, limit: int = Query(24, le=60), offset: int = 0, viewer: Viewer = Depends(optional_viewer)):
     def build():
         rows = feed.ranked(viewer.db, user_id=viewer.user.id if viewer.user else None, lang=_lang(viewer), kind="long")
+        if viewer.user is not None:
+            from app.video.reco import service as reco_model
+
+            reco_model.log(viewer.user.id, [r.id for r in rows[offset:offset + limit]], offset, "home",
+                           reco_model.arm(viewer.db, viewer.user.id))
         return len(rows), _cards(viewer.db, rows[offset:offset + limit], viewer.user.id if viewer.user else None)
 
     if viewer.user is None:
@@ -350,6 +355,10 @@ def reels(response: Response, limit: int = Query(10, le=30), offset: int = 0, vi
     def build():
         rows = feed.ranked(viewer.db, user_id=viewer.user.id if viewer.user else None, lang=_lang(viewer), kind="reel")
         page = rows[offset:offset + limit]
+        if viewer.user is not None:
+            from app.video.reco import service as reco_model
+
+            reco_model.log(viewer.user.id, [r.id for r in page], offset, "reels", reco_model.arm(viewer.db, viewer.user.id))
         cards = _cards(viewer.db, page, viewer.user.id if viewer.user else None)
         locked: set[int] = set()
         if any(v.access != "free" for v in page):

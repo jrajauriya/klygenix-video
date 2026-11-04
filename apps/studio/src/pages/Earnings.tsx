@@ -6,12 +6,14 @@ import { PayoutSetup } from "../components/earnings/PayoutSetup"
 import { Memberships } from "../components/earnings/Memberships"
 import { Activity } from "../components/earnings/Activity"
 import { Statements } from "../components/earnings/Statements"
+import { Ads } from "../components/earnings/Ads"
 
 const TABS = [
   { key: "overview", label: "Overview" },
   { key: "payouts", label: "Payouts" },
   { key: "memberships", label: "Memberships" },
   { key: "activity", label: "Sales & transfers" },
+  { key: "ads", label: "Ads" },
   { key: "statements", label: "Statements" },
 ]
 
@@ -48,6 +50,7 @@ export default function Earnings() {
         {tab === "payouts" && <PayoutSetup key={data.account?.status ?? "none"} data={data} />}
         {tab === "memberships" && <Memberships canSell={data.can_take_money} />}
         {tab === "activity" && <Activity />}
+        {tab === "ads" && <Ads canTakeMoney={data.can_take_money} />}
         {tab === "statements" && <Statements month={data.month} />}
       </div>
     </div>

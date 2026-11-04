@@ -24,7 +24,7 @@ proxy_cache_path /var/cache/nginx/kv_media levels=1:2 keys_zone=kv_media:20m max
 
 server {
     listen 80;
-    server_name ${PUBLIC_DOMAIN} studio.${PUBLIC_DOMAIN} admin.${PUBLIC_DOMAIN} api.${PUBLIC_DOMAIN};
+    server_name ${PUBLIC_DOMAIN} studio.${PUBLIC_DOMAIN} admin.${PUBLIC_DOMAIN} tv.${PUBLIC_DOMAIN} api.${PUBLIC_DOMAIN};
     return 301 https://$host${PUBLIC_PORT}$request_uri;
 }
 
@@ -115,6 +115,25 @@ server {
         expires 1y;
         add_header Cache-Control "public, immutable";
         include /etc/nginx/snippets/headers-studio.conf;
+        try_files $uri =404;
+    }
+    location / { try_files $uri $uri/ /index.html; }
+}
+
+server {
+    listen 443 ssl;
+    server_name tv.${PUBLIC_DOMAIN};
+    ssl_certificate     /etc/nginx/ssl/origin.pem;
+    ssl_certificate_key /etc/nginx/ssl/origin-key.pem;
+    root /var/www/tv;
+    index index.html;
+    client_max_body_size 1M;
+    include /etc/nginx/snippets/headers-tv.conf;
+
+    location /assets/ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        include /etc/nginx/snippets/headers-tv.conf;
         try_files $uri =404;
     }
     location / { try_files $uri $uri/ /index.html; }

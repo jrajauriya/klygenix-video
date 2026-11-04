@@ -2,7 +2,7 @@
 
 The master plan (`../Klygenix_Docs/Klygenix_Video/klygenix-video-master-plan.html`) says what and
 why; this file says what is built, what each test proves, what runs only on sandbox providers and
-what is blocked. Built in unattended runs, 3 Nov 2026 (run 3 newest, below). **Run 3 is not committed** (the owner
+what is blocked. Built in unattended runs, 3 Nov 2026 (run 4 newest, below). **Run 4 is not committed** (the owner
 commits by hand) **and nothing is deployed.**
 
 **Done means:** `npx tsc --noEmit -p tsconfig.app.json` and `vite build` pass for every app it touches;
@@ -29,6 +29,76 @@ its suites green **twice over one database**; CLAUDE.md updated.
 | 13 Verification & docs | Suites ×2, parity, e2e, load test, docs (this file, LAUNCH, PROVIDERS, SECURITY, README, CLAUDE.md), plan HTML updated | See results below | — |
 | 14 Stretch | Playlists and series with progress (V1.7 / V3.1); watch parties with a shared playhead and chat (V3.7); AI thumbnail ideas + custom thumbnails shown (V1.3); data export / erasure; studio analytics with daily series; comment inbox with hide/unhide | Done | `test_playlists.py`, `test_parties.py`, `test_thumbnails.py`, `test_viewer_extras.py` |
 | 14 not started | Tips, boost danmaku, channel memberships, paid videos (V2.2–V2.5) | Waiting | They pay creators: rule S11 needs Razorpay Route linked accounts and creator KYC (V2.1), not forked yet |
+
+## Run 4 — provider go-live readiness, trust & safety, closed beta, V5 on the sandbox (3–4 Nov 2026)
+
+Owner's choice: all four tracks, overnight, no stops; V5.1 / V5.2 / V5.3 / V5.5 started early (the plan's measured-need
+gate is noted in the plan HTML). Runs 1–3 committed as `d95dd50`, `cccf074`, `57d79d6`. **Nothing committed, nothing
+deployed.**
+
+| Phase | Scope | Status | Proven by |
+|---|---|---|---|
+| 1 Provider readiness | Contract tests for every real adapter against fakes of their documented APIs (`tests/fakehttp.py`); Cloudflare Stream wired into live (create/rotate input, RTMPS ingest, RS256 signed playback, Stream + Notifications webhooks, idle end, replay import provider-to-provider via `ingest_url`); Expo receipts; Instagram token refresh; `python -m app.providers_check` (+ `make -C infra providers-check`); `docs/GO-LIVE.md`; readiness needs the full Cloudflare set | Done (no live call made) | `test_provider_contracts` 101, `test_live_cloudflare` 27 |
+| 2 Trust & safety | Report live chat messages and streams (moderation queue, admin remove → hide with refund / stop stream / strike); counter-notices (uploader-only, sworn, mailed to the claimant, restore after 10 business days unless "court action" = `upheld`); takedown clocks in `TAKEDOWN_SLA_HOURS`; `kv_trust_overdue` + `KvTrustOverdue` (acknowledgement); IT Rules monthly compliance report (JSON/CSV) | Done | `test_trust_beta` 75 |
+| 3 Closed beta | `SIGNUP_MODE` / `CREATOR_SIGNUP`; hashed invite codes (role, uses, expiry, email binding, revoke); waitlist with confirmation; `mailer.py` (EN/HI templates, sandbox outbox, Graph/SMTP delivery job); in-app feedback with screenshot; creator onboarding checklist | Done | `test_trust_beta` |
+| 4 V5.1 Ads | Brand profiles, campaigns (CPM, budget, daily cap, targeting), admin review, eligibility (hosted long videos, free, opted-in, not own, not Premium), pre-roll + chapter-snapped mid-rolls past 8 min, Redis impression tokens and events, caps, budget stop, flush to `ad_daily`, accrual (`ad_unearned` → `ad_income`), platform invoice `KVA`, unspent refund with credit note, monthly 55% creator share by Route direct transfer | Done (sandbox rail) | `test_ads` 55 |
+| 5 V5.2 Sponsorships | Briefs, applications, deals; escrow through `record_split` (10% commission, creator's GST, KVC invoice) with the sale transfer held until approval; delivery sets a server-side "Paid partnership with {brand}"; approve / auto-approve after 7 days / dispute → admin release or refund / cancel → refund | Done (sandbox rail) | `test_sponsorships` 41 |
+| 6 V5.5 Recommender | Sampled feed impressions (Redis → `kv_ai.reco_impressions`), labels from watch progress, 10 features, numpy logistic ranker with time-split AUC / NDCG@10 vs the heuristic, auto-promote only when it beats it, A/B arm by user hash, admin promote/rollback, nightly training, `kv_reco_ctr_bps`, `KvRecoModelStale` | Done (`RECO_MODEL=off` by default) | `test_reco_model` 25 (synthetic viewers: AUC 0.72 vs 0.54, NDCG@10 0.69 vs 0.37) |
+| 7 V5.3 TV | `apps/tv` (5303/5313, `tv.${PUBLIC_DOMAIN}`): 10-foot UI, in-house D-pad focus manager, Home rows, Watch with ads and partnership label, Live, Search with an on-screen keyboard, Channel, Profile, feedback; sign-in by device code (RFC 8628 shape) approved at web `/activate`; nginx host + CSP, compose mount, build/deploy scripts | Done (no native TV build) | `test_device_login` 15; e2e TV screens, keyboard-only check, axe |
+| 8 Frontends | Web: ad slot (`packages/player` `AdBreak`, `HlsPlayer` `hold`/`onError`), partnership label, live reports, counter-notice page, invite/waitlist sign-up, feedback, `/activate`, `/brands`. Studio: onboarding card, invite for channels, Ads tab + per-video switch, Brand mode (profile, campaigns, briefs, deals), creator Sponsorships, deal page, Notices, reconnect, feedback. Admin: Beta (waitlist, codes, outbox, feedback), live targets in moderation, counter-notices and court action, compliance report, Advertising, Sponsorships, Recommender. Mobile: ads in Watch, live reports, feedback, label | Done (mobile not on a device) | tsc + build; e2e; `expo export`; native imports |
+| 9 Verification | below | Done | — |
+
+### Run 4 results
+| Check | Result |
+|---|---|
+| API suites, **twice over one database** | **41 suites, 1,234 checks per pass.** Pass 2: 0 failed. Pass 1: 1 failed — `test_analytics_reco` "the finished video sits lower…", unchanged run-1 test, passed 3/3 alone and in pass 2: a timing flake in the 2-minute affinity cache (logged below). New: provider contracts 101, Cloudflare live 27, trust & beta 75, ads 55, sponsorships 41, recommender 25, device login 15 |
+| Migrations | 13 revisions (`kv0000000011_trust_beta`, `…12_ads_and_sponsorships`, `…13_reco_model`); `alembic check` clean; schema re-dumped (**93 tables**); parity green |
+| Browser (`node tests/e2e/run.mjs`, now four apps) | screens **231/0**, axe WCAG 2.2 AA **118/0**, speed **14/0** (watch video start 1.72 s, reels 1.61 s; watch JS 414 of 420 KB budget) |
+| Mobile | tsc, `expo export` iOS + Android, native imports 12/0; not run on a device |
+| Production stack `play.localhost:8443` (now with `tv.`) | **smoke 147/0** incl. the run 4 journeys through the real workers (an ad served and flushed into spend by the scheduler, unspent budget refunded; a sponsorship funded, delivered with its "Paid partnership" label and approved; a takedown receipt mail and a counter-notice; waitlist confirm; an invite code; feedback; a TV device sign-in); **CSP 36/0** incl. `tv.`, `/activate`, `/waitlist`. Found: the staging overlay did not mount `apps/tv/dist` (fixed); a smoke run now uses ~10 sign-ups, so a second run within the hour hits the per-IP limit |
+| Load on the stack | 100 viewers + 200 sockets: **1,144 req/s, 0 errors, p95 ≤ 32 ms** per step (ad breaks / decision p95 26 ms); live room **1,000/1,000 watchers, 55,000/55,000 deliveries, fan-out p95 64 ms**, HLS p95 86 ms |
+| Backups | off-host rehearsal 12/0 |
+| Security | gitleaks 0 · bandit 0 medium+ · semgrep 0 (262 rules, 720 files) · pip-audit 0 · npm audit pass (same 3 allow-listed dev tools) |
+| Monitoring | `monitoring.sh check` green, 36 rules incl. `KvTrustOverdue`, `KvAdDeliveryErrors`, `KvRecoModelStale` with promtool unit tests |
+
+### Bugs found and fixed in run 4
+- **The production env example could not have launched Play**: no `BUNNY_*`, LLM, STT, TTS, scan, Route-category, Lemon
+  Squeezy or Cloudflare signing keys; it still carried Store's lesson-video settings (`VIDEO_LIBRARY_ID`, VAPID,
+  RazorpayX). Rewritten; `providers_check` now reads it.
+- **Instagram, Expo, Azure TTS and Cloudflare secrets were never decrypted** from sealed `enc:` values (missing from the
+  config validator) — a sealed production value would have been sent as ciphertext.
+- Dead Store code (`video/services/video.py`) referenced settings that do not exist and would crash with `VIDEO_PROVIDER=bunny`; removed (nothing imported it).
+- **Clip-ready pushes were silently dropped** when a re-render finished in the same second (dedupe key in whole seconds) — found by the suites; now milliseconds.
+- Cloudflare events broadcast after the session closed (detached instance) — found by the new test.
+- A new waitlist row's status was `None` before flush, so the confirmation mail was never sent; the admin ads report
+  grouped three separate `to_char` expressions (500); studio video data lacked `ads_enabled`; the onboarding upload
+  link pointed at a missing route; the success-toast text was 4.25:1 (now darker in `packages/ui`).
+- Run-4 process slip: a migration applied while the baseline suites ran deadlocked one test (`apply_tenancy` locks) —
+  now a trap in CLAUDE.md.
+
+### Decisions taken in run 4
+- Ads and sponsorship tables live in `kv_commerce` (existing grants and RLS), not a new `kv_ads` schema; invite codes,
+  waitlist, outbox and feedback in `kv_admin` (platform-only, no RLS); recommender tables shared in `kv_ai`.
+- Ads: never on embeds, **reels**, members-only/paid videos, the creator's own videos or for Premium viewers; creators
+  opt in per channel (default off), per video default on; CPM floor ₹50; top-ups ₹1,000–₹10,00,000; creator share 55%
+  of spend on their videos, monthly (placeholders). A brand needs no channel for its console but uploads the creative
+  (≤ 60 s, unlisted) through a channel.
+- Sponsorship commission 10%; auto-approve 7 days after delivery; the label is server-set and cannot be removed.
+- Counter-notice restore after 10 business days; the existing `KvTakedownsOverdue` keeps resolve deadlines,
+  `KvTrustOverdue` only the acknowledgement clock (no double paging).
+- `RECO_MODEL=off`, `RECO_AB_PERCENT=50`; a model is auto-promoted only with ≥ 100 test rows and NDCG@10 above the heuristic.
+- The TV app sends `X-Klygenix-App: tv`; ad device targeting reads it before the User-Agent.
+
+### Still blocked or open after run 4
+| Item | Needs |
+|---|---|
+| Every real provider | accounts and keys; then `providers_check --live` (docs/GO-LIVE.md). Bunny's Fetch Video response must be checked once for the new video id |
+| Ad and sponsorship money | CA sign-off (GST on ads, tax on the creator share and sponsorships), Route keys, ASCI/advertiser policy text, brand and sponsorship terms (`docs/LEGAL-OPEN.md`) |
+| Native TV and phone builds | store accounts, devices (Tizen/webOS/Android TV/tvOS wrappers not started) |
+| Recommender on real traffic | real impressions; `RECO_MODEL=on` only after a nightly model beats the heuristic |
+| Known flake | `test_analytics_reco` "finished video sits lower" depends on the 2-minute affinity cache timing (failed 1 of 5 runs this night) |
+| Small gaps | reels cards carry no partnership label; web strings are English-only (no i18n in apps/web); the device-approval page cannot show the device's name |
+| As before | lawyer review, Meta review, CA sign-off, VPS/DNS, the 500-viewer server run |
 
 ## Run 3 — V4 Live on the sandbox, mobile store-ready, launch hardening (3 Nov 2026)
 

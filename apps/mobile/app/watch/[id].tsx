@@ -6,12 +6,14 @@ import { useEventListener } from "expo"
 import { useVideoPlayer, VideoView } from "expo-video"
 
 import { AccessBadge } from "../../components/AccessBadge"
+import { AdOverlay } from "../../components/AdOverlay"
 import { AskBox } from "../../components/AskBox"
 import { Comments } from "../../components/Comments"
 import { DubSwitch } from "../../components/DubSwitch"
 import { LockCard } from "../../components/LockCard"
 import { Notes } from "../../components/Notes"
 import { ProductLinks } from "../../components/ProductLinks"
+import { useAdBreaks } from "../../lib/ads"
 import { api, detail } from "../../lib/api"
 import { useAuth } from "../../lib/auth"
 import { clock, compact } from "../../lib/format"
@@ -20,20 +22,32 @@ import { sendProgress } from "../../lib/progress"
 import { colour, s } from "../../lib/theme"
 import type { VideoDetail } from "../../lib/types"
 
-function useWatchPlayer(video: VideoDetail | undefined, startMs: number, track: boolean, onPreviewEnd: () => void) {
+function useWatchPlayer(
+  video: VideoDetail | undefined,
+  startMs: number,
+  track: boolean,
+  onPreviewEnd: () => void,
+  onTick: (seconds: number) => void,
+) {
   const url = video?.playback?.type === "hls" ? video.playback.url : null
   const preview = video?.locked ? video.locked.preview_seconds : null
   const player = useVideoPlayer(url, (p) => {
     p.timeUpdateEventInterval = 1
-    if (startMs > 0 && preview === null) p.currentTime = startMs / 1000
-    p.play()
   })
+  const seeded = useRef(false)
   const started = useRef(false)
   const watched = useRef(0)
   const last = useRef(0)
   const sinceSent = useRef(0)
 
+  useEventListener(player, "sourceLoad", () => {
+    if (seeded.current) return
+    seeded.current = true
+    if (startMs > 0 && preview === null) player.currentTime = startMs / 1000
+  })
+
   useEventListener(player, "timeUpdate", ({ currentTime }) => {
+    onTick(currentTime)
     if (preview !== null && preview > 0 && currentTime >= preview) {
       player.pause()
       onPreviewEnd()
@@ -80,7 +94,15 @@ export default function Watch() {
 
   const locked = video?.locked ?? null
   const startMs = Number(t) || video?.resume_ms || 0
-  const { player, url } = useWatchPlayer(video, startMs, Boolean(user) && !locked, () => setEnded(true))
+  const hosted = video?.playback?.type === "hls"
+  const ads = useAdBreaks(video?.id, hosted && !locked, startMs)
+  const { player, url } = useWatchPlayer(video, startMs, Boolean(user) && !locked, () => setEnded(true), ads.onContentTime)
+
+  useEffect(() => {
+    if (!url) return
+    if (ads.phase === "content") player.play()
+    else player.pause()
+  }, [ads.phase, url, player])
 
   useEffect(() => {
     if (!locked) return
@@ -146,7 +168,10 @@ export default function Watch() {
       <Stack.Screen options={{ title: video.channel.name }} />
       <View style={{ width: "100%", aspectRatio: reel ? 9 / 12 : 16 / 9, backgroundColor: colour.night }}>
         {url && !(locked && ended) ? (
-          <VideoView player={player} style={{ flex: 1 }} contentFit="contain" nativeControls />
+          <>
+            <VideoView player={player} style={{ flex: 1 }} contentFit="contain" nativeControls={ads.phase === "content"} />
+            {ads.phase === "ad" && ads.ad && <AdOverlay key={ads.ad.token} ad={ads.ad} onDone={ads.finish} />}
+          </>
         ) : (
           <View style={{ flex: 1 }}>
             {video.thumbnail && <Image source={{ uri: video.thumbnail }} style={{ flex: 1 }} resizeMode="cover" />}
@@ -179,6 +204,11 @@ export default function Watch() {
           )}
           <AccessBadge access={video.access} priceMinor={video.price_minor} />
         </View>
+        {video.paid_partnership ? (
+          <View style={[s.chip, { marginTop: 8, backgroundColor: colour.slate200 }]}>
+            <Text style={[s.chipText, { color: colour.navy }]}>{video.paid_partnership.label}</Text>
+          </View>
+        ) : null}
 
         {locked && <LockCard lock={locked} publicId={video.id} ended={ended} />}
 

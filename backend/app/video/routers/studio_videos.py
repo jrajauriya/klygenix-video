@@ -30,6 +30,7 @@ class ChannelIn(BaseModel):
     handle: str | None = None
     about: str = ""
     language: str = "en"
+    invite: str | None = None
 
 
 class ChannelPatch(BaseModel):
@@ -59,6 +60,9 @@ def create_channel(data: ChannelIn, ctx: StudioCtx = Depends(studio("video.chann
             raise err(400, "handle_3_40_letters_numbers_hyphens")
         if ctx.db.execute(select(Channel.id).where(Channel.handle == handle)).first():
             raise err(409, "taken_try_another", handle=handle)
+    from app.core.services import beta
+
+    beta.gate_channel(ctx.db, email=ctx.user.email, invite=data.invite)
     tenant = ctx.db.get(Tenant, ctx.tenant_id)
     channel = open_channel(ctx.db, tenant, name=data.name.strip(), handle=handle, language=data.language)
     channel.about = data.about.strip()[:2000]

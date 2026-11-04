@@ -20,3 +20,21 @@ async def media(provider: str, request: Request):
     except PermissionError:
         raise err(400, "action_not_allowed")
     return {"ok": True}
+
+
+@router.post("/cloudflare-live")
+async def cloudflare_live(request: Request):
+    from app.video.live import cf_events, cloudflare
+
+    body = await request.body()
+    headers = {k.lower(): v for k, v in request.headers.items()}
+    if "cf-webhook-auth" in headers:
+        ok, kind = cloudflare.verify_notification(headers), "notify"
+    else:
+        ok, kind = cloudflare.verify_stream_webhook(body, headers.get("webhook-signature")), "video"
+    event_id = await run_in_threadpool(cf_events.record, body, kind, ok)
+    if not ok:
+        raise err(400, "action_not_allowed")
+    if event_id:
+        cf_events.process_event.enqueue(event_id)
+    return {"ok": True}

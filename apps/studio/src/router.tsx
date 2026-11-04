@@ -21,6 +21,13 @@ import Settings from "./pages/Settings"
 import Live from "./pages/Live"
 import GoLive from "./pages/GoLive"
 import NotFound from "./pages/NotFound"
+import Sponsorships from "./pages/Sponsorships"
+import DealDetail from "./pages/DealDetail"
+import BrandProfile from "./pages/brand/BrandProfile"
+import Campaigns from "./pages/brand/Campaigns"
+import CampaignDetail from "./pages/brand/CampaignDetail"
+import Briefs from "./pages/brand/Briefs"
+import BrandDeals from "./pages/brand/BrandDeals"
 
 const guard = (key: string, element: ReactNode) => (
   <ProtectedRoute featureKey={key} permissionKey={key}>
@@ -51,6 +58,13 @@ export const router = createBrowserRouter([
       { path: "/community", element: guard("video.channels", <Community />) },
       { path: "/analytics", element: guard("video.analytics", <Analytics />) },
       { path: "/earnings", element: guard("video.earnings", <Earnings />) },
+      { path: "/sponsorships", element: guard("video.sponsorships", <Sponsorships />) },
+      { path: "/sponsorships/deals/:id", element: guard("video.dashboard", <DealDetail />) },
+      { path: "/brand", element: guard("video.brand", <BrandProfile />) },
+      { path: "/brand/campaigns", element: guard("video.brand", <Campaigns />) },
+      { path: "/brand/campaigns/:id", element: guard("video.brand", <CampaignDetail />) },
+      { path: "/brand/briefs", element: guard("video.brand", <Briefs />) },
+      { path: "/brand/deals", element: guard("video.brand", <BrandDeals />) },
       { path: "/billing", element: guard("video.billing", <Billing />) },
       { path: "/moderation", element: guard("video.dashboard", <Moderation />) },
       { path: "/settings", element: guard("video.settings", <Settings />) },

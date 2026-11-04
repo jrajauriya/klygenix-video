@@ -109,3 +109,70 @@ def retention() -> None:
     with platform_session() as db:
         policy.run(db)
         db.commit()
+
+
+@sweep
+def cloudflare_live() -> None:
+    from app.config import settings
+
+    if settings.LIVE_PROVIDER != "cloudflare" and not settings.SANDBOX_ENABLED:
+        return
+    from app.video.live import cf_events
+
+    cf_events.sweep()
+
+
+@sweep
+def provider_upkeep() -> None:
+    now = datetime.now(timezone.utc)
+    if now.minute % 15:
+        return
+    from app.video.channels import instagram
+    from app.video.services import push
+
+    with platform_session() as db:
+        push.check_receipts(db)
+        if now.hour == 3 and now.minute == 0:
+            instagram.refresh_due(db)
+        db.commit()
+
+
+@sweep
+def takedown_clocks() -> None:
+    from app.video.trust import service as trust
+
+    with platform_session() as db:
+        trust.restore_countered(db)
+        db.commit()
+
+
+@sweep
+def ads_and_deals() -> None:
+    from app.video.ads import service as ads
+    from app.video.ads import sponsorships
+
+    now = datetime.now(timezone.utc)
+    with platform_session() as db:
+        ads.flush(db)
+        if now.minute == 0:
+            ads.accrue(db)
+        if ads.first_of_month_ist():
+            ads.pay_shares(db, ads.share_period())
+        sponsorships.auto_approve(db)
+        db.commit()
+
+
+@sweep
+def recommender() -> None:
+    from app.video.clock import IST
+    from app.video.reco import service as reco_model
+
+    now = datetime.now(timezone.utc)
+    with platform_session() as db:
+        reco_model.flush(db)
+        if now.minute % 10 == 0:
+            reco_model.label(db)
+        local = now.astimezone(IST)
+        if local.hour == 2 and local.minute == 30:
+            reco_model.train(db)
+        db.commit()

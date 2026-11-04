@@ -294,15 +294,24 @@ function ConnectedAccounts() {
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold text-slate-800">
                   {r.title || r.external_channel_id} {r.sandbox && <Badge color="amber">Sandbox</Badge>}
-                  {r.status !== "active" && <Badge color="red" className="ml-1">{r.status.replace(/_/g, " ")}</Badge>}
+                  {r.status === "expired" ? (
+                    <Badge color="amber" className="ml-1">Connection expired</Badge>
+                  ) : r.status !== "active" && <Badge color="red" className="ml-1">{r.status.replace(/_/g, " ")}</Badge>}
                 </p>
                 <p className="text-xs text-slate-500">
-                  {r.platform === "instagram"
+                  {r.status === "expired"
+                    ? `${r.platform === "instagram" ? "Instagram" : "YouTube"} signed us out. Reconnect to keep ${r.platform === "instagram" ? "publishing Reels" : "syncing videos and captions"}.`
+                    : r.platform === "instagram"
                     ? "Instagram · clips can be published as Reels"
                     : `${r.videos} linked videos · ${r.last_synced_at ? `last synced ${when(r.last_synced_at, true)}` : "not synced yet"}`}
                 </p>
               </div>
-              {r.platform === "youtube" && (
+              {r.status === "expired" && (r.platform === "youtube" || r.platform === "instagram") && (
+                <Button size="sm" onClick={() => connect(r.platform as "youtube" | "instagram")} disabled={busy !== null}>
+                  <RefreshCw size={13} /> {busy === `connect-${r.platform}` ? "Opening…" : "Reconnect"}
+                </Button>
+              )}
+              {r.platform === "youtube" && r.status !== "expired" && (
                 <Button size="sm" variant="outline" onClick={() => sync(r)} disabled={busy !== null}>
                   <RefreshCw size={13} /> {busy === `sync-${r.id}` ? "Starting…" : "Sync now"}
                 </Button>

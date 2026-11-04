@@ -45,3 +45,15 @@ def comment(request: Request, user_id: int) -> None:
 
 def takedown(request: Request) -> None:
     per_ip(request, "takedown", 10, 3600, HOURLY)
+
+
+def waitlist(request: Request) -> None:
+    per_ip(request, "waitlist", 10, 3600, HOURLY)
+
+
+def invite_check(request: Request) -> None:
+    per_ip(request, "invite-check", 20, 600, BUSY)
+
+
+def feedback(request: Request) -> None:
+    per_ip(request, "feedback", 20, 3600, HOURLY)

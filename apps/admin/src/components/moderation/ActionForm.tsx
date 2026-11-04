@@ -26,6 +26,17 @@ const OPTIONS: Record<TargetType, { value: string; label: string; hint: string }
     { value: "restore", label: "Restore", hint: "Show it again" },
     { value: "warn", label: "Warn the author", hint: "Leave it up and notify" },
   ],
+  live: [
+    { value: "approve", label: "Approve", hint: "Clear the reports; the stream carries on" },
+    { value: "remove", label: "End the stream", hint: "Stops the broadcast now and hides it" },
+    { value: "warn", label: "Warn the creator", hint: "Leave it running and notify" },
+  ],
+  live_message: [
+    { value: "approve", label: "Approve", hint: "Clear the reports" },
+    { value: "remove", label: "Remove", hint: "Hide the chat message for everyone" },
+    { value: "restore", label: "Restore", hint: "Show it again" },
+    { value: "warn", label: "Warn the author", hint: "Leave it up and notify" },
+  ],
   channel: [
     { value: "warn", label: "Warn", hint: "Notify the channel" },
     { value: "suspend", label: "Suspend", hint: "Stop the channel publishing" },

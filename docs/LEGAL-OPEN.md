@@ -91,12 +91,14 @@ Placeholders
 - Jurisdiction city (counter-notice consent).
 
 Open questions
-1. Product SLAs today (`backend/app/video/routers/trust.py`, `SLA`): acknowledge 24 h for every kind; resolve
+1. Product SLAs today (`TAKEDOWN_SLA_HOURS` in settings since run 4; was `routers/trust.py` `SLA`): acknowledge 24 h for every kind; resolve
    intimate imagery 24 h, court orders 36 h, copyright / IT Rules / other 15 days. Copyright r.75 expects action
    within 36 hours of a valid notice. Should the copyright SLA change?
-2. Counter-notices currently go through the ordinary appeal route (Account → Notices → Appeal). The
-   `kv_trust.takedowns.counter_notice` column exists but nothing writes it. Is an appeal an acceptable
-   counter-notice channel, or do we need a dedicated form that forwards to the complainant?
+2. **Built in run 4:** a dedicated counter-notice form (Account → Notices on the web, Moderation in the studio)
+   with the DMCA §512(g) statements and a typed signature; it is mailed to the claimant with the uploader's name and
+   address, and the video is restored after `COUNTER_NOTICE_RESTORE_DAYS` (10 business days, placeholder) unless an
+   admin records that the claimant filed a court action. Confirm: the waiting period for India (no statutory
+   counter-notice), whether to share the uploader's address with the claimant, and the 10–14 business-day US window.
 3. Refunds to buyers when paid content is removed after a valid notice: mandatory, discretionary, or none?
 
 ## Grievance Officer — `/legal/grievance`
@@ -156,3 +158,24 @@ Open questions
    on stream must agree to being recorded?
 5. Live chat retention is 90 days after the stream (`backend/app/video/retention.py`); raw segments 24 hours.
    Do any law-enforcement preservation duties require longer?
+
+## Run 4 additions — to confirm
+
+**Advertising (V5.1)** — policy text needed for advertisers and creators.
+- Creator share `ADS_CREATOR_SHARE_BPS` = 55% of ad spend on their own videos, paid monthly (placeholder; a commercial
+  decision). It is a revenue share of real ad money, not a per-view rate (rule V10).
+- GST on ad sales (platform invoice series `KVA`, `PLATFORM` rate) and the tax treatment of the creator's share
+  (194-O? 194J/194C? GST on the creator's supply to Klygenix?) — **confirm with the CA** before any live ad money.
+- Ads are never shown on embeds, reels, members-only or paid videos, the creator's own videos, or to Premium viewers;
+  skippable after 5 s; mid-rolls only past 8 minutes. Creators opt in per channel and can turn ads off per video.
+- Advertising standards: ASCI code, prohibited categories, the creative review rules admin applies.
+
+**Sponsorships (V5.2)**
+- Platform commission `SPONSORSHIP_COMMISSION_BPS` = 10% (placeholder). Creator's GST applies if they gave a GSTIN.
+- Every deliverable carries "Paid partnership with {brand}" (ASCI influencer guidelines; FTC for US viewers).
+  Confirm the wording and whether off-platform deals must also be declared by creators.
+- Escrow terms: brand approves or the deal auto-approves 7 days after delivery; disputes decided by Klygenix.
+  Needs brand terms and creator sponsorship terms.
+
+**Closed beta** — waitlist and invite mails are transactional; confirm the privacy-notice wording for waitlist data
+(kept until joined or removed).
