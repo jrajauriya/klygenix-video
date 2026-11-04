@@ -5,6 +5,8 @@ import { Save, Undo2 } from "lucide-react"
 import { api } from "@klygenixvideo/auth"
 import { Badge, Button, Card, EmptyState, Spinner, cn } from "@klygenixvideo/ui"
 import { STUDIO } from "../../lib/hooks"
+import { useHasPermission } from "../../lib/team"
+import { ViewOnly } from "../team/ViewOnly"
 import { clock, detail } from "../../lib/format"
 import type { StudioVideoDetail, TranscriptOut } from "../../lib/types"
 import { PlayerBox } from "./PlayerBox"
@@ -23,6 +25,7 @@ export function TranscriptTab({ video }: { video: StudioVideoDetail }) {
   const [saving, setSaving] = useState(false)
   const [seek, setSeek] = useState<Seek | null>(null)
   const [now, setNow] = useState(0)
+  const canEdit = useHasPermission("video.uploads", "full")
 
   useEffect(() => setEdits({}), [data])
 
@@ -79,15 +82,16 @@ export function TranscriptTab({ video }: { video: StudioVideoDetail }) {
             {data.transcript.edited && <Badge color="blue">{t("Edited")}</Badge>}
             {data.transcript.source === "creator" && <Badge color="purple">{t("From your captions")}</Badge>}
           </div>
-          <div className="flex gap-2">
+          {canEdit && <div className="flex gap-2">
             {changed.length > 0 && (
               <Button size="sm" variant="ghost" onClick={() => setEdits({})}><Undo2 size={13} /> {t("Undo")}</Button>
             )}
             <Button size="sm" onClick={save} disabled={saving || changed.length === 0}>
               <Save size={13} /> {saving ? t("Saving…") : changed.length ? (changed.length === 1 ? t("Save 1 change") : t("Save {n} changes", { n: changed.length })) : t("Saved")}
             </Button>
-          </div>
+          </div>}
         </div>
+        {!canEdit && <ViewOnly className="m-3" what={t("Your role can read the transcript but not correct it.")} />}
         <ul className="max-h-[70vh] divide-y divide-slate-100 overflow-y-auto">
           {data.segments.map((s) => {
             const playing = now >= s.start_ms && now < s.end_ms
@@ -103,6 +107,7 @@ export function TranscriptTab({ video }: { video: StudioVideoDetail }) {
                 </button>
                 <textarea
                   value={value}
+                  readOnly={!canEdit}
                   rows={Math.max(1, Math.ceil(value.length / 70))}
                   onChange={(e) => setEdits((m) => ({ ...m, [s.idx]: e.target.value }))}
                   aria-label={t("Line at {time}", { time: clock(s.start_ms) })}

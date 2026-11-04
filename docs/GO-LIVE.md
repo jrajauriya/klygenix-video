@@ -39,3 +39,10 @@ refuses both.
 | Azure OpenAI images (AI thumbnails) | `IMAGE_PROVIDER=azure` | `IMAGE_API_URL` (…/images/generations?api-version=…), `IMAGE_API_KEY` | Generate AI thumbnails for one video; each batch counts 3 against `ai_images` |
 | US host (V5.4) | a second VPS with `backend/.env.us.example` | its own DB, Redis, Bunny library (US), Lemon Squeezy; `REGION=us`, `REGION_ENFORCE=true`, `REGION_URLS` on **both** hosts | `tests/smoke/region_rehearsal.py --india https://api.play.klygenix.com --us https://api.us.play.klygenix.com` |
 | Invalid-traffic ranges | `ADS_IVT_CIDRS` | data-centre CIDR list (from an IVT vendor when one is chosen) | Admin → Advertising → Invalid traffic shows `datacentre` |
+
+## Run 6 providers and hosts
+
+| Provider / host | Switch | Keys | First real check |
+|---|---|---|---|
+| Trace collector (optional) | `OTEL_EXPORTER_OTLP_ENDPOINT` (any OTLP/HTTP collector: Grafana Cloud, Honeycomb, an OpenTelemetry Collector) | `OTEL_EXPORTER_OTLP_HEADERS` (seal it if it carries an API key) | Open a watch page; one trace shows the request span, the `job …` spans it queued and any `llm responses` span |
+| Slow-query report | `pg_stat_statements` is preloaded by `docker-compose.prod.yml` (needs a Postgres restart the first time) | — | `make -C infra slow-queries PG_CONTAINER=klygenix-video-postgres` after a day of traffic |

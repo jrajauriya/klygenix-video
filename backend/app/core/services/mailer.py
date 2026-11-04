@@ -72,6 +72,54 @@ T = {
         "en": ("Thanks for your feedback", "We read every message. Reference: {reference}."),
         "hi": ("आपकी प्रतिक्रिया के लिए धन्यवाद", "हम हर संदेश पढ़ते हैं। संदर्भ: {reference}।"),
     },
+    "account_verify": {
+        "en": ("Confirm your email address", "Hi {name},\n\nConfirm this address for your Klygenix Play account. The link works for 48 hours:\n{link}"),
+        "hi": ("अपना ईमेल पता पक्का करें", "नमस्ते {name},\n\nअपने Klygenix Play खाते के लिए यह पता पक्का करें। लिंक 48 घंटे चलेगा:\n{link}"),
+    },
+    "account_reset": {
+        "en": ("Reset your password", "Hi {name},\n\nSomebody asked to reset the password on this account. If it was you, the link "
+               "works for 30 minutes:\n{link}\n\nIf it was not, ignore this email and nothing changes."),
+        "hi": ("अपना पासवर्ड रीसेट करें", "नमस्ते {name},\n\nकिसी ने इस खाते का पासवर्ड रीसेट करने को कहा है। अगर यह आप थे, तो लिंक "
+               "30 मिनट चलेगा:\n{link}\n\nअगर नहीं, तो इस मेल को अनदेखा करें, कुछ नहीं बदलेगा।"),
+    },
+    "account_invite": {
+        "en": ("You have been invited to Klygenix Play", "Hi {name},\n\n{inviter} has added you to {tenant}. Choose a password to "
+               "sign in. The link works for 7 days:\n{link}"),
+        "hi": ("Klygenix Play पर आपको आमंत्रित किया गया है", "नमस्ते {name},\n\n{inviter} ने आपको {tenant} में जोड़ा है। साइन इन के लिए "
+               "पासवर्ड चुनें। लिंक 7 दिन चलेगा:\n{link}"),
+    },
+    "team_invite": {
+        "en": ("{inviter} invited you to help run {channel}",
+               "Hi {name},\n\n{inviter} invited you to join {channel} on Klygenix Play as {role}.\n\nAccept here:\n{link}\n\n"
+               "Sign in with this email address to accept. The invitation expires in {days} days."),
+        "hi": ("{inviter} ने आपको {channel} चलाने में मदद के लिए आमंत्रित किया",
+               "नमस्ते {name},\n\n{inviter} ने आपको Klygenix Play पर {channel} में {role} के रूप में जुड़ने के लिए आमंत्रित किया है।\n\n"
+               "यहाँ स्वीकार करें:\n{link}\n\nस्वीकार करने के लिए इसी ईमेल से साइन इन करें। यह निमंत्रण {days} दिनों में समाप्त होगा।"),
+    },
+    "onboarding_upload": {
+        "en": ("Your channel is ready: upload your first video",
+               "Hi {name},\n\n{channel} is open. Upload your first video and Klygenix Play writes the chapters, summary and "
+               "transcript for you:\n{link}\n\nDon't want these tips? Turn them off in Studio → Settings."),
+        "hi": ("आपका चैनल तैयार है: अपना पहला वीडियो अपलोड करें",
+               "नमस्ते {name},\n\n{channel} खुल गया है। अपना पहला वीडियो अपलोड करें और Klygenix Play आपके लिए अध्याय, सारांश और "
+               "ट्रांसक्रिप्ट लिखेगा:\n{link}\n\nये सुझाव नहीं चाहिए? Studio → Settings में बंद करें।"),
+    },
+    "onboarding_clip": {
+        "en": ("Turn your best moments into reels",
+               "Hi {name},\n\nKlygenix Play has found clip ideas in your videos. Open one, pick a caption style and render a "
+               "vertical reel in a minute:\n{link}\n\nDon't want these tips? Turn them off in Studio → Settings."),
+        "hi": ("अपने सबसे अच्छे पलों को रील बनाएँ",
+               "नमस्ते {name},\n\nKlygenix Play ने आपके वीडियो में क्लिप के सुझाव ढूँढे हैं। एक खोलें, कैप्शन स्टाइल चुनें और एक मिनट में "
+               "वर्टिकल रील बनाएँ:\n{link}\n\nये सुझाव नहीं चाहिए? Studio → Settings में बंद करें।"),
+    },
+    "onboarding_payouts": {
+        "en": ("Set up payouts to earn from your channel",
+               "Hi {name},\n\nTips, memberships and paid videos need a payout account. It takes five minutes:\n{link}\n\n"
+               "Don't want these tips? Turn them off in Studio → Settings."),
+        "hi": ("अपने चैनल से कमाई के लिए भुगतान खाता जोड़ें",
+               "नमस्ते {name},\n\nटिप, सदस्यता और पेड वीडियो के लिए भुगतान खाता चाहिए। इसमें पाँच मिनट लगते हैं:\n{link}\n\n"
+               "ये सुझाव नहीं चाहिए? Studio → Settings में बंद करें।"),
+    },
 }
 
 

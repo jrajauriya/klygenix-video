@@ -49,6 +49,13 @@ items = wait_for(lambda: [n for n in fan.get("/api/video/me/inbox").json()["item
 ok("followers get the new video in their inbox", bool(items), items)
 check("with the channel and title", items[0]["title"].endswith("posted a new video") and items[0]["body"] == "Inbox tips", True)
 ok("published notice for the uploader too", any(n["kind"] == "published" for n in host.get("/api/video/me/inbox").json()["items"]))
+studio_items = host.get("/api/video/me/inbox", params={"app": "studio"}).json()["items"]
+web_items = host.get("/api/video/me/inbox", params={"app": "web"}).json()["items"]
+check("creator notices go to the studio bell", (any(n["kind"] == "published" for n in studio_items), any(n["kind"] == "published" for n in web_items)),
+      (True, False))
+ok("viewer notices go to the web bell", all(n["app"] in ("viewer", "all") for n in fan.get("/api/video/me/inbox", params={"app": "web"}).json()["items"]))
+check("the app counts differ", host.get("/api/video/me/inbox/count", params={"app": "web"}).json()["unread"] <=
+      host.get("/api/video/me/inbox/count").json()["unread"], True)
 c = host.post(f"/api/video/videos/{v2['public_id']}/comments", json={"body": "Thanks for watching, ask me anything"}).json()
 fan.post(f"/api/video/videos/{v2['public_id']}/comments", json={"body": "Lovely tips, thank you", "parent_id": c["id"]})
 rep = wait_for(lambda: [n for n in host.get("/api/video/me/inbox").json()["items"] if n["kind"] == "reply"], 20)

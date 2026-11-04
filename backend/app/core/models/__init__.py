@@ -9,6 +9,7 @@ from app.core.models.audit import AuditEntry
 from app.core.models.api_key import ApiKey
 from app.core.models.impersonation import ImpersonationSession
 from app.core.models.beta import Feedback, InviteCode, MailOutbox, WaitlistEntry
+from app.core.models.team import TenantMember
 
 __all__ = [
     "Tenant",
@@ -28,5 +29,6 @@ __all__ = [
     "InviteCode",
     "WaitlistEntry",
     "MailOutbox",
+    "TenantMember",
     "Feedback",
 ]

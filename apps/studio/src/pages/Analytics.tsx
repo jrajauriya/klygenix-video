@@ -8,7 +8,8 @@ import { KindBadge } from "../components/StatusChips"
 import { averageView } from "../components/video/AnalyticsTab"
 import { DailyChart, RangePicker } from "../components/DailyChart"
 import { RevenueByStream, TrafficSources } from "../components/AudienceCharts"
-import { useHasFeature, useHasPermission } from "@klygenixvideo/client"
+import { useHasFeature } from "@klygenixvideo/client"
+import { useHasPermission } from "../lib/team"
 import { useT } from "../i18n"
 
 type Top = ChannelAnalytics["top"][number]

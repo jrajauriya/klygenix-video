@@ -16,5 +16,6 @@ export async function notifyHistory(): Promise<PushRecord[]> {
 }
 
 export function appPath(url: unknown): string | null {
-  return typeof url === "string" && /^\/(live|watch|channel)\/[\w@.-]+$/.test(url) ? url : null
+  if (typeof url !== "string") return null
+  return /^\/(live|watch|channel)\/[\w@.-]+$/.test(url) || /^\/team\/accept\?token=[\w-]+$/.test(url) ? url : null
 }

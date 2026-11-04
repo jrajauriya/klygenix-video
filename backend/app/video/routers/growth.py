@@ -83,38 +83,39 @@ def check_downloads(data: LicensesIn, ctx: Ctx = Depends(signed_in)):
 
 def _note(n: Notification) -> dict:
     return {"id": n.id, "kind": n.kind, "title": n.title, "body": n.body, "url": n.url, "image": n.image,
-            "read": n.read_at is not None, "created_at": iso(n.created_at)}
+            "app": n.app, "read": n.read_at is not None, "created_at": iso(n.created_at)}
 
 
 @router.get("/me/inbox")
 def my_inbox(response: Response, unread: bool = False, limit: int = Query(30, le=100), offset: int = 0,
-             ctx: Ctx = Depends(signed_in)):
+             app: str | None = Query(None, pattern="^(web|studio|mobile)$"), ctx: Ctx = Depends(signed_in)):
     with platform_session() as db:
-        q = select(Notification).where(Notification.user_id == ctx.user.id)
+        q = inbox.scoped(select(Notification).where(Notification.user_id == ctx.user.id), app)
         if unread:
             q = q.where(Notification.read_at.is_(None))
         rows = db.execute(q.order_by(Notification.id.desc()).limit(limit).offset(offset)).scalars().all()
-        count = inbox.unread(db, ctx.user.id)
+        count = inbox.unread(db, ctx.user.id, app)
         response.headers["X-Unread-Count"] = str(count)
         return {"unread": count, "items": [_note(n) for n in rows]}
 
 
 @router.get("/me/inbox/count")
-def inbox_count(ctx: Ctx = Depends(signed_in)):
+def inbox_count(app: str | None = Query(None, pattern="^(web|studio|mobile)$"), ctx: Ctx = Depends(signed_in)):
     with platform_session() as db:
-        return {"unread": inbox.unread(db, ctx.user.id)}
+        return {"unread": inbox.unread(db, ctx.user.id, app)}
 
 
 class ReadIn(BaseModel):
     ids: list[int] | None = Field(default=None, max_length=500)
+    app: str | None = Field(default=None, pattern="^(web|studio|mobile)$")
 
 
 @router.post("/me/inbox/read")
 def read_inbox(data: ReadIn, ctx: Ctx = Depends(signed_in)):
     with platform_session() as db:
-        n = inbox.mark_read(db, ctx.user.id, data.ids)
+        n = inbox.mark_read(db, ctx.user.id, data.ids, data.app)
         db.commit()
-        return {"marked": n, "unread": inbox.unread(db, ctx.user.id)}
+        return {"marked": n, "unread": inbox.unread(db, ctx.user.id, data.app)}
 
 
 class DigestIn(BaseModel):

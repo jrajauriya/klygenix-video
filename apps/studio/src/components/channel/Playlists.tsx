@@ -3,7 +3,9 @@ import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { ArrowDown, ArrowUp, ExternalLink, ListVideo, Plus, Search, X } from "lucide-react"
 import { api } from "@klygenixvideo/auth"
-import { fromMinor, useHasFeature, useHasPermission } from "@klygenixvideo/client"
+import { fromMinor, useHasFeature } from "@klygenixvideo/client"
+import { useHasPermission } from "../../lib/team"
+import { ViewOnly } from "../team/ViewOnly"
 import {
   Badge, Button, Card, Drawer, DrawerFooter, EmptyState, Field, Input, Select, Spinner, Textarea, useConfirm,
 } from "@klygenixvideo/ui"
@@ -38,6 +40,7 @@ function Cover({ src, className }: { src: string | null; className?: string }) {
 export function Playlists() {
   const t = useT()
   const [open, setOpen] = useState<Playlist | "new" | null>(null)
+  const canEdit = useHasPermission("video.channels", "full")
   const { data: rows, isLoading } = useQuery({
     queryKey: ["studio-playlists"],
     queryFn: async () => (await api.get<Playlist[]>(`${STUDIO}/playlists`)).data,
@@ -51,7 +54,7 @@ export function Playlists() {
             <h2 className="text-sm font-bold text-navy">{t("Playlists and series")}</h2>
             <p className="mt-0.5 text-sm text-slate-500">{t("Group your videos. A series is watched in order, and signed-in viewers see how far they got.")}</p>
           </div>
-          <Button size="sm" onClick={() => setOpen("new")}><Plus size={14} /> {t("New playlist")}</Button>
+          {canEdit && <Button size="sm" onClick={() => setOpen("new")}><Plus size={14} /> {t("New playlist")}</Button>}
         </div>
         {isLoading ? (
           <Spinner />
@@ -100,6 +103,7 @@ function PlaylistDrawer({ initial, onClose }: { initial: Playlist | null; onClos
   const [kind, setKind] = useState<PlaylistKind>(initial?.kind ?? "playlist")
   const [visibility, setVisibility] = useState<PlaylistVisibility>(initial?.visibility ?? "public")
   const [busy, setBusy] = useState<"save" | "delete" | null>(null)
+  const canEdit = useHasPermission("video.channels", "full")
 
   async function save() {
     setBusy("save")
@@ -158,14 +162,15 @@ function PlaylistDrawer({ initial, onClose }: { initial: Playlist | null; onClos
       ) : t("Give it a name. You add videos after it is created.")}
       footer={
         <DrawerFooter
-          destructive={current ? { label: t("Delete"), onClick: remove, pending: busy === "delete", disabled: busy !== null } : undefined}
+          destructive={current && canEdit ? { label: t("Delete"), onClick: remove, pending: busy === "delete", disabled: busy !== null } : undefined}
           onCancel={onClose}
           cancelLabel={current ? t("Close") : t("Cancel")}
-          save={{ label: current ? t("Save") : t("Create"), onClick: save, pending: busy === "save", disabled: busy !== null || !title.trim() || !dirty }}
+          save={canEdit ? { label: current ? t("Save") : t("Create"), onClick: save, pending: busy === "save", disabled: busy !== null || !title.trim() || !dirty } : undefined}
         />
       }
     >
-      <div className="space-y-4">
+      {!canEdit && <ViewOnly className="mb-4" />}
+      <fieldset disabled={!canEdit} className="m-0 min-w-0 space-y-4 border-0 p-0">
         <Field label={t("Title")} required>
           <Input value={title} maxLength={160} onChange={(e) => setTitle(e.target.value)} />
         </Field>
@@ -181,7 +186,7 @@ function PlaylistDrawer({ initial, onClose }: { initial: Playlist | null; onClos
         </Field>
         {current && current.kind === "series" && <SeriesPrice playlist={current} onSaved={(price_minor) => setCurrent({ ...current, price_minor })} />}
         {current && <Items playlistId={current.id} />}
-      </div>
+      </fieldset>
     </Drawer>
   )
 }

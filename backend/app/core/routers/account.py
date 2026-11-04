@@ -122,7 +122,9 @@ def _chosen_handle(db: Session, wanted: str | None) -> str | None:
         return None
     if not is_valid_creator_handle(handle):
         raise err(400, "handle_3_40_letters_numbers_hyphens")
-    if db.query(Channel.id).filter(Channel.handle == handle).first():
+    from app.video.services import handles
+
+    if handles.taken(db, handle):
         raise err(409, "taken_try_another", handle=handle)
     return handle
 

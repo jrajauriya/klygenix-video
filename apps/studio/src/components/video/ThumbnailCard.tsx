@@ -5,6 +5,7 @@ import { Check, Film, ImageUp, Sparkles, Wand2 } from "lucide-react"
 import { api } from "@klygenixvideo/auth"
 import { Badge, Button, Card, cn } from "@klygenixvideo/ui"
 import { MULTIPART, STUDIO } from "../../lib/hooks"
+import { useHasPermission } from "../../lib/team"
 import { clock, detail, status } from "../../lib/format"
 import type { StudioVideoDetail, ThumbnailIdea } from "../../lib/types"
 import { useT } from "../../i18n"
@@ -15,6 +16,7 @@ export function ThumbnailCard({ video }: { video: StudioVideoDetail }) {
   const t = useT()
   const qc = useQueryClient()
   const fileRef = useRef<HTMLInputElement>(null)
+  const canEdit = useHasPermission("video.uploads", "full")
   const [busy, setBusy] = useState<string | null>(null)
   const [quotaNote, setQuotaNote] = useState<string | null>(null)
   const [usage, setUsage] = useState<{ used: number; limit: number | null } | null>(null)
@@ -79,7 +81,7 @@ export function ThumbnailCard({ video }: { video: StudioVideoDetail }) {
         <div className="aspect-video w-36 shrink-0 overflow-hidden rounded-md bg-slate-200 sm:w-44">
           {video.thumbnail && <img src={video.thumbnail} alt={t("Current thumbnail")} className="h-full w-full object-cover" />}
         </div>
-        <div className="flex min-w-0 flex-1 flex-col justify-center gap-2">
+        {canEdit && <div className="flex min-w-0 flex-1 flex-col justify-center gap-2">
           <p className="text-xs text-slate-500">{t("JPG or PNG, 1280 × 720 works best.")}</p>
           <input ref={fileRef} type="file" accept="image/*" className="hidden"
             onChange={(e) => {
@@ -95,9 +97,9 @@ export function ThumbnailCard({ video }: { video: StudioVideoDetail }) {
               <Film size={14} /> {busy === "reset" ? t("Resetting…") : t("Use the default frame")}
             </Button>
           </div>
-        </div>
+        </div>}
       </div>
-      <div className="space-y-2 rounded-lg border border-slate-200 p-3">
+      {canEdit && <div className="space-y-2 rounded-lg border border-slate-200 p-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-xs text-slate-600">{t("Let AI design thumbnails with your title on a strong frame. Each one uses your monthly AI image allowance.")}</p>
           <Button size="sm" variant="outline" disabled={busy !== null || video.status !== "published"} onClick={generate}>
@@ -113,9 +115,9 @@ export function ThumbnailCard({ video }: { video: StudioVideoDetail }) {
             {quotaNote}
           </p>
         )}
-      </div>
+      </div>}
       <div>
-        <p className="mb-1.5 flex items-center gap-1 text-xs font-semibold text-slate-500"><Sparkles size={13} className="text-brand" /> {t("AI ideas · click one to use it")}</p>
+        <p className="mb-1.5 flex items-center gap-1 text-xs font-semibold text-slate-500"><Sparkles size={13} className="text-brand" /> {canEdit ? t("AI ideas · click one to use it") : t("AI ideas")}</p>
         {ideas.length === 0 ? (
           <p className="text-sm text-slate-500">
             {BUSY.includes(video.status)
@@ -133,7 +135,7 @@ export function ThumbnailCard({ video }: { video: StudioVideoDetail }) {
                   ? (idea.reason ? t("Use the AI thumbnail at {time}: {reason}", { time: clock(idea.at_ms), reason: idea.reason }) : t("Use the AI thumbnail at {time}", { time: clock(idea.at_ms) }))
                   : (idea.reason ? t("Use the frame at {time}: {reason}", { time: clock(idea.at_ms), reason: idea.reason }) : t("Use the frame at {time}", { time: clock(idea.at_ms) }))}
                 aria-pressed={idea.chosen}
-                disabled={busy !== null || idea.chosen}
+                disabled={!canEdit || busy !== null || idea.chosen}
                 onClick={() => pick(idea)}
                 className={cn(
                   "group relative aspect-video overflow-hidden rounded-md border-2 bg-slate-100 disabled:cursor-default",

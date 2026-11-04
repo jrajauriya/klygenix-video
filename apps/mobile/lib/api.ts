@@ -1,4 +1,4 @@
-import axios from "axios"
+import axios, { type AxiosInstance } from "axios"
 import Constants from "expo-constants"
 import { Linking } from "react-native"
 
@@ -19,23 +19,26 @@ export function openWeb(path: string): void {
   Linking.openURL(`${WEB_URL}${path}`).catch(() => null)
 }
 
-export const api = axios.create({ baseURL: API_URL, timeout: 20000 })
+export function client(): AxiosInstance {
+  const c = axios.create({ baseURL: API_URL, timeout: 20000 })
+  c.interceptors.request.use(async (config) => {
+    const token = await session.token()
+    if (token) config.headers.Authorization = `Bearer ${token}`
+    config.headers["X-Klygenix-App"] = "mobile"
+    config.headers["Accept-Language"] = language.get()
+    return config
+  })
+  c.interceptors.response.use(
+    (response) => response,
+    async (error) => {
+      if (error?.response?.status === 401) await session.clear()
+      return Promise.reject(error)
+    },
+  )
+  return c
+}
 
-api.interceptors.request.use(async (config) => {
-  const token = await session.token()
-  if (token) config.headers.Authorization = `Bearer ${token}`
-  config.headers["X-Klygenix-App"] = "mobile"
-  config.headers["Accept-Language"] = language.get()
-  return config
-})
-
-api.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    if (error?.response?.status === 401) await session.clear()
-    return Promise.reject(error)
-  },
-)
+export const api = client()
 
 export function detail(error: unknown, fallback: string): string {
   const body = (error as { response?: { data?: { detail?: unknown } } })?.response?.data
@@ -49,4 +52,10 @@ export const WS_URL = API_URL.replace(/^http/, "ws")
 
 export function statusOf(error: unknown): number | undefined {
   return (error as { response?: { status?: number } })?.response?.status
+}
+
+export function errorCode(error: unknown): string | undefined {
+  const response = (error as { response?: { data?: { code?: unknown }; headers?: Record<string, unknown> } })?.response
+  const code = response?.data?.code ?? response?.headers?.["x-error-code"]
+  return typeof code === "string" && code ? code : undefined
 }

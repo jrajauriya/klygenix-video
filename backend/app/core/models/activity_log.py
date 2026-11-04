@@ -25,9 +25,7 @@ class ActivityLog(Base):
         Integer, ForeignKey("kv_admin.tenants.id", ondelete="CASCADE"), index=True
     )
     user_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("kv_admin.users.id"))
-    occurred_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, nullable=False
-    )
+    occurred_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, primary_key=True)
     app: Mapped[str] = mapped_column(String(10), nullable=False)
     kind: Mapped[str] = mapped_column(String(10), nullable=False)
     label: Mapped[str] = mapped_column(String(200), nullable=False)

@@ -386,6 +386,7 @@ export interface InboxItem {
   body: string
   url: string | null
   image: string | null
+  app?: "viewer" | "studio" | "all"
   read: boolean
   created_at: string | null
 }
@@ -416,3 +417,38 @@ export interface DownloadTicket {
 }
 
 export type LicenseState = "ok" | "expired" | "premium_ended" | "removed" | "invalid"
+
+export interface TeamChannel {
+  tenant_id: number
+  role: string
+  name: string
+  handle: string | null
+}
+
+export type AccessLevel = "none" | "view" | "full"
+
+export interface TeamMe {
+  tenant_id: number
+  role: string
+  member: boolean
+  channel: { name: string; handle: string | null } | null
+  permissions: Record<string, AccessLevel> | null
+  plan?: Plan | null
+  usage?: Usage[]
+}
+
+export interface Usage {
+  metric: string
+  label: string
+  used: number
+  limit: number | null
+  period: string
+}
+
+export interface TeamInvite {
+  channel: { name: string; handle: string | null } | null
+  role: string
+  inviter: string | null
+  expires_at: string | null
+  for_you: boolean
+}

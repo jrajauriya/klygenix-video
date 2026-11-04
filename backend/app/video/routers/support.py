@@ -19,6 +19,7 @@ from app.video.routers import limits
 from app.video.routers.billing import checkout_out
 from app.video.routers.deps import Ctx, Viewer, optional_viewer, signed_in
 from app.video.sessions import platform_session
+from app.video.services import handles
 
 router = APIRouter(prefix="/api/video", tags=["support"])
 
@@ -50,7 +51,7 @@ def my_rank(db, user_id: int | None, channel_id: int) -> int:
 @router.get("/channels/{handle}/support")
 def channel_support(handle: str, viewer: Viewer = Depends(optional_viewer)):
     with platform_session() as db:
-        ch = db.execute(select(Channel).where(Channel.handle == handle.lstrip("@"))).scalars().first()
+        ch = handles.resolve(db, handle)[0]
         if ch is None:
             raise err(404, "channel_not_found")
         tiers = db.execute(select(MembershipTier).where(MembershipTier.channel_id == ch.id, MembershipTier.is_active.is_(True))

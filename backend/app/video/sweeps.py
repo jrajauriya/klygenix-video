@@ -192,6 +192,17 @@ def digests() -> None:
 
 
 @sweep
+def onboarding_mails() -> None:
+    from app.video.services import onboarding
+
+    if datetime.now(timezone.utc).minute != 5:
+        return
+    with platform_session() as db:
+        onboarding.drip(db)
+        db.commit()
+
+
+@sweep
 def scheduled_targets() -> None:
     from app.video.models.studio import PublishTarget
     from app.video.studio.jobs import publish_target

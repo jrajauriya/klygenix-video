@@ -10,6 +10,8 @@ import {
 } from "@klygenixvideo/ui"
 import { compact, detail, when } from "../lib/format"
 import { LIVE_STATUS, LIVE_STUDIO, useTierOptions, type LiveStream } from "../lib/live"
+import { useHasPermission } from "../lib/team"
+import { ViewOnly } from "../components/team/ViewOnly"
 import { useT } from "../i18n"
 
 export function LiveStatusPill({ status }: { status: string }) {
@@ -30,6 +32,7 @@ export default function Live() {
   const t = useT()
   const navigate = useNavigate()
   const [creating, setCreating] = useState(false)
+  const canLive = useHasPermission("video.live", "full")
   const { data, isLoading } = useLiveStreams()
   const rows = data ?? []
   const open = rows.find((s) => s.status === "scheduled" || s.status === "live")
@@ -76,11 +79,12 @@ export default function Live() {
         actions={
           open ? (
             <Button onClick={() => navigate(`/live/${open.id}`)}><Radio size={15} /> {open.status === "live" ? t("Open live stream") : t("Open next stream")}</Button>
-          ) : (
+          ) : canLive ? (
             <Button onClick={() => setCreating(true)}><Radio size={15} /> {t("Go live or schedule")}</Button>
-          )
+          ) : undefined
         }
       />
+      {!canLive && <ViewOnly className="mb-3" what={t("Your role can watch streams and their chat but not start, change or end them.")} />}
       <DataTable
         label={t("Live streams")}
         rows={rows}
@@ -92,7 +96,7 @@ export default function Live() {
         emptyTitle={t("No live streams yet")}
         emptyDescription={t("Create a stream to get your stream key, or go live from this browser.")}
       />
-      <CreateStream open={creating} onClose={() => setCreating(false)} openId={open?.id} />
+      {canLive && <CreateStream open={creating} onClose={() => setCreating(false)} openId={open?.id} />}
     </ListPage>
   )
 }

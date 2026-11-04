@@ -4,7 +4,8 @@ import { toast } from "sonner"
 import { Languages, Trash2 } from "lucide-react"
 import { api } from "@klygenixvideo/auth"
 import { Button, Card, Select, Spinner, StatusPill, ToggleField, useConfirm } from "@klygenixvideo/ui"
-import { useHasPermission } from "@klygenixvideo/client"
+import { useHasPermission } from "../../lib/team"
+import { ViewOnly } from "../team/ViewOnly"
 import { STUDIO } from "../../lib/hooks"
 import { detail, languageName } from "../../lib/format"
 import type { Dub, StudioVideoDetail } from "../../lib/types"
@@ -104,6 +105,7 @@ export function DubbingTab({ video }: { video: StudioVideoDetail }) {
             {t("AI translates what is said and reads it in a synthetic voice, so viewers can listen in another language. Viewers always see the dub labelled “AI-dubbed” and can switch back to your own voice.")}
           </p>
         </div>
+        {!canEdit && <ViewOnly />}
         {embed ? (
           <p className="rounded-lg border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-700">
             {t("This video plays from {platform}, so it cannot be dubbed here.", { platform: video.embed_platform === "bilibili" ? "Bilibili" : "YouTube" })}

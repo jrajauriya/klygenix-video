@@ -5,7 +5,8 @@ import { toast } from "sonner"
 import { Download, ExternalLink, Pause, Pencil, Play, Send, Square, Wallet } from "lucide-react"
 import { api } from "@klygenixvideo/auth"
 import { Button, Card, DataTable, EmptyState, PageHeader, Spinner, useConfirm } from "@klygenixvideo/ui"
-import { useHasPermission } from "@klygenixvideo/client"
+import { useHasPermission } from "../../lib/team"
+import { ViewOnly } from "../../components/team/ViewOnly"
 import { STUDIO } from "../../lib/hooks"
 import { clock, compact, detail, languageName, watchUrl, when } from "../../lib/format"
 import { DEVICES, bps, categoryLabel, type Campaign } from "../../lib/market"
@@ -125,6 +126,7 @@ export default function CampaignDetail() {
         }
       />
 
+      {!canEdit && <ViewOnly className="mb-4" what={t("Your role can see campaigns and their results but not create, fund or change them.")} />}
       {c.status === "rejected" && (
         <p role="alert" className="mb-4 rounded-lg border border-red-300 bg-red-50 px-3.5 py-2.5 text-sm text-red-800">
           {c.review_note

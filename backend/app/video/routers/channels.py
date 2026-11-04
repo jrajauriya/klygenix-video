@@ -148,9 +148,39 @@ def _token(db, row: ConnectedChannel) -> str:
     return tokens.access_token
 
 
+def import_remote(db, row: ConnectedChannel, channel: Channel, token: str, rv) -> tuple[Video, tuple | None]:
+    from app.ai.captions import parse
+
+    v = db.execute(select(Video).where(Video.tenant_id == row.tenant_id, Video.embed_platform == "youtube",
+                                       Video.embed_external_id == rv.external_id)).scalars().first()
+    if v is None:
+        v = media.create_video(db, channel=channel, user_id=None, title=rv.title or "Untitled",
+                               description=rv.description, rights_declared=True, source="embed")
+        v.provider = None
+        v.embed_platform, v.embed_external_id = "youtube", rv.external_id
+        v.embed_url = embeds.canonical_url("youtube", rv.external_id)
+        v.duration_ms = rv.duration_ms
+        v.kind = "reel" if rv.duration_ms and rv.duration_ms <= 60_000 else "long"
+    v.embed_owner_verified = True
+    if v.status == "uploading":
+        v.status = "scanning"
+    db.flush()
+    cap = youtube.captions(token, rv.external_id)
+    if cap:
+        lang, vtt = cap
+        cues = parse(vtt)
+        if cues:
+            return v, (v.id, [{"start_ms": c.start_ms, "end_ms": c.end_ms, "text": c.text} for c in cues], lang)
+    if v.status == "scanning":
+        from app.video.pipeline.jobs import apply_scan
+
+        v.ai_status = "no_captions"
+        apply_scan(db, v, f"{v.title}\n{v.description}", None)
+    return v, None
+
+
 @job(queue_name="ai", timeout=1800)
 def sync_youtube(connected_id: int) -> None:
-    from app.ai.captions import parse
     from app.video.pipeline.jobs import process_captions
 
     queued: list[tuple[int, list[dict], str]] = []
@@ -161,32 +191,9 @@ def sync_youtube(connected_id: int) -> None:
         channel = db.get(Channel, row.channel_id)
         token = _token(db, row)
         for rv in youtube.my_videos(token):
-            v = db.execute(select(Video).where(Video.tenant_id == row.tenant_id, Video.embed_platform == "youtube",
-                                               Video.embed_external_id == rv.external_id)).scalars().first()
-            if v is None:
-                v = media.create_video(db, channel=channel, user_id=None, title=rv.title or "Untitled",
-                                       description=rv.description, rights_declared=True, source="embed")
-                v.provider = None
-                v.embed_platform, v.embed_external_id = "youtube", rv.external_id
-                v.embed_url = embeds.canonical_url("youtube", rv.external_id)
-                v.duration_ms = rv.duration_ms
-                v.kind = "reel" if rv.duration_ms and rv.duration_ms <= 60_000 else "long"
-            v.embed_owner_verified = True
-            if v.status == "uploading":
-                v.status = "scanning"
-            db.flush()
-            cap = youtube.captions(token, rv.external_id)
+            _, cap = import_remote(db, row, channel, token, rv)
             if cap:
-                lang, vtt = cap
-                cues = parse(vtt)
-                if cues:
-                    queued.append((v.id, [{"start_ms": c.start_ms, "end_ms": c.end_ms, "text": c.text} for c in cues], lang))
-                    continue
-            if v.status == "scanning":
-                from app.video.pipeline.jobs import apply_scan
-
-                v.ai_status = "no_captions"
-                apply_scan(db, v, f"{v.title}\n{v.description}", None)
+                queued.append(cap)
         from datetime import datetime, timezone
 
         row.last_synced_at = datetime.now(timezone.utc)

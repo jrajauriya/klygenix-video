@@ -68,6 +68,8 @@ export const UI_HI: Partial<UiText> = {
   "roles.full": "पूरा",
   "roles.saved": "स्क्रीन एक्सेस सहेजा गया",
   "roles.failed": "सहेजा नहीं जा सका",
+  "roles.role": "भूमिका",
+  "roles.cell": "{role} — {screen}: {level}",
   "theme.subtitle": "{app} आपको कैसा दिखे — दूसरों पर असर नहीं पड़ता",
   "theme.full": "पूरा ऐप",
   "theme.fullNote": "पेज समेत हर हिस्सा बदलता है",

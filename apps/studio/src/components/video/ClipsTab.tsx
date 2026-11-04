@@ -6,6 +6,8 @@ import { Clapperboard, Plus, Scissors, Sparkles } from "lucide-react"
 import { api } from "@klygenixvideo/auth"
 import { Badge, Button, Card, EmptyState, Spinner } from "@klygenixvideo/ui"
 import { STUDIO } from "../../lib/hooks"
+import { useHasPermission } from "../../lib/team"
+import { ViewOnly } from "../team/ViewOnly"
 import { clock, detail } from "../../lib/format"
 import { createClip } from "../../lib/clips"
 import type { Clip, StudioVideoDetail, Suggestion } from "../../lib/types"
@@ -17,6 +19,7 @@ export function ClipsTab({ video }: { video: StudioVideoDetail }) {
   const navigate = useNavigate()
   const qc = useQueryClient()
   const [making, setMaking] = useState<number | "custom" | null>(null)
+  const canEdit = useHasPermission("video.clips", "full")
   const canClip = video.source !== "embed" && ["published", "in_review"].includes(video.status)
 
   const { data: ideas, isLoading } = useQuery({
@@ -59,15 +62,18 @@ export function ClipsTab({ video }: { video: StudioVideoDetail }) {
 
   return (
     <div className="space-y-6">
+      {!canEdit && <ViewOnly what={t("Your role can see clip ideas and clips but not make new clips.")} />}
       <section>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div>
             <h3 className="flex items-center gap-1.5 text-sm font-bold text-navy"><Sparkles size={15} className="text-brand" /> {t("Clip ideas")}</h3>
             <p className="text-sm text-slate-500">{t("Moments that should work on their own as a reel, best first.")}</p>
           </div>
-          <Button variant="outline" onClick={() => make(null)} disabled={making !== null}>
-            <Plus size={14} /> {making === "custom" ? t("Starting…") : t("Pick my own moment")}
-          </Button>
+          {canEdit && (
+            <Button variant="outline" onClick={() => make(null)} disabled={making !== null}>
+              <Plus size={14} /> {making === "custom" ? t("Starting…") : t("Pick my own moment")}
+            </Button>
+          )}
         </div>
         {isLoading ? (
           <Spinner />
@@ -88,9 +94,11 @@ export function ClipsTab({ video }: { video: StudioVideoDetail }) {
                 </p>
                 {s.hook && <p className="rounded-md bg-slate-50 px-2 py-1.5 text-sm italic text-slate-700">“{s.hook}”</p>}
                 <p className="flex-1 text-xs text-slate-500">{s.reason}</p>
-                <Button size="sm" onClick={() => make(s)} disabled={making !== null}>
-                  <Scissors size={13} /> {making === s.id ? t("Starting…") : t("Make clip")}
-                </Button>
+                {canEdit && (
+                  <Button size="sm" onClick={() => make(s)} disabled={making !== null}>
+                    <Scissors size={13} /> {making === s.id ? t("Starting…") : t("Make clip")}
+                  </Button>
+                )}
               </Card>
             ))}
           </div>

@@ -41,7 +41,9 @@ def free_handle(db: Session, wanted: str) -> str:
     if not is_valid_handle(base):
         base = f"{base}-tv" if base else "channel"
     handle, n = base, 1
-    while db.execute(select(Channel.id).where(Channel.handle == handle)).first():
+    from app.video.services import handles
+
+    while handles.taken(db, handle):
         n += 1
         handle = f"{base}-{n}"
     return handle

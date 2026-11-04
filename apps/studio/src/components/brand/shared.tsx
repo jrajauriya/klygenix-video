@@ -2,6 +2,7 @@ import { Link } from "react-router-dom"
 import { Building2 } from "lucide-react"
 import { Card, StatusPill, buttonVariants } from "@klygenixvideo/ui"
 import { useT } from "../../i18n"
+import { useHasPermission } from "../../lib/team"
 import { APPLICATION_STATUS, CAMPAIGN_STATUS, DEAL_STATUS, type CampaignStatus, type DealStatus } from "../../lib/market"
 
 export function CampaignStatusPill({ status }: { status: CampaignStatus }) {
@@ -24,6 +25,7 @@ export function ApplicationStatusPill({ status }: { status: string }) {
 
 export function NeedsBrand({ what }: { what: string }) {
   const t = useT()
+  const canEdit = useHasPermission("video.brand", "full")
   return (
     <Card className="flex flex-col items-start gap-3 p-5 sm:flex-row sm:items-center">
       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand">
@@ -33,7 +35,7 @@ export function NeedsBrand({ what }: { what: string }) {
         <p className="font-semibold text-navy">{t("Set up your brand profile first")}</p>
         <p className="text-sm text-slate-600">{t("{what} run under your brand name, so creators and viewers know who is behind them.", { what })}</p>
       </div>
-      <Link to="/brand" className={buttonVariants({ size: "sm" })}>{t("Set up the brand profile")}</Link>
+      {canEdit && <Link to="/brand" className={buttonVariants({ size: "sm" })}>{t("Set up the brand profile")}</Link>}
     </Card>
   )
 }

@@ -3,7 +3,8 @@ import { useQuery } from "@tanstack/react-query"
 import { Clapperboard, Clock, ExternalLink, Eye, Heart, MessageCircle, MessagesSquare, Upload } from "lucide-react"
 import { api } from "@klygenixvideo/auth"
 import { Badge, Button, Card, EmptyState, PageHeader, StatCard } from "@klygenixvideo/ui"
-import { STUDIO, useChannel, useChannelAnalytics, useMe } from "../lib/hooks"
+import { STUDIO, useChannel, useChannelAnalytics } from "../lib/hooks"
+import { useHasPermission, useStudioPlan } from "../lib/team"
 import { channelUrl, clock, compact, watchTime } from "../lib/format"
 import type { StudioVideo } from "../lib/types"
 import { ChannelAvatar } from "../components/ChannelAvatar"
@@ -19,7 +20,8 @@ export default function Dashboard() {
   const t = useT()
   const navigate = useNavigate()
   const { data: channel } = useChannel()
-  const { data: me } = useMe()
+  const { plan, usage, theirs } = useStudioPlan()
+  const canUpload = useHasPermission("video.uploads", "full")
   const { data } = useQuery({
     queryKey: ["studio-videos", "dashboard"],
     queryFn: async () => {
@@ -34,14 +36,13 @@ export default function Dashboard() {
   const working = videos.filter((v) => BUSY.includes(v.status) || v.status === "in_review")
   const latestLong = videos.find((v) => v.kind === "long" && v.source === "upload" && v.status === "published" && v.suggestion_count > 0)
   const ideas = latestLong?.suggestion_count ?? 0
-  const plan = me?.plans.creator
 
   return (
     <>
       <PageHeader
         title={t("Dashboard")}
         subtitle={channel ? t("Welcome back. Here is how {name} is doing.", { name: channel.name }) : undefined}
-        actions={<Button onClick={() => navigate("/videos?upload=1")}><Upload size={15} /> {t("Upload a video")}</Button>}
+        actions={canUpload ? <Button onClick={() => navigate("/videos?upload=1")}><Upload size={15} /> {t("Upload a video")}</Button> : undefined}
       />
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
@@ -113,7 +114,7 @@ export default function Dashboard() {
             </div>
             {videos.length === 0 ? (
               <EmptyState title={t("No videos yet")} hint={t("Upload your first video and we will make a transcript, chapters and clip ideas from it.")}
-                action={<Button onClick={() => navigate("/videos?upload=1")}><Upload size={15} /> {t("Upload")}</Button>} />
+                action={canUpload ? <Button onClick={() => navigate("/videos?upload=1")}><Upload size={15} /> {t("Upload")}</Button> : undefined} />
             ) : (
               <ul className="divide-y divide-slate-100">
                 {videos.slice(0, 5).map((v) => (
@@ -155,14 +156,18 @@ export default function Dashboard() {
           )}
           <Card className="p-5">
             <div className="mb-3 flex items-center justify-between gap-2">
-              <h2 className="text-sm font-bold text-navy">{t("Your plan")}</h2>
+              <h2 className="text-sm font-bold text-navy">{theirs ? t("Channel plan") : t("Your plan")}</h2>
               {plan && <Badge color={plan.free ? "slate" : "brand"}>{plan.name}</Badge>}
             </div>
             {plan && <p className="mb-4 text-sm text-slate-600">{plan.description}</p>}
-            {me && <UsageMeters usage={me.usage} />}
-            <Link to="/billing" className="mt-4 inline-block text-sm font-semibold text-brand hover:underline">
-              {plan?.free ? t("Upgrade for more AI minutes and renders") : t("Manage your plan")}
-            </Link>
+            {usage && <UsageMeters usage={usage} />}
+            {theirs ? (
+              <p className="mt-4 text-sm text-slate-600">{t("The channel owner manages this plan. AI minutes and renders you use here count against it.")}</p>
+            ) : (
+              <Link to="/billing" className="mt-4 inline-block text-sm font-semibold text-brand hover:underline">
+                {plan?.free ? t("Upgrade for more AI minutes and renders") : t("Manage your plan")}
+              </Link>
+            )}
           </Card>
         </div>
       </div>

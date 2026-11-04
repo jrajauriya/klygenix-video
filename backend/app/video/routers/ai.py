@@ -209,12 +209,13 @@ def search(request: Request, response: Response, q: str = Query(min_length=2, ma
     videos = {v.id: v for v in db.execute(select(Video).where(Video.id.in_([vid for vid, _ in ranked]))).scalars().all()}
     chans = {c.id: c for c in db.execute(select(Channel).where(Channel.id.in_({v.channel_id for v in videos.values()}))).scalars().all()}
     pend = counters.pending("video", list(videos))
+    cpend = counters.pending("channel", list(chans))
     out = []
     for vid, r in ranked:
         v = videos.get(vid)
         if v is None:
             continue
-        card = video_card(v, chans.get(v.channel_id), pend.get(vid))
+        card = video_card(v, chans.get(v.channel_id), pend.get(vid), cpend.get(v.channel_id, {}))
         card["moment"] = None if r["start_ms"] is None else {
             "start_ms": r["start_ms"], "label": fmt_ts(r["start_ms"]), "snippet": r["snippet"][:240]}
         card["score"] = round(r["score"], 4)

@@ -63,6 +63,8 @@ interface Ivt {
   reasons: Record<string, number>
   billable: number
   invalid: number
+  from?: string | null
+  to?: string | null
   campaigns: { id: string; name: string; impressions: number; invalid: number }[]
 }
 
@@ -416,13 +418,63 @@ function Payouts() {
   )
 }
 
+function istDay(offsetDays = 0): string {
+  const d = new Date(Date.now() + offsetDays * 86_400_000)
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit" }).format(d)
+}
+
+const IVT_RANGE = [
+  { value: "range", label: "Dates" },
+  { value: "lifetime", label: "Lifetime" },
+]
+
 function InvalidTraffic() {
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ["admin-ads-ivt"],
-    queryFn: async () => (await api.get<Ivt>(`${VIDEO_ADMIN}/ads/ivt`)).data,
+  const [mode, setMode] = useState("range")
+  const [from, setFrom] = useState(() => istDay(-29))
+  const [to, setTo] = useState(() => istDay())
+  const isDay = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v)
+  const rangeError = mode === "range" && isDay(from) && isDay(to) && from > to ? "The start is after the end." : undefined
+  const ready = mode === "lifetime" || (isDay(from) && isDay(to) && !rangeError)
+  const params = mode === "lifetime" ? {} : { from, to }
+  const { data, isLoading, isError, error } = useQuery({
+    queryKey: ["admin-ads-ivt", mode, mode === "lifetime" ? "" : from, mode === "lifetime" ? "" : to],
+    queryFn: async () => (await api.get<Ivt>(`${VIDEO_ADMIN}/ads/ivt`, { params })).data,
+    enabled: ready,
     retry: false,
+    placeholderData: (prev) => prev,
   })
-  if (isError) return <Card className="p-5 text-sm text-red-700">Invalid traffic figures could not be loaded.</Card>
+  const range = (
+    <Card className="flex flex-wrap items-end gap-3 p-4">
+      <Field label="Period" className="w-40">
+        <Select value={mode} onChange={setMode} options={IVT_RANGE} />
+      </Field>
+      {mode === "range" && (
+        <>
+          <Field label="From" className="w-44" error={rangeError}>
+            <Input type="date" value={from} max={to || istDay()} onChange={(e) => setFrom(e.target.value)} />
+          </Field>
+          <Field label="To" className="w-44">
+            <Input type="date" value={to} min={from || undefined} max={istDay()} onChange={(e) => setTo(e.target.value)} />
+          </Field>
+          <Button variant="ghost" size="sm" onClick={() => { setFrom(istDay(-29)); setTo(istDay()) }}>Last 30 days</Button>
+        </>
+      )}
+      <p className="min-w-0 flex-1 text-xs text-slate-500">
+        {mode === "lifetime"
+          ? "Everything since ads began."
+          : data?.from && data?.to
+            ? `Showing ${data.from} to ${data.to}, India time.${data.from > from ? " Daily figures are kept for a limited time, so the range starts later than asked." : ""}`
+            : "Dates are India time."}
+      </p>
+    </Card>
+  )
+  if (isError)
+    return (
+      <div className="space-y-4">
+        {range}
+        <Card className="p-5 text-sm text-red-700" role="alert">{detail(error, "Invalid traffic figures could not be loaded.")}</Card>
+      </div>
+    )
   const total = (data?.billable ?? 0) + (data?.invalid ?? 0)
   const reasons = Object.entries(data?.reasons ?? {})
     .map(([reason, n]) => ({ reason, n }))
@@ -430,6 +482,7 @@ function InvalidTraffic() {
   const flagged = reasons.reduce((s, r) => s + r.n, 0)
   return (
     <div className="space-y-4">
+      {range}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatCard size="sm" label="Billable impressions" value={data ? num(data.billable) : "—"} accent="green" />
         <StatCard size="sm" label="Invalid impressions" value={data ? num(data.invalid) : "—"} accent="red" />

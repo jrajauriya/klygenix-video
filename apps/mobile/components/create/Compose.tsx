@@ -15,7 +15,17 @@ interface Picked {
   seconds?: number
 }
 
-export function Compose({ recorded, onRecord, onUploaded }: { recorded: string | null; onRecord: () => void; onUploaded: (v: StudioVideo) => void }) {
+export function Compose({
+  recorded,
+  locked = null,
+  onRecord,
+  onUploaded,
+}: {
+  recorded: string | null
+  locked?: string | null
+  onRecord: () => void
+  onUploaded: (v: StudioVideo) => void
+}) {
   const { t } = useT()
   const [picked, setPicked] = useState<Picked | null>(null)
   const [title, setTitle] = useState("")
@@ -61,18 +71,27 @@ export function Compose({ recorded, onRecord, onUploaded }: { recorded: string |
     }
   }
 
-  const blocked = busy || !source || !title.trim() || !rights
+  const blocked = busy || !source || !title.trim() || !rights || Boolean(locked)
 
   return (
     <View>
       <Text style={s.title}>{t("compose.title")}</Text>
       <Text style={s.subtitle}>{t("compose.subtitle")}</Text>
+      {locked && (
+        <Text style={[s.text, { marginTop: 12, color: colour.slate500 }]} accessibilityLiveRegion="polite">
+          {locked}
+        </Text>
+      )}
 
       <View style={{ flexDirection: "row", gap: 12, marginTop: 16 }}>
-        <Pressable onPress={onRecord} style={[s.button, { flex: 1, marginTop: 0 }]}>
+        <Pressable onPress={onRecord} disabled={Boolean(locked)} style={[s.button, { flex: 1, marginTop: 0 }, locked && s.disabled]}>
           <Text style={s.buttonText}>{t("compose.record")}</Text>
         </Pressable>
-        <Pressable onPress={pick} style={[s.outline, { flex: 1, marginTop: 0, justifyContent: "center" }]}>
+        <Pressable
+          onPress={pick}
+          disabled={Boolean(locked)}
+          style={[s.outline, { flex: 1, marginTop: 0, justifyContent: "center" }, locked && s.disabled]}
+        >
           <Text style={s.outlineText}>{t("compose.pick")}</Text>
         </Pressable>
       </View>

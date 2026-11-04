@@ -109,6 +109,14 @@ def _retry_after(r: httpx.Response) -> float | None:
 
 
 def _call(messages: list[dict], *, model: str, max_tokens: int, timeout: float | None = None) -> Reply:
+    from app.core.services import tracing
+
+    with tracing.span("llm responses", "client", **{"gen_ai.system": "azure.openai", "gen_ai.request.model": model,
+                                                    "gen_ai.request.max_tokens": max_tokens}):
+        return _post(messages, model=model, max_tokens=max_tokens, timeout=timeout)
+
+
+def _post(messages: list[dict], *, model: str, max_tokens: int, timeout: float | None = None) -> Reply:
     payload = {"model": model, "input": messages, "max_output_tokens": max_tokens}
     try:
         r = httpx.post(

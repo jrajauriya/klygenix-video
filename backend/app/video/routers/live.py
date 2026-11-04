@@ -25,6 +25,7 @@ from app.video.present import iso
 from app.video.realtime.rooms import publish as _publish
 from app.video.routers.deps import Ctx, StudioCtx, Viewer, optional_viewer, platform, signed_in, studio
 from app.video.sessions import platform_session
+from app.video.services import handles
 
 router = APIRouter(prefix="/api/video", tags=["live"])
 ROOM_OFFSET = 10**12
@@ -100,7 +101,7 @@ def live_detail(public_id: str, viewer: Viewer = Depends(optional_viewer)):
 @router.get("/channels/{handle}/live")
 def channel_live(handle: str):
     with platform_session() as db:
-        ch = db.execute(select(Channel).where(Channel.handle == handle.lstrip("@"))).scalars().first()
+        ch = handles.resolve(db, handle)[0]
         if ch is None:
             raise err(404, "channel_not_found")
         rows = db.execute(select(LiveStream).where(LiveStream.channel_id == ch.id, LiveStream.status.in_(("scheduled", "live")))

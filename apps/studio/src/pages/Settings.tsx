@@ -1,10 +1,15 @@
 import { useState, type ReactNode } from "react"
 import { toast } from "sonner"
-import { Languages, Palette, UserRound, Users } from "lucide-react"
-import { useAuthStore, useThemePreference } from "@klygenixvideo/auth"
-import { Badge, Button, Card, PageHeader, THEMES, ThemeSheet, isThemeKey } from "@klygenixvideo/ui"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { Languages, Mail, Palette, UserRound, Users } from "lucide-react"
+import { api, useAuthStore, useThemePreference } from "@klygenixvideo/auth"
+import { Badge, Button, Card, PageHeader, THEMES, ThemeSheet, ToggleField, isThemeKey } from "@klygenixvideo/ui"
 import { LanguagePicker } from "../components/LanguagePicker"
 import TwoStep from "../components/TwoStep"
+import { TeamSection } from "../components/team/TeamSection"
+import { STUDIO } from "../lib/hooks"
+import { detail } from "../lib/format"
+import { useActing, useHasPermission } from "../lib/team"
 import { useT } from "../i18n"
 
 function Section({ icon, title, hint, children }: { icon: ReactNode; title: string; hint?: string; children: ReactNode }) {
@@ -28,6 +33,8 @@ export default function Settings() {
   const theme = useThemePreference("studio")
   const [theming, setTheming] = useState(false)
   const [twoStep, setTwoStep] = useState(false)
+  const canTeam = useHasPermission("video.users")
+  const acting = useActing()
   const themeLabel = t(THEMES.find((x) => x.key === theme.current)?.label ?? "Light")
 
   return (
@@ -60,12 +67,13 @@ export default function Settings() {
         <p className="mt-2 text-xs text-slate-500">{t("Change your password from the account menu at the top right.")}</p>
       </Section>
 
-      <Section icon={<Users size={18} />} title={t("Team members")} hint={t("Invite editors and managers to help run your channel.")}>
-        <div className="flex items-center gap-2">
-          <Badge color="amber">{t("Coming soon")}</Badge>
-          <span className="text-sm text-slate-500">{t("For now, only the channel owner can sign in to the studio.")}</span>
-        </div>
-      </Section>
+      {acting === null && <TipsMails />}
+
+      {canTeam && (
+        <Section icon={<Users size={18} />} title={t("Team")} hint={t("Invite people to help run this channel. Each person signs in with their own account and sees only what their role allows.")}>
+          <TeamSection />
+        </Section>
+      )}
 
       <ThemeSheet
         open={theming}
@@ -78,5 +86,41 @@ export default function Settings() {
       />
       <TwoStep open={twoStep} onClose={() => setTwoStep(false)} />
     </div>
+  )
+}
+
+function TipsMails() {
+  const t = useT()
+  const qc = useQueryClient()
+  const [saving, setSaving] = useState(false)
+  const { data } = useQuery({
+    queryKey: ["studio-onboarding-mails"],
+    queryFn: async () => (await api.get<{ enabled: boolean; sent: Record<string, string> }>(`${STUDIO}/onboarding-mails`)).data,
+  })
+
+  async function set(enabled: boolean) {
+    setSaving(true)
+    try {
+      await api.put(`${STUDIO}/onboarding-mails`, { enabled })
+      qc.setQueryData(["studio-onboarding-mails"], { enabled, sent: data?.sent ?? {} })
+      toast.success(enabled ? t("Tips by email are on") : t("Tips by email are off"))
+    } catch (err) {
+      toast.error(detail(err, t("Could not save the setting")))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const sent = Object.keys(data?.sent ?? {}).length
+  return (
+    <Section icon={<Mail size={18} />} title={t("Tips by email")} hint={t("A few short emails in your first weeks: your first upload, clips, going live and growing your channel.")}>
+      <ToggleField
+        label={t("Send me creator tips by email")}
+        hint={sent ? (sent === 1 ? t("1 tip sent so far.") : t("{n} tips sent so far.", { n: sent })) : undefined}
+        checked={data?.enabled ?? true}
+        onChange={set}
+        disabled={!data || saving}
+      />
+    </Section>
   )
 }

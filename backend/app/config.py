@@ -130,6 +130,10 @@ class Settings(BaseSettings):
     SENTRY_ENVIRONMENT: str = ""
     SENTRY_RELEASE: str = ""
     SENTRY_TRACES_SAMPLE_RATE: float = 0.0
+    OTEL_EXPORTER_OTLP_ENDPOINT: str = ""
+    OTEL_EXPORTER_OTLP_HEADERS: str = ""
+    OTEL_SERVICE_NAME: str = "klygenix-play"
+    TRACING: str = ""
     ERROR_TRACKING_DEBUG_ROUTES: bool = False
 
     S3_ENDPOINT: str = ""

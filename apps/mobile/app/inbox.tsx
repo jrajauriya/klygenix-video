@@ -74,15 +74,21 @@ export default function Inbox() {
           ListEmptyComponent={<Text style={[s.note, { textAlign: "center", fontSize: 14, marginTop: 40 }]}>{t("inbox.empty")}</Text>}
           renderItem={({ item: n }) => {
             const web = Boolean(n.url) && !inApp(n.url)
+            const fromStudio = n.app === "studio"
             return (
               <Pressable
                 onPress={() => open(n)}
                 style={[s.card, { flexDirection: "row", gap: 12 }, !n.read && { borderColor: colour.brand, backgroundColor: colour.brandLight }]}
                 accessibilityRole={web ? "link" : "button"}
-                accessibilityLabel={`${n.read ? "" : `${t("inbox.unread")}: `}${n.title}. ${n.body}${web ? `. ${t("inbox.opensWeb")}` : ""}`}
+                accessibilityLabel={`${n.read ? "" : `${t("inbox.unread")}: `}${fromStudio ? `${t("inbox.studio")}: ` : ""}${n.title}. ${n.body}${web ? `. ${t("inbox.opensWeb")}` : ""}`}
               >
                 {n.image ? <Image source={{ uri: n.image }} style={{ width: 64, height: 36, borderRadius: 6, backgroundColor: colour.slate200 }} /> : null}
                 <View style={{ flex: 1 }}>
+                  {fromStudio && (
+                    <View style={[s.chip, { marginBottom: 4, paddingVertical: 1, backgroundColor: colour.white, borderWidth: 1, borderColor: colour.brand }]}>
+                      <Text style={[s.chipText, { fontSize: 11 }]}>{t("inbox.studio")}</Text>
+                    </View>
+                  )}
                   <View style={[s.row, { gap: 8 }]}>
                     <Text style={{ flex: 1, fontWeight: n.read ? "600" : "800", color: colour.navy }} numberOfLines={2}>
                       {n.title}

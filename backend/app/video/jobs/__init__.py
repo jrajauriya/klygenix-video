@@ -31,11 +31,14 @@ def queue(name: str = QUEUE_NAME) -> Queue:
 def job(fn: Callable[..., Any] | None = None, *, queue_name: str = QUEUE_NAME, timeout: int = DEFAULT_TIMEOUT):
     def wrap(f: Callable[..., Any]) -> Callable[..., Any]:
         @functools.wraps(f)
-        def run(*args: Any, _request_id: str | None = None, **kwargs: Any) -> Any:
+        def run(*args: Any, _request_id: str | None = None, _traceparent: str | None = None, **kwargs: Any) -> Any:
             set_request_id(_request_id)
+            from app.core.services import tracing
             from app.core.services.metrics import job_outcome
 
-            with error_tracking.job_scope(f.__name__, _request_id):
+            with error_tracking.job_scope(f.__name__, _request_id), tracing.span(
+                    f"job {f.__name__}", "consumer", tracing.extract(_traceparent),
+                    **{"messaging.destination.name": queue_name, "kv.request_id": _request_id}):
                 logger.info("job started", extra={"job": f.__name__})
                 try:
                     result = f(*args, **kwargs)
@@ -61,15 +64,24 @@ def job(fn: Callable[..., Any] | None = None, *, queue_name: str = QUEUE_NAME, t
 def _run_inline(fn: Callable[..., Any], args: tuple, kwargs: dict) -> None:
     import threading
 
+    from app.core.services import tracing
+
     request_id = get_request_id()
+    parent = tracing.traceparent()
 
     def target() -> None:
         try:
-            fn(*args, _request_id=request_id, **kwargs)
+            fn(*args, _request_id=request_id, _traceparent=parent, **kwargs)
         except Exception:
             logger.exception("inline job failed", extra={"job": getattr(fn, "__name__", str(fn))})
 
     threading.Thread(target=target, daemon=True).start()
+
+
+def _parent() -> str | None:
+    from app.core.services import tracing
+
+    return tracing.traceparent()
 
 
 def enqueue(fn: Callable[..., Any], *args: Any, **kwargs: Any):
@@ -86,6 +98,7 @@ def enqueue(fn: Callable[..., Any], *args: Any, **kwargs: Any):
             fn,
             *args,
             _request_id=get_request_id(),
+            _traceparent=_parent(),
             retry=DEFAULT_RETRY,
             job_timeout=getattr(fn, "timeout", DEFAULT_TIMEOUT),
             **kwargs,

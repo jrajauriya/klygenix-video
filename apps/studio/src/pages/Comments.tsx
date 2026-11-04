@@ -7,6 +7,8 @@ import { formatMoney } from "@klygenixvideo/client"
 import { api } from "@klygenixvideo/auth"
 import { Badge, Button, Card, EmptyState, PageHeader, Pager, Select, Spinner, Tabs } from "@klygenixvideo/ui"
 import { STUDIO } from "../lib/hooks"
+import { useHasPermission } from "../lib/team"
+import { ViewOnly } from "../components/team/ViewOnly"
 import { clock, detail, when } from "../lib/format"
 import type { InboxItem, StudioVideo } from "../lib/types"
 import { useRemover } from "../components/video/CommentsPanel"
@@ -37,6 +39,7 @@ export default function Comments() {
   const qc = useQueryClient()
   const [switching, setSwitching] = useState<string | null>(null)
   const [mods, setMods] = useState(false)
+  const canModerate = useHasPermission("video.comments", "full")
 
   async function toggle(r: InboxItem) {
     const next = r.status === "hidden" ? "visible" : "hidden"
@@ -88,6 +91,7 @@ export default function Comments() {
         actions={<Button size="sm" variant="outline" onClick={() => setMods(true)}><ShieldCheck size={14} /> {t("Moderators")}</Button>}
       />
       {mods && <ModeratorsDrawer onClose={() => setMods(false)} />}
+      {!canModerate && <ViewOnly className="mb-3" what={t("Your role can read comments and danmaku but not hide or remove them.")} />}
       <Tabs tabs={KINDS.map((x) => ({ ...x, label: t(x.label) }))} active={kind} onChange={(k) => set({ kind: k })} />
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <Select value={videoId} onChange={(v) => set({ video: v })} options={videoOptions} className="w-72" aria-label={t("Video")} />
@@ -133,7 +137,7 @@ export default function Comments() {
                   </p>
                   <p className="mt-0.5 whitespace-pre-wrap break-words text-sm text-slate-800">{r.body}</p>
                 </div>
-                <div className="flex shrink-0 items-center gap-1">
+                {canModerate && <div className="flex shrink-0 items-center gap-1">
                   <Button size="sm" variant="outline" disabled={switching === `${r.kind}-${r.id}`} onClick={() => toggle(r)}
                     aria-label={r.status === "hidden" ? (r.kind === "danmaku" ? t("Unhide danmaku") : t("Unhide comment")) : (r.kind === "danmaku" ? t("Hide danmaku") : t("Hide comment"))}>
                     {r.status === "hidden" ? <Eye size={13} /> : <EyeOff size={13} />}
@@ -142,7 +146,7 @@ export default function Comments() {
                   <Button size="icon" variant="ghost" aria-label={r.kind === "danmaku" ? t("Delete danmaku") : t("Delete comment")} onClick={() => remove(r.kind, r.id, r.body)}>
                     <Trash2 size={15} />
                   </Button>
-                </div>
+                </div>}
               </li>
             ))}
           </ul>

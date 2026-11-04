@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.core.messages import err
+from app.core.messages import err, msg
 from app.core.models.user import User
 from app.video.models.ads import BrandProfile, SponsorDeal
 from app.video.models.commerce import Checkout, Payment
@@ -183,4 +183,5 @@ def label(db: Session, video: Video) -> dict | None:
     if deal is None:
         return None
     brand = db.execute(select(BrandProfile).where(BrandProfile.tenant_id == deal.tenant_id)).scalars().first()
-    return {"brand": brand.name if brand else "a brand", "label": f"Paid partnership with {brand.name if brand else 'a brand'}"}
+    name = brand.name if brand else "a brand"
+    return {"brand": name, "label": msg("paid_partnership_with", brand=name)}

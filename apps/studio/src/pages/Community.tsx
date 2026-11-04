@@ -4,7 +4,9 @@ import { toast } from "sonner"
 import { ImagePlus, Lock, Plus, Send, Trash2, X } from "lucide-react"
 import { api } from "@klygenixvideo/auth"
 import { Badge, Button, Card, EmptyState, Field, Input, PageHeader, Select, Spinner, Textarea, useConfirm } from "@klygenixvideo/ui"
-import { useHasFeature, useHasPermission } from "@klygenixvideo/client"
+import { useHasFeature } from "@klygenixvideo/client"
+import { useHasPermission } from "../lib/team"
+import { ViewOnly } from "../components/team/ViewOnly"
 import { MULTIPART, STUDIO, useChannel } from "../lib/hooks"
 import { channelUrl, compact, detail, when } from "../lib/format"
 import type { PostItem } from "../lib/types"
@@ -105,6 +107,7 @@ export default function Community() {
           </a>
         ) : undefined}
       />
+      {!canEdit && <ViewOnly className="mb-4" what={t("Your role can read posts and poll results but not post or delete.")} />}
       <div className="grid gap-5 lg:grid-cols-5 [&>*]:min-w-0">
         {canEdit && (
           <Card className="space-y-4 p-5 lg:order-2 lg:col-span-2 lg:self-start">

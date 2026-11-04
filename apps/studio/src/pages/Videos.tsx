@@ -4,6 +4,7 @@ import { Upload } from "lucide-react"
 import { Button, DataTable, ListPage, PageHeader, Select, type DataTableColumn } from "@klygenixvideo/ui"
 import { usePagedList } from "@klygenixvideo/client"
 import { STUDIO } from "../lib/hooks"
+import { useHasPermission } from "../lib/team"
 import { clock, compact, when } from "../lib/format"
 import type { StudioVideo } from "../lib/types"
 import { KindBadge, STATUS_OPTIONS, VideoStatusPill, VisibilityBadge } from "../components/StatusChips"
@@ -24,7 +25,8 @@ export default function Videos() {
   const [kind, setKind] = useState("all")
   const [search, setSearch] = useState("")
   const [q, setQ] = useState("")
-  const uploading = params.get("upload") === "1"
+  const canUpload = useHasPermission("video.uploads", "full")
+  const uploading = canUpload && params.get("upload") === "1"
 
   useEffect(() => {
     const timer = setTimeout(() => setQ(search.trim()), 300)
@@ -66,7 +68,7 @@ export default function Videos() {
       <PageHeader
         title={t("Videos")}
         subtitle={t("Everything on your channel: uploads, reels made from clips, and videos linked from YouTube or Bilibili.")}
-        actions={<Button onClick={() => setParams({ upload: "1" })}><Upload size={15} /> {t("Upload")}</Button>}
+        actions={canUpload ? <Button onClick={() => setParams({ upload: "1" })}><Upload size={15} /> {t("Upload")}</Button> : undefined}
       />
       <DataTable
         label={t("Videos")}

@@ -5,7 +5,8 @@ import { toast } from "sonner"
 import { Send } from "lucide-react"
 import { api } from "@klygenixvideo/auth"
 import { Badge, Button, Card, EmptyState, Field, Input, Modal, PageHeader, Spinner, Tabs, Textarea } from "@klygenixvideo/ui"
-import { useHasPermission } from "@klygenixvideo/client"
+import { useHasPermission } from "../lib/team"
+import { ViewOnly } from "../components/team/ViewOnly"
 import { STUDIO } from "../lib/hooks"
 import { compact, detail, languageName, status, when } from "../lib/format"
 import { DEAL_MIN, deliverableLabel, useDeals, type Brief } from "../lib/market"
@@ -154,10 +155,12 @@ export default function Sponsorships() {
   const [params, setParams] = useSearchParams()
   const tab = params.get("tab") === "deals" ? "deals" : "briefs"
   const { data: deals, isLoading } = useDeals()
+  const canApply = useHasPermission("video.sponsorships", "full")
 
   return (
     <div className="pb-8">
       <PageHeader title={t("Sponsorships")} subtitle={t("Paid work from brands. Apply to briefs, deliver the video, get paid when the brand approves.")} />
+      {!canApply && <ViewOnly className="mb-4" what={t("Your role can see briefs and deals but not apply to briefs or deliver videos.")} />}
       <Tabs tabs={TABS.map((x) => ({ ...x, label: t(x.label) }))} active={tab} onChange={(k) => setParams(k === "briefs" ? {} : { tab: k }, { replace: true })} />
       {tab === "briefs" ? <OpenBriefs /> : <DealsTable rows={(deals ?? []).filter((d) => d.role === "creator")} loading={isLoading} role="creator" />}
     </div>

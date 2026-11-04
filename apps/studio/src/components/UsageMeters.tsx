@@ -2,8 +2,8 @@ import { ProgressBar } from "@klygenixvideo/ui"
 import type { Usage } from "../lib/types"
 import { useT } from "../i18n"
 
-const CREATOR_METRICS = ["ai_minutes", "renders"]
-const LABELS: Record<string, string> = { ai_minutes: "AI minutes", renders: "Clip renders" }
+const CREATOR_METRICS = ["ai_minutes", "renders", "ai_images"]
+const LABELS: Record<string, string> = { ai_minutes: "AI minutes", renders: "Clip renders", ai_images: "AI thumbnails" }
 
 export function UsageMeters({ usage }: { usage: Usage[] }) {
   const t = useT()
@@ -23,7 +23,7 @@ export function UsageMeters({ usage }: { usage: Usage[] }) {
               </span>
             </div>
             <ProgressBar value={u.used} max={limit || Math.max(u.used, 1)} size="sm" />
-            <p className="mt-0.5 text-[11px] text-slate-400">{t("This month ({period})", { period: u.period })}</p>
+            <p className="mt-0.5 text-xs text-slate-500">{t("This month ({period})", { period: u.period })}</p>
           </div>
         )
       })}

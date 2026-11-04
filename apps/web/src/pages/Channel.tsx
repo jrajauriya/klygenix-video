@@ -1,5 +1,5 @@
-import { useState } from "react"
-import { useNavigate, useParams } from "react-router-dom"
+import { useEffect, useState } from "react"
+import { useLocation, useNavigate, useParams } from "react-router-dom"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { BadgeCheck, Clapperboard, Coins, Crown, Flag, ListVideo, Megaphone, MessageCircleQuestion, Video } from "lucide-react"
 import { PageShell } from "../components/Layout"
@@ -23,14 +23,15 @@ import { useT } from "../i18n"
 export default function ChannelPage() {
   const { channel: raw = "" } = useParams()
   if (!raw.startsWith("@") || raw.length < 2) return <NotFound />
-  return <Channel handle={raw.slice(1).toLowerCase()} />
+  return <Channel handle={raw.slice(1).toLowerCase()} typed={raw.slice(1)} />
 }
 
-function Channel({ handle }: { handle: string }) {
+function Channel({ handle, typed }: { handle: string; typed: string }) {
   const t = useT("channel")
   const signedIn = useSignedIn()
   const { data: me } = useMe()
   const navigate = useNavigate()
+  const location = useLocation()
   const qc = useQueryClient()
   const [tab, setTab] = useState<"long" | "reel" | "playlists" | "community" | "ask" | "membership">("long")
   const [tipOpen, setTipOpen] = useState(false)
@@ -40,22 +41,30 @@ function Channel({ handle }: { handle: string }) {
     queryFn: () => getJson<ChannelDetail>(`/api/video/channels/${handle}`),
     retry: (n, err) => errStatus(err) !== 404 && n < 1,
   })
+  const canonical = ch.data?.handle
+  const moved = Boolean(canonical && canonical !== typed)
+  const ready = ch.isSuccess && !moved
+  useEffect(() => {
+    if (!canonical || canonical === typed || !ch.data) return
+    qc.setQueryData(["channel", canonical, signedIn], ch.data)
+    navigate(`/@${canonical}${location.search}${location.hash}`, { replace: true })
+  }, [canonical, typed, ch.data, qc, signedIn, navigate, location.search, location.hash])
   const vids = useQuery({
     queryKey: ["channel", handle, "videos", tab],
-    enabled: ch.isSuccess && (tab === "long" || tab === "reel"),
+    enabled: ready && (tab === "long" || tab === "reel"),
     queryFn: () => getJson<VideoCard[]>(`/api/video/channels/${handle}/videos`, { kind: tab, limit: 48 }),
   })
   const lists = useQuery({
     queryKey: ["channel", handle, "playlists"],
-    enabled: ch.isSuccess,
+    enabled: ready,
     queryFn: () => getJson<PlaylistSummary[]>(`/api/video/channels/${handle}/playlists`),
   })
-  const support = useChannelSupport(handle, ch.isSuccess)
-  const onAir = useChannelLiveNow(handle, ch.isSuccess)
+  const support = useChannelSupport(handle, ready)
+  const onAir = useChannelLiveNow(handle, ready)
   useTitle(ch.data?.name)
 
   if (ch.isError) return <NotFound what="channel" />
-  const c = ch.data
+  const c = moved ? undefined : ch.data
   const mine = me?.channel?.handle === handle
   const money = support.data
   const hasTiers = (money?.tiers ?? []).some((tier) => tier.is_active)

@@ -5,7 +5,8 @@ import { toast } from "sonner"
 import { Check, ExternalLink, Plus, X } from "lucide-react"
 import { api } from "@klygenixvideo/auth"
 import { Badge, Button, DataTable, Drawer, Field, Input, Modal, PageHeader, Spinner, Textarea, useConfirm } from "@klygenixvideo/ui"
-import { useHasPermission } from "@klygenixvideo/client"
+import { useHasPermission } from "../../lib/team"
+import { ViewOnly } from "../../components/team/ViewOnly"
 import { STUDIO } from "../../lib/hooks"
 import { channelUrl, compact, detail, languageName, when } from "../../lib/format"
 import { DEAL_MIN, deliverableLabel, useBrand, type Application, type Brief, type Deal } from "../../lib/market"
@@ -183,6 +184,7 @@ export default function Briefs() {
         subtitle={t("Tell creators what you want made. Pick from the ones who apply.")}
         actions={brand && canEdit ? <Button onClick={() => setCreating(true)}><Plus size={15} /> {t("New brief")}</Button> : undefined}
       />
+      {brand && !canEdit && <ViewOnly className="mb-4" what={t("Your role can see briefs and who applied but not post, close or accept.")} />}
       {!brand ? (
         <NeedsBrand what={t("Sponsorship briefs")} />
       ) : (

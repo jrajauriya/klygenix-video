@@ -13,6 +13,10 @@ services:
       - -c
       - max_connections=200
       - -c
+      - shared_preload_libraries=pg_stat_statements
+      - -c
+      - pg_stat_statements.track=top
+      - -c
       - wal_level=replica
       - -c
       - archive_mode=on

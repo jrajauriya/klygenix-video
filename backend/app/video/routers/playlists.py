@@ -12,6 +12,7 @@ from app.video.models.social import Channel, Playlist, PlaylistItem
 from app.video.present import channel_card, iso
 from app.video.routers.deps import Ctx, StudioCtx, Viewer, optional_viewer, signed_in, studio
 from app.video.sessions import platform_session
+from app.video.services import handles
 
 router = APIRouter(prefix="/api/video", tags=["playlists"])
 
@@ -46,7 +47,7 @@ def counts_and_covers(db, playlists: list[Playlist], public_only: bool) -> tuple
 @router.get("/channels/{handle}/playlists")
 def channel_playlists(handle: str):
     with platform_session() as db:
-        c = db.execute(select(Channel).where(Channel.handle == handle.lower().lstrip("@"))).scalars().first()
+        c = handles.resolve(db, handle)[0]
         if c is None or c.is_suspended:
             raise err(404, "channel_not_found")
         rows = db.execute(select(Playlist).where(Playlist.channel_id == c.id, Playlist.visibility == "public")

@@ -577,6 +577,40 @@ def run4(client: httpx.Client, args: argparse.Namespace, api: str, auth: dict, a
     check("view-pool preview for the month", r.status_code == 200 and "pool_minor" in r.json(), f"HTTP {r.status_code} {r.text[:120]}")
     r = client.get(f"{api}/api/video/search", params={"q": "स्मोक लॉन्ग वीडियो"})
     check("Hinglish search answers a Devanagari query", r.status_code == 200, f"HTTP {r.status_code}")
+    run6(client, args, api, auth, adm)
+
+
+def run6(client: httpx.Client, args: argparse.Namespace, api: str, auth: dict, adm: dict) -> None:
+    section("run 6: channel teams, handle redirects, support desk")
+    mine = client.get(f"{api}/api/video/me/channels", headers=auth).json()
+    tid = mine[0]["tenant_id"] if mine else None
+    email = f"smoke-{uuid.uuid4().hex[:10]}@example.com"
+    r = client.post(f"{api}/api/auth/signup", json={"name": "Smoke Editor", "email": email, "password": "Smoke@123456",
+                                                    "birth_date": "1990-01-01", "country": "IN", "language": "en"})
+    if not check("an editor signs up", r.status_code == 201, f"HTTP {r.status_code}"):
+        return
+    ed = {"Authorization": f"Bearer {r.json()['access_token']}"}
+    r = client.post(f"{api}/api/video/studio/team/invites", headers=auth, json={"email": email, "role": "editor"})
+    check("the creator invites an editor", r.status_code == 201, f"HTTP {r.status_code} {r.text[:120]}")
+    mail = _outbox(client, api, adm, email, "team_invite", args.paid_timeout)
+    found = re.search(r"token=([A-Za-z0-9_-]+)", (mail or {}).get("body_text", ""))
+    token = found.group(1) if found else ""
+    if check("the invitation mail is in the outbox", bool(token), str(mail)[:160]):
+        r = client.post(f"{api}/api/video/team/accept", headers=ed, json={"token": token})
+        check("the editor accepts", r.status_code == 200 and r.json().get("tenant_id") == tid, f"HTTP {r.status_code} {r.text[:120]}")
+        acting = {**ed, "X-Kv-Tenant": str(tid)}
+        me = client.get(f"{api}/api/video/studio/team/me", headers=acting).json()
+        check("the editor acts in the creator's channel", me.get("role") == "editor" and me.get("tenant_id") == tid, str(me)[:160])
+        r = client.get(f"{api}/api/video/studio/earnings", headers=acting)
+        check("earnings stay owner-only", r.status_code == 403, f"HTTP {r.status_code}")
+    old = client.get(f"{api}/api/video/studio/channel", headers=auth).json()["channel"]["handle"]
+    new = f"smoke-moved-{uuid.uuid4().hex[:6]}"
+    r = client.post(f"{api}/api/video/studio/channel/handle", headers=auth, json={"handle": new})
+    check("the creator renames the handle", r.status_code == 200, f"HTTP {r.status_code} {r.text[:120]}")
+    r = client.get(f"{api}/api/video/render", params={"path": f"/@{old}"}, follow_redirects=False)
+    check("old channel links redirect", r.status_code == 301 and r.headers.get("location") == f"/@{new}", f"HTTP {r.status_code}")
+    hits = client.get(f"{api}/api/video/admin/support/lookup", params={"q": email}, headers=adm).json()
+    check("the support desk finds the editor", any(h.get("email") == email for h in hits), str(hits)[:160])
 
 
 def main() -> int:

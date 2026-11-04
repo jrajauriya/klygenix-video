@@ -97,6 +97,8 @@ r = maker.post(f"/api/video/studio/sponsorships/deals/{deal['id']}/deliver", jso
 check("delivered", (r.status_code, r.json()["status"], r.json()["video"]["id"]), (200, "delivered", vid["public_id"]))
 w = client().get(f"/api/video/videos/{vid['public_id']}").json()
 check("watchers see the disclosure", w["paid_partnership"], {"brand": "Masala Co", "label": "Paid partnership with Masala Co"})
+hi = client().get(f"/api/video/videos/{vid['public_id']}", headers={"Accept-Language": "hi"}).json()
+check("the label in Hindi", hi["paid_partnership"]["label"], "Masala Co के साथ सशुल्क साझेदारी")
 check("other videos carry none", client().get(f"/api/video/videos/{foreign['public_id']}").json()["paid_partnership"], None)
 mails = admin.get("/api/video/admin/beta/outbox?template=deal_event&limit=20").json()
 ok("both sides are mailed at each step", sum(1 for m in mails if "Monsoon recipes" in m["subject"]) >= 4, len(mails))

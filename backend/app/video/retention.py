@@ -4,7 +4,7 @@ import glob
 import os
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, text
 from sqlalchemy.orm import Session
 
 from app.video.models.ai import AskMessage, TextTranslation
@@ -23,7 +23,25 @@ POLICY = {
     "unstarted_live_hours": 24,
     "reco_impressions_days": 90,
     "mail_outbox_days": 180,
+    "activity_log_days": 365,
 }
+
+PARTITIONED = (
+    ("kv_ai", "reco_impressions", "shown_at", "reco_impressions_days"),
+    ("kv_admin", "activity_log", "occurred_at", "activity_log_days"),
+)
+MONTHS_AHEAD = 2
+
+
+def partitions(db: Session) -> dict:
+    out = {"created": [], "dropped": [], "moved": 0}
+    for schema, table, column, policy in PARTITIONED:
+        r = db.execute(text("SELECT kv_admin.maintain_partitions(:s, :t, :c, :a, :k)"),
+                       {"s": schema, "t": table, "c": column, "a": MONTHS_AHEAD, "k": POLICY[policy]}).scalar()
+        out["created"] += r["created"]
+        out["dropped"] += r["dropped"]
+        out["moved"] += int(r["moved"])
+    return out
 
 
 def run(db: Session, now: datetime | None = None) -> dict:
@@ -43,6 +61,11 @@ def run(db: Session, now: datetime | None = None) -> dict:
     from app.core.models.beta import MailOutbox
     from app.video.models.ai import RecoImpression
 
+    out["partitions"] = partitions(db)
+    from app.core.models.activity_log import ActivityLog
+
+    out["activity_log"] = db.execute(delete(ActivityLog).where(
+        ActivityLog.occurred_at < (now - timedelta(days=POLICY["activity_log_days"])).replace(tzinfo=None))).rowcount
     out["reco_impressions"] = db.execute(delete(RecoImpression).where(RecoImpression.shown_at < older(POLICY["reco_impressions_days"]))).rowcount
     out["mail_outbox"] = db.execute(delete(MailOutbox).where(MailOutbox.created_at < older(POLICY["mail_outbox_days"]))).rowcount
     old_streams = select(LiveStream.id).where(LiveStream.status.in_(("ended", "failed")),

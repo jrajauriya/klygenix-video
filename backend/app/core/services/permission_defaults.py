@@ -19,12 +19,14 @@ ADMIN_DEFAULT_PERMISSIONS: dict[str, dict[str, str]] = {
         "admin.takedowns": "full", "admin.ai_usage": "view", "admin.plans": "view", "admin.money": "view",
         "admin.logs": "view", "admin.email": "none", "admin.settings": "none", "admin.team": "none",
         "admin.beta": "full", "admin.ads": "full", "admin.sponsorships": "full", "admin.reco": "view",
+        "admin.support": "full",
     },
     "user": {
         "admin.dashboard": "view", "admin.tenants": "view", "admin.moderation": "full",
         "admin.takedowns": "view", "admin.ai_usage": "none", "admin.plans": "none", "admin.money": "none",
         "admin.logs": "none", "admin.email": "none", "admin.settings": "none", "admin.team": "none",
         "admin.beta": "view", "admin.ads": "none", "admin.sponsorships": "view", "admin.reco": "none",
+        "admin.support": "view",
     },
 }
 
@@ -41,6 +43,26 @@ VIDEO_DEFAULT_PERMISSIONS: dict[str, dict[str, str]] = {
         "video.channels": "view", "video.comments": "full", "video.analytics": "view",
         "video.billing": "none", "video.users": "none", "video.settings": "none", "video.earnings": "none", "video.live": "none",
         "video.sponsorships": "view", "video.brand": "view",
+    },
+    "manager": {
+        "video.dashboard": "full", "video.uploads": "full", "video.clips": "full", "video.channels": "full",
+        "video.comments": "full", "video.analytics": "view", "video.users": "full", "video.settings": "view",
+        "video.live": "full", "video.sponsorships": "view", "video.brand": "none", "video.billing": "none", "video.earnings": "none",
+    },
+    "editor": {
+        "video.dashboard": "view", "video.uploads": "full", "video.clips": "full", "video.channels": "view",
+        "video.comments": "view", "video.analytics": "view", "video.users": "none", "video.settings": "none",
+        "video.live": "view", "video.sponsorships": "none", "video.brand": "none", "video.billing": "none", "video.earnings": "none",
+    },
+    "moderator": {
+        "video.dashboard": "view", "video.uploads": "none", "video.clips": "none", "video.channels": "none",
+        "video.comments": "full", "video.analytics": "none", "video.users": "none", "video.settings": "none",
+        "video.live": "view", "video.sponsorships": "none", "video.brand": "none", "video.billing": "none", "video.earnings": "none",
+    },
+    "analyst": {
+        "video.dashboard": "view", "video.uploads": "view", "video.clips": "view", "video.channels": "view",
+        "video.comments": "view", "video.analytics": "view", "video.users": "none", "video.settings": "none",
+        "video.live": "none", "video.sponsorships": "none", "video.brand": "none", "video.billing": "none", "video.earnings": "none",
     },
 }
 

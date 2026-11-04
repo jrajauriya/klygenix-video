@@ -49,4 +49,21 @@ check("a stream that never went live is closed after a day, freeing its port",
       sql("SELECT status, error FROM kv_media.live_streams WHERE public_id = :p", p=stream["id"])[0], ("failed", "Never went live"))
 check("running again finds nothing new to purge", (again["deleted_media"], again["push_messages"]), (0, 0))
 
+print("\n== monthly partitions")
+parts = {r[0] for r in sql("SELECT c.relname FROM pg_inherits i JOIN pg_class c ON c.oid = i.inhrelid JOIN pg_class p ON p.oid = i.inhparent "
+                           "WHERE p.relname IN ('reco_impressions', 'activity_log')")}
+month = sql("SELECT to_char(now(), 'YYYYMM'), to_char(now() + interval '2 months', 'YYYYMM')")[0]
+ok("this month and two ahead exist for both tables", {f"reco_impressions_p{month[0]}", f"reco_impressions_p{month[1]}",
+                                                       f"activity_log_p{month[0]}", f"activity_log_p{month[1]}"} <= parts, sorted(parts))
+check("the default partitions are emptied into months", sql("SELECT count(*) FROM kv_ai.reco_impressions_default WHERE shown_at > now() - interval '30 days'")[0][0], 0)
+sql("SELECT kv_admin.maintain_partitions('kv_ai', 'reco_impressions', 'shown_at', 2, 90)")
+sql("CREATE TABLE IF NOT EXISTS kv_ai.reco_impressions_p202001 PARTITION OF kv_ai.reco_impressions FOR VALUES FROM ('2020-01-01') TO ('2020-02-01')")
+with platform_session() as db:
+    swept = retention.run(db)
+    db.commit()
+ok("months past the retention window are dropped", "kv_ai.reco_impressions_p202001" in swept["partitions"]["dropped"], swept["partitions"])
+check("the application role can only run the maintenance function", sql(
+    "SELECT has_function_privilege('klygenix_video_app', 'kv_admin.maintain_partitions(text, text, text, int, int)', 'EXECUTE'), "
+    "has_table_privilege('klygenix_video_app', 'kv_ai.reco_impressions', 'TRUNCATE')")[0], (True, False))
+
 finish()

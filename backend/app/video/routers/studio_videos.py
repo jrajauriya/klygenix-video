@@ -58,7 +58,9 @@ def create_channel(data: ChannelIn, ctx: StudioCtx = Depends(studio("video.chann
     if handle:
         if not is_valid_creator_handle(handle):
             raise err(400, "handle_3_40_letters_numbers_hyphens")
-        if ctx.db.execute(select(Channel.id).where(Channel.handle == handle)).first():
+        from app.video.services import handles
+
+        if handles.taken(ctx.db, handle):
             raise err(409, "taken_try_another", handle=handle)
     from app.core.services import beta
 

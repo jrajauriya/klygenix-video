@@ -12,6 +12,7 @@ from harness import DATABASE_URL, check, finish
 
 ROOT = os.path.join(os.path.dirname(__file__), "..")
 BASE = DATABASE_URL.rsplit("/", 1)[0]
+MONTHLY = r"_p[0-9]{6}$"
 SCHEMAS = ("kv_admin", "kv_media", "kv_social", "kv_ai", "kv_studio", "kv_commerce", "kv_ledger", "kv_tax", "kv_trust")
 
 admin = create_engine(f"{BASE}/postgres", isolation_level="AUTOCOMMIT")
@@ -38,10 +39,11 @@ def shape(db: str) -> tuple[set, set]:
     with create_engine(f"{BASE}/{db}").connect() as c:
         cols = set(c.execute(text(
             "SELECT table_schema, table_name, column_name, data_type, is_nullable FROM information_schema.columns "
-            "WHERE table_schema = ANY(:s)"), {"s": list(SCHEMAS)}).fetchall())
+            "WHERE table_schema = ANY(:s) AND table_name !~ :p"), {"s": list(SCHEMAS), "p": MONTHLY}).fetchall())
         cons = set(c.execute(text(
             "SELECT n.nspname, conname, contype FROM pg_constraint k JOIN pg_namespace n ON n.oid = k.connamespace "
-            "WHERE n.nspname = ANY(:s)"), {"s": list(SCHEMAS)}).fetchall())
+            "JOIN pg_class r ON r.oid = k.conrelid WHERE n.nspname = ANY(:s) AND r.relname !~ :p"),
+            {"s": list(SCHEMAS), "p": MONTHLY}).fetchall())
     return cols, cons
 
 
@@ -55,5 +57,5 @@ with create_engine(f"{BASE}/parity_alembic").connect() as c:
 check("row-level security on the tenant tables", policies >= 30, True)
 with create_engine(f"{BASE}/parity_alembic").connect() as c:
     public = c.execute(text("SELECT count(*) FROM pg_policies WHERE policyname = 'public_read'")).scalar()
-check("public-read policies on published content", public, 17)
+check("public-read policies on published content", public, 18)
 finish()

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Link, Navigate, Outlet, useLocation } from "react-router-dom"
 import {
   AppShell, ChangePasswordDialog, Header, KlygenixIcon, KlygenixWordmark, Sidebar, Spinner, ThemeSheet, isThemeKey,
@@ -15,9 +15,11 @@ import { LanguagePicker } from "../LanguagePicker"
 import { NotificationBell } from "./NotificationBell"
 import { useChannel } from "../../lib/hooks"
 import { channelUrl } from "../../lib/format"
+import { roleLabel, switchChannel, teamLevel, useActing, useHasPermission, useMyChannels, useTeamMe } from "../../lib/team"
+import { ChannelSwitcher } from "../team/ChannelSwitcher"
 import { useHtmlLang, useT } from "../../i18n"
 
-const OPEN_WITHOUT_CHANNEL = ["/welcome", "/settings", "/billing", "/moderation"]
+const OPEN_WITHOUT_CHANNEL = ["/welcome", "/settings", "/billing", "/moderation", "/team/accept"]
 const OPEN_PREFIXES = ["/brand", "/sponsorships/deals/"]
 
 export function StudioLayout() {
@@ -34,6 +36,16 @@ export function StudioLayout() {
   const [resending, setResending] = useState(false)
   const theme = useThemePreference("studio")
   const { data: channel, isLoading: channelLoading } = useChannel()
+  const acting = useActing()
+  const { data: teamMe } = useTeamMe()
+  const { data: myChannels, isLoading: channelsLoading } = useMyChannels()
+  const canUpload = useHasPermission("video.uploads", "full")
+  const firstTeam = myChannels?.find((c) => c.role !== "owner")
+  const adopt = channel === null && acting === null && Boolean(firstTeam) && !OPEN_WITHOUT_CHANNEL.includes(location.pathname)
+
+  useEffect(() => {
+    if (adopt && firstTeam) switchChannel(firstTeam.tenant_id, location.pathname + location.search)
+  }, [adopt, firstTeam, location.pathname, location.search])
 
   const localTop = useMemo(() => topLinks.map((i) => ({ ...i, label: t(i.label) })), [t])
   const localSections = useMemo<NavSection[]>(
@@ -47,10 +59,12 @@ export function StudioLayout() {
   }
 
   const openPath = OPEN_WITHOUT_CHANNEL.includes(location.pathname) || OPEN_PREFIXES.some((p) => location.pathname.startsWith(p))
+  if (adopt || (channel === null && acting === null && channelsLoading && !openPath)) return <Spinner />
   const needsChannel = channel === null && !openPath
   if (needsChannel) return <Navigate to="/welcome" replace />
 
   const canSee = (item: NavItem) => {
+    if (acting !== null) return Boolean(item.permissionKey) && teamLevel(teamMe, item.permissionKey!) !== "none"
     if (item.featureKey && !features(item.featureKey)) return false
     if (!item.permissionKey) return true
     if (user.role === "owner" || user.role === "global_admin") return true
@@ -80,6 +94,7 @@ export function StudioLayout() {
           title={t("Klygenix Play Studio")}
           right={
             <>
+            <ChannelSwitcher />
             <FeedbackButton app="studio" label={t("Feedback")} />
             <NotificationBell />
             {channel && (
@@ -92,12 +107,12 @@ export function StudioLayout() {
                 >
                   <ExternalLink size={15} /> {t("View channel")}
                 </a>
-                <Link
+                {canUpload && <Link
                   to="/videos?upload=1"
                   className="flex items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-sm font-semibold text-white hover:bg-brand-hover"
                 >
                   <Upload size={15} /> <span className="hidden sm:inline">{t("Upload")}</span>
-                </Link>
+                </Link>}
               </>
             )}
             </>
@@ -105,7 +120,7 @@ export function StudioLayout() {
           user={{
             name: user.name,
             email: user.email,
-            roleLabel: t(user.role.replace(/_/g, " ")),
+            roleLabel: acting !== null && teamMe ? t("{role} on {channel}", { role: t(roleLabel(teamMe.role)), channel: teamMe.channel?.name ?? "" }) : t(user.role.replace(/_/g, " ")),
             onLogout: logout,
             onTheme: () => setTheming(true),
             extra: (

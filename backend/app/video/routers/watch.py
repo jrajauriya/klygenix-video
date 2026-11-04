@@ -90,11 +90,13 @@ def video_detail(public_id: str, lang: str | None = None, viewer: Viewer = Depen
 
 @router.get("/channels/{handle}")
 def channel_detail(handle: str, viewer: Viewer = Depends(optional_viewer)):
-    c = viewer.db.execute(select(Channel).where(Channel.handle == handle.lower().lstrip("@"))).scalars().first()
+    from app.video.services import handles
+
+    c, moved = handles.resolve(viewer.db, handle)
     if c is None or c.is_suspended:
         raise err(404, "channel_not_found")
     out = channel_card(c)
-    out.update({"about": c.about, "created_at": iso(c.created_at), "following": False})
+    out.update({"about": c.about, "created_at": iso(c.created_at), "following": False, "moved_from": handles.clean(handle) if moved else None})
     if viewer.user is not None:
         out["following"] = bool(viewer.db.execute(select(Follow.id).where(
             Follow.user_id == viewer.user.id, Follow.channel_id == c.id)).first())
@@ -106,7 +108,9 @@ def channel_videos(handle: str, response: Response, kind: str | None = None, lim
                    offset: int = 0, viewer: Viewer = Depends(optional_viewer)):
     from sqlalchemy import func
 
-    c = viewer.db.execute(select(Channel).where(Channel.handle == handle.lower().lstrip("@"))).scalars().first()
+    from app.video.services import handles
+
+    c, _ = handles.resolve(viewer.db, handle)
     if c is None or c.is_suspended:
         raise err(404, "channel_not_found")
     q = select(Video).where(Video.channel_id == c.id, Video.status == "published", Video.visibility == "public",
@@ -117,7 +121,8 @@ def channel_videos(handle: str, response: Response, kind: str | None = None, lim
     rows = viewer.db.execute(q.order_by(Video.published_at.desc(), Video.id.desc()).limit(limit).offset(offset)).scalars().all()
     pend = counters.pending("video", [v.id for v in rows])
     response.headers["X-Total-Count"] = str(total)
-    return [video_card(v, c, pend.get(v.id)) for v in rows]
+    cp = counters.pending("channel", [c.id]).get(c.id, {})
+    return [video_card(v, c, pend.get(v.id), cp) for v in rows]
 
 
 @router.get("/images/{name}")
@@ -157,7 +162,14 @@ def render(path: str = "/"):
             if v is not None:
                 title, desc, image, kind = f"{v.title} · {settings.BRAND_NAME}", (v.description or v.title)[:200], media.thumb(v), "video.other"
         elif h:
-            c = db.execute(select(Channel).where(Channel.handle == h.group(1))).scalars().first()
+            from fastapi.responses import RedirectResponse
+
+            from app.video.services import handles
+
+            c, moved = handles.resolve(db, h.group(1))
+            if c is not None and moved:
+                rest = (path or "")[len(h.group(0)):]
+                return RedirectResponse(f"/@{c.handle}{rest}", status_code=301)
             if c is not None and not c.is_suspended:
                 title, desc, image, kind = f"{c.name} (@{c.handle}) · {settings.BRAND_NAME}", (c.about or c.name)[:200], images.public_url(c.avatar_key), "profile"
     url = f"{settings.WEB_BASE_URL.rstrip('/')}{path}"

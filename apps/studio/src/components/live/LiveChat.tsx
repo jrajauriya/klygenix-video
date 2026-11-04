@@ -6,6 +6,7 @@ import { formatMoney } from "@klygenixvideo/client"
 import { Badge, Button, Card, Input, Select, useConfirm } from "@klygenixvideo/ui"
 import { detail, when } from "../../lib/format"
 import { LIVE_PUBLIC, wsUrl, type LiveMessage, type LiveStream } from "../../lib/live"
+import { useHasPermission } from "../../lib/team"
 import { useT } from "../../i18n"
 
 const TIMEOUTS = [
@@ -44,6 +45,9 @@ export function LiveChat({ stream, ...events }: { stream: LiveStream } & ChatEve
   const handlers = useRef(events)
   handlers.current = events
   const closed = stream.status === "ended" || stream.status === "failed"
+  const canComments = useHasPermission("video.comments", "full")
+  const canLive = useHasPermission("video.live", "full")
+  const canModerate = canComments || canLive
 
   useEffect(() => {
     const v = String(stream.slow_mode_seconds)
@@ -188,14 +192,14 @@ export function LiveChat({ stream, ...events }: { stream: LiveStream } & ChatEve
           <h2 className="text-sm font-bold text-navy">{t("Live chat")}</h2>
           <p className="text-xs text-slate-500">{connected ? t("Connected") : t("Connecting…")} · {items.length === 1 ? t("1 message") : t("{n} messages", { n: items.length })}</p>
         </div>
-        {!closed && (
+        {!closed && canModerate && (
           <div className="flex flex-wrap items-center gap-1.5">
             <Clock size={14} className="text-slate-400" aria-hidden="true" />
             <Select value={timeout} onChange={setTimeoutLen} options={TIMEOUTS.map((o) => ({ ...o, label: t(o.label) }))} className="w-32" aria-label={t("Timeout length")} />
           </div>
         )}
       </div>
-      {!closed && (
+      {!closed && canModerate && (
         <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 bg-slate-50 px-4 py-2">
           <Snail size={14} className="text-slate-500" aria-hidden="true" />
           <span className="text-xs font-medium text-slate-600">
@@ -223,9 +227,9 @@ export function LiveChat({ stream, ...events }: { stream: LiveStream } & ChatEve
                   {m.moderator && <Badge color="blue" className="ml-1">{t("Mod")}</Badge>}
                   {paid && <Badge color="amber" className="ml-1">{m.tier ?? t("Paid|access")} · {formatMoney(m.paid_minor ?? 0, "INR")}</Badge>}
                   <span className="ml-1.5 break-words text-slate-700">{m.body}</span>
-                  {m.created_at && <span className="ml-1.5 text-[11px] text-slate-400">{when(m.created_at, true)}</span>}
+                  {m.created_at && <span className="ml-1.5 text-xs text-slate-500">{when(m.created_at, true)}</span>}
                 </div>
-                <div className="flex shrink-0 gap-1">
+                {canModerate && <div className="flex shrink-0 gap-1">
                   {!closed && !m.moderator && (
                     <Button size="sm" variant="ghost" className="h-7 px-2" disabled={busy !== null} onClick={() => timeoutUser(m)}
                       aria-label={t("Time out {author}", { author: m.author })} title={t("Time out")}>
@@ -236,7 +240,7 @@ export function LiveChat({ stream, ...events }: { stream: LiveStream } & ChatEve
                     aria-label={t("Hide message from {author}", { author: m.author })} title={paid ? t("Hide and refund") : t("Hide")}>
                     <EyeOff size={13} />
                   </Button>
-                </div>
+                </div>}
               </div>
             )
           })

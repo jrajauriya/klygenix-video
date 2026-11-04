@@ -4,7 +4,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Plus } from "lucide-react"
 import { api } from "@klygenixvideo/auth"
 import { Button, DataTable, PageHeader, Spinner } from "@klygenixvideo/ui"
-import { useHasPermission } from "@klygenixvideo/client"
+import { useHasPermission } from "../../lib/team"
+import { ViewOnly } from "../../components/team/ViewOnly"
 import { STUDIO } from "../../lib/hooks"
 import { when } from "../../lib/format"
 import { useBrand, type Campaign } from "../../lib/market"
@@ -34,6 +35,7 @@ export default function Campaigns() {
         subtitle={t("Video ads before and during long videos. Pay per 1,000 views shown.")}
         actions={brand && canEdit ? <Button onClick={() => setCreating(true)}><Plus size={15} /> {t("New campaign")}</Button> : undefined}
       />
+      {brand && !canEdit && <ViewOnly className="mb-4" what={t("Your role can see campaigns and their results but not create, fund or change them.")} />}
       {!brand ? (
         <NeedsBrand what={t("Ad campaigns")} />
       ) : (

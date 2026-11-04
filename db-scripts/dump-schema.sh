@@ -20,6 +20,7 @@ ARGS=(); for s in "${SCHEMAS[@]}"; do ARGS+=(-n "$s"); done
   echo "CREATE EXTENSION IF NOT EXISTS vector;"
   echo "CREATE EXTENSION IF NOT EXISTS pg_trgm;"
   docker exec "$CONTAINER_NAME" pg_dump -U "$PG_USER" -d "$PG_DB" --schema-only --no-owner "${ARGS[@]}" \
+    --exclude-table='kv_ai.reco_impressions_p*' --exclude-table='kv_admin.activity_log_p*' \
     | grep -v -e '^SET transaction_timeout' -e '^\\restrict' -e '^\\unrestrict'
   docker exec "$CONTAINER_NAME" pg_dump -U "$PG_USER" -d "$PG_DB" --schema-only --no-owner -t public.alembic_version
 } > "$DIR/01-schema.sql"

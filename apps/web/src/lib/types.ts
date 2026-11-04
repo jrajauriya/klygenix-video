@@ -12,6 +12,7 @@ export interface ChannelDetail extends ChannelCard {
   about: string
   created_at: string | null
   following: boolean
+  moved_from?: string | null
 }
 
 export type Playback =

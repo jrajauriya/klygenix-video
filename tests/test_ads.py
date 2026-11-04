@@ -146,6 +146,11 @@ check("declared bots get no ad", decision(signup("Bot Viewer"), "Mozilla/5.0 (co
 ivt = admin.get("/api/video/admin/ads/ivt").json()
 ok("invalid traffic by reason for the admin", all(ivt["reasons"].get(k, 0) >= 1 for k in
                                                    ("too_fast", "complete_too_fast", "viewer_mismatch", "no_start", "bot_ua")), ivt["reasons"])
+today = admin.get("/api/video/admin/ads/ivt", params={"from": "2020-01-01"}).json()
+ok("invalid traffic for a date range", today["invalid"] >= 1 and today["reasons"].get("too_fast", 0) >= 1 and "to" in today, today)
+old = admin.get("/api/video/admin/ads/ivt", params={"from": "2021-01-01", "to": "2021-01-31"}).json()
+check("a range with no traffic is empty", (old["reasons"], old["billable"], old["campaigns"]), ({}, 0, []))
+check("a backwards range is refused", admin.get("/api/video/admin/ads/ivt", params={"from": "2026-02-01", "to": "2026-01-01"}).status_code, 400)
 check("the creator sees no ads on their own video", host.get(f"/api/video/ads/decision?video={long_v['public_id']}").json()["ad"], None)
 prem = signup("Premium Viewer")
 premium(prem)

@@ -5,7 +5,8 @@ import { toast } from "sonner"
 import { BadgeCheck, CheckCircle2, Circle, ExternalLink, Flag, Send, Wallet, X } from "lucide-react"
 import { api } from "@klygenixvideo/auth"
 import { Button, Card, EmptyState, Field, Modal, PageHeader, Select, Spinner, Textarea, useConfirm } from "@klygenixvideo/ui"
-import { useHasPermission } from "@klygenixvideo/client"
+import { useHasPermission } from "../lib/team"
+import { ViewOnly } from "../components/team/ViewOnly"
 import { STUDIO } from "../lib/hooks"
 import { channelUrl, clock, detail, watchUrl, when } from "../lib/format"
 import { newKey, usePublishedVideos, type Deal, type PayableCheckout } from "../lib/market"
@@ -211,6 +212,7 @@ export default function DealDetail() {
         }
       />
 
+      {!(brand ? canBrand : canCreator) && <ViewOnly className="mb-4" what={t("Your role can follow this deal but not act on it.")} />}
       {deal.status === "proposed" && (
         <p role="status" className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-3.5 py-2.5 text-sm text-amber-900">
           {brand ? t("Fund the deal so the creator can start. The money is held, not paid out, until you approve the video.") : t("Waiting for the brand to fund the deal. Do not start work until it is funded.")}

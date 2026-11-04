@@ -24,6 +24,7 @@ from app.video.routers.support import my_rank
 from app.video.routers.watch import LANGS, readable
 from app.video.services import images
 from app.video.sessions import platform_session
+from app.video.services import handles
 
 router = APIRouter(prefix="/api/video", tags=["community"])
 SUMMARY_TTL = 3600
@@ -51,7 +52,7 @@ def post_out(db, p: Post, user=None, locked: bool = False) -> dict:
 @router.get("/channels/{handle}/posts")
 def channel_posts(handle: str, limit: int = 20, offset: int = 0, viewer: Viewer = Depends(optional_viewer)):
     with platform_session() as db:
-        ch = db.execute(select(Channel).where(Channel.handle == handle.lstrip("@"))).scalars().first()
+        ch = handles.resolve(db, handle)[0]
         if ch is None or ch.is_suspended:
             raise err(404, "channel_not_found")
         rows = db.execute(select(Post).where(Post.channel_id == ch.id, Post.status == "visible")
@@ -158,7 +159,9 @@ def can_moderate(db, user, channel_id: int) -> bool:
     ch = db.get(Channel, channel_id)
     if ch is None:
         return False
-    if user.tenant_id == ch.tenant_id:
+    from app.core.services import teams
+
+    if teams.can_act(db, user, ch.tenant_id, ("video.comments", "video.live")):
         return True
     return bool(db.execute(select(ChannelModerator.id).where(ChannelModerator.channel_id == channel_id,
                                                              ChannelModerator.user_id == user.id)).first())

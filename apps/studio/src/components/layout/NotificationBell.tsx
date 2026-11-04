@@ -9,7 +9,8 @@ import type { InboxNote } from "../../lib/types"
 import { useT } from "../../i18n"
 
 const ME = "/api/video/me"
-const INTERNAL = ["/sponsorships/", "/videos/", "/clips/", "/earnings", "/brand", "/moderation", "/comments", "/calendar"]
+const APP = "studio"
+const INTERNAL = ["/sponsorships/", "/videos/", "/clips/", "/earnings", "/brand", "/moderation", "/comments", "/calendar", "/team/", "/channel", "/settings"]
 
 function target(url: string | null): { to: string; internal: boolean } | null {
   if (!url) return null
@@ -28,19 +29,19 @@ export function NotificationBell() {
 
   const { data: count = 0 } = useQuery({
     queryKey: ["studio-inbox-count"],
-    queryFn: async () => (await api.get<{ unread: number }>(`${ME}/inbox/count`)).data.unread,
+    queryFn: async () => (await api.get<{ unread: number }>(`${ME}/inbox/count`, { params: { app: APP } })).data.unread,
     refetchInterval: 60_000,
     refetchOnWindowFocus: true,
   })
   const { data, isLoading } = useQuery({
     queryKey: ["studio-inbox"],
-    queryFn: async () => (await api.get<{ unread: number; items: InboxNote[] }>(`${ME}/inbox`, { params: { limit: 20 } })).data,
+    queryFn: async () => (await api.get<{ unread: number; items: InboxNote[] }>(`${ME}/inbox`, { params: { limit: 20, app: APP } })).data,
     enabled: open,
   })
 
   async function markRead(ids?: number[]) {
     try {
-      const { data: res } = await api.post<{ unread: number }>(`${ME}/inbox/read`, { ids: ids ?? null })
+      const { data: res } = await api.post<{ unread: number }>(`${ME}/inbox/read`, { ids: ids ?? null, app: APP })
       qc.setQueryData(["studio-inbox-count"], res.unread)
       qc.setQueryData<{ unread: number; items: InboxNote[] }>(["studio-inbox"], (old) =>
         old ? { unread: res.unread, items: old.items.map((n) => (!ids || ids.includes(n.id) ? { ...n, read: true } : n)) } : old,

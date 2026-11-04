@@ -163,7 +163,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["X-Total-Count", "X-Totp-Required", "X-Request-Id"],
+    expose_headers=["X-Total-Count", "X-Totp-Required", "X-Request-Id", "X-Error-Code"],
 )
 
 from app.core.middleware.observe import MetricsMiddleware, SecurityHeadersMiddleware  # noqa: E402
@@ -174,6 +174,10 @@ app.add_middleware(MetricsMiddleware)
 from app.core.messages import ReaderMiddleware  # noqa: E402
 
 app.add_middleware(ReaderMiddleware)
+
+from app.core.services.tracing import TracingMiddleware  # noqa: E402
+
+app.add_middleware(TracingMiddleware)
 
 # ── Control plane ────────────────────────────────────────────────────────────
 from app.core.routers.auth import router as auth_router  # noqa: E402

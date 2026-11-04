@@ -177,6 +177,7 @@ function Account() {
           hint={downloads.length ? t("download.count", { n: downloads.length }) : undefined}
           onPress={() => router.push("/downloads")}
         />
+        <Shortcut label={t("invite.pasteTitle")} hint={t("invite.shortcutHint")} onPress={() => router.push("/team/accept")} />
 
         {isLoading ? (
           <ActivityIndicator style={{ marginTop: 24 }} color={colour.brand} />

@@ -6,6 +6,8 @@ import { RefreshCw, Save, Sparkles, Trash2 } from "lucide-react"
 import { api } from "@klygenixvideo/auth"
 import { Button, Card, Field, Input, Select, Textarea, ToggleField, useConfirm } from "@klygenixvideo/ui"
 import { STUDIO } from "../../lib/hooks"
+import { useHasPermission } from "../../lib/team"
+import { ViewOnly } from "../team/ViewOnly"
 import { LANGUAGES, clock, detail, fromLocalInput, splitTags, toLocalInput } from "../../lib/format"
 import type { StudioVideoDetail, Visibility } from "../../lib/types"
 import { VisibilityField } from "../VisibilityField"
@@ -20,6 +22,7 @@ export function DetailsTab({ video }: { video: StudioVideoDetail }) {
   const qc = useQueryClient()
   const navigate = useNavigate()
   const confirm = useConfirm()
+  const canEdit = useHasPermission("video.uploads", "full")
   const [title, setTitle] = useState(video.title)
   const [description, setDescription] = useState(video.description)
   const [tags, setTags] = useState(video.tags.join(", "))
@@ -114,9 +117,11 @@ export function DetailsTab({ video }: { video: StudioVideoDetail }) {
         <Card className="p-4">
           <div className="mb-3 flex items-center justify-between gap-2">
             <h3 className="flex items-center gap-1.5 text-sm font-bold text-navy"><Sparkles size={15} className="text-brand" /> {t("AI drafts")}</h3>
-            <Button size="sm" variant="outline" onClick={rerun} disabled={rerunning || !["published", "in_review"].includes(video.status)}>
-              <RefreshCw size={13} /> {rerunning ? t("Starting…") : t("Re-run AI")}
-            </Button>
+            {canEdit && (
+              <Button size="sm" variant="outline" onClick={rerun} disabled={rerunning || !["published", "in_review"].includes(video.status)}>
+                <RefreshCw size={13} /> {rerunning ? t("Starting…") : t("Re-run AI")}
+              </Button>
+            )}
           </div>
           {!insight ? (
             <p className="text-sm text-slate-500">
@@ -128,10 +133,10 @@ export function DetailsTab({ video }: { video: StudioVideoDetail }) {
             <div className="space-y-4 text-sm">
               {insight.title_ideas?.length > 0 && (
                 <div>
-                  <p className="mb-1.5 text-xs font-semibold text-slate-500">{t("Title ideas · click to use")}</p>
+                  <p className="mb-1.5 text-xs font-semibold text-slate-500">{canEdit ? t("Title ideas · click to use") : t("Title ideas")}</p>
                   <div className="flex flex-wrap gap-1.5">
                     {insight.title_ideas.map((idea) => (
-                      <button key={idea} type="button" onClick={() => setTitle(idea.slice(0, 200))}
+                      <button key={idea} type="button" disabled={!canEdit} onClick={() => setTitle(idea.slice(0, 200))}
                         className="rounded-full border border-brand-100 bg-brand-50 px-2.5 py-1 text-left text-xs font-medium text-brand hover:border-brand">
                         {idea}
                       </button>
@@ -141,10 +146,10 @@ export function DetailsTab({ video }: { video: StudioVideoDetail }) {
               )}
               {insight.hashtags?.length > 0 && (
                 <div>
-                  <p className="mb-1.5 text-xs font-semibold text-slate-500">{t("Hashtags · click to add as a tag")}</p>
+                  <p className="mb-1.5 text-xs font-semibold text-slate-500">{canEdit ? t("Hashtags · click to add as a tag") : t("Hashtags")}</p>
                   <div className="flex flex-wrap gap-1.5">
                     {insight.hashtags.map((h) => (
-                      <button key={h} type="button" onClick={() => addTag(h)}
+                      <button key={h} type="button" disabled={!canEdit} onClick={() => addTag(h)}
                         className="rounded-full border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-700 hover:border-brand hover:text-brand">
                         {h}
                       </button>
@@ -179,7 +184,9 @@ export function DetailsTab({ video }: { video: StudioVideoDetail }) {
         </Card>
       </div>
 
-      <Card className="space-y-4 p-5 lg:col-span-3">
+      <Card className="p-5 lg:col-span-3">
+        {!canEdit && <ViewOnly className="mb-4" />}
+        <fieldset disabled={!canEdit} className="m-0 min-w-0 space-y-4 border-0 p-0">
         <Field label={t("Title")} required>
           <Input value={title} maxLength={200} onChange={(e) => setTitle(e.target.value)} />
         </Field>
@@ -216,14 +223,17 @@ export function DetailsTab({ video }: { video: StudioVideoDetail }) {
             </p>
           )}
         </div>
-        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-4">
-          <Button variant="outline" className="text-red-600" onClick={remove} disabled={deleting}>
-            <Trash2 size={14} /> {deleting ? t("Deleting…") : t("Delete video")}
-          </Button>
-          <Button onClick={save} disabled={saving || !title.trim()}>
-            <Save size={14} /> {saving ? t("Saving…") : t("Save changes")}
-          </Button>
-        </div>
+        </fieldset>
+        {canEdit && (
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-4">
+            <Button variant="outline" className="text-red-600" onClick={remove} disabled={deleting}>
+              <Trash2 size={14} /> {deleting ? t("Deleting…") : t("Delete video")}
+            </Button>
+            <Button onClick={save} disabled={saving || !title.trim()}>
+              <Save size={14} /> {saving ? t("Saving…") : t("Save changes")}
+            </Button>
+          </div>
+        )}
       </Card>
     </div>
   )

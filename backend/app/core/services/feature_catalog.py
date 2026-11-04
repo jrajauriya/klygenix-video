@@ -45,6 +45,7 @@ FEATURE_CATALOG: dict[str, FeatureApp] = {
                 "items": _items(
                     ("admin.dashboard", "Dashboard"),
                     ("admin.tenants", "Accounts"),
+                    ("admin.support", "Support desk"),
                     ("admin.moderation", "Moderation & reports"),
                     ("admin.takedowns", "Takedowns & grievances"),
                     ("admin.ai_usage", "AI usage & cost"),

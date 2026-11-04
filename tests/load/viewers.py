@@ -163,12 +163,15 @@ async def main(args) -> int:
     print(f"{args.users} viewers + {args.rooms} WebSocket watchers for {args.seconds}s against {api} "
           f"({len(videos)} videos, {args.procs} load process{'es' if args.procs > 1 else ''})")
     started = time.perf_counter()
-    jobs = [(vars(args), videos, token if i == 0 else None, args.users // args.procs + (i < args.users % args.procs),
-             args.rooms // args.procs + (i < args.rooms % args.procs)) for i in range(args.procs)]
-    if args.procs == 1:
+    sockets = max(1, args.procs // 2) if args.rooms and args.procs > 1 else 0
+    http = args.procs - sockets
+    jobs = [(vars(args), videos, token if i == 0 else None, args.users // http + (i < args.users % http),
+             0 if sockets else args.rooms) for i in range(http)]
+    jobs += [(vars(args), videos, None, 0, args.rooms // sockets + (i < args.rooms % sockets)) for i in range(sockets)]
+    if len(jobs) == 1:
         parts = [run_part(*jobs[0])]
     else:
-        with multiprocessing.get_context("spawn").Pool(args.procs) as pool:
+        with multiprocessing.get_context("spawn").Pool(len(jobs)) as pool:
             parts = pool.starmap(run_part, jobs)
     stats = Stats()
     for part in parts:

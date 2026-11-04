@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 from fastapi import APIRouter, Depends, Header, Query, Request, Response
 from pydantic import BaseModel, Field
@@ -448,13 +448,19 @@ def list_payouts(period: str | None = None, ctx: Ctx = Depends(platform("admin.a
 
 
 @router.get("/admin/ads/ivt")
-def admin_ivt(ctx: Ctx = Depends(platform("admin.ads"))):
-    by_campaign = ctx.db.execute(select(AdCampaign.public_id, AdCampaign.name, func.sum(AdDaily.impressions), func.sum(AdDaily.invalid))
-                                 .join(AdDaily, AdDaily.campaign_id == AdCampaign.id)
-                                 .group_by(AdCampaign.public_id, AdCampaign.name)
+def admin_ivt(start: date | None = Query(None, alias="from"), stop: date | None = Query(None, alias="to"),
+              ctx: Ctx = Depends(platform("admin.ads"))):
+    if start and stop and start > stop:
+        raise err(400, "date_range_invalid")
+    q = (select(AdCampaign.public_id, AdCampaign.name, func.sum(AdDaily.impressions), func.sum(AdDaily.invalid))
+         .join(AdDaily, AdDaily.campaign_id == AdCampaign.id))
+    summary = ads.ivt_summary(start, stop) if (start or stop) else ads.ivt_summary()
+    if start or stop:
+        q = q.where(AdDaily.day >= date.fromisoformat(summary["from"]), AdDaily.day <= date.fromisoformat(summary["to"]))
+    by_campaign = ctx.db.execute(q.group_by(AdCampaign.public_id, AdCampaign.name)
                                  .order_by(func.sum(AdDaily.invalid).desc()).limit(50)).all()
-    return {**ads.ivt_summary(), "campaigns": [{"id": p, "name": n, "impressions": int(i), "invalid": int(v)}
-                                              for p, n, i, v in by_campaign]}
+    return {**summary, "campaigns": [{"id": p, "name": n, "impressions": int(i), "invalid": int(v)}
+                                     for p, n, i, v in by_campaign]}
 
 
 @router.get("/admin/ads/view-pool/preview")

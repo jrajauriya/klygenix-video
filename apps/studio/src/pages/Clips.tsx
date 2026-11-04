@@ -7,6 +7,7 @@ import { api } from "@klygenixvideo/auth"
 import { Badge, Button, DataTable, ListPage, Modal, PageHeader, Select, type DataTableColumn } from "@klygenixvideo/ui"
 import { usePagedList } from "@klygenixvideo/client"
 import { STUDIO } from "../lib/hooks"
+import { useHasPermission } from "../lib/team"
 import { clock, detail, when } from "../lib/format"
 import { createClip } from "../lib/clips"
 import type { Clip, StudioVideo } from "../lib/types"
@@ -35,6 +36,7 @@ export default function Clips() {
   const navigate = useNavigate()
   const [status, setStatus] = useState("all")
   const [picking, setPicking] = useState(false)
+  const canEdit = useHasPermission("video.clips", "full")
   const list = usePagedList<Clip>("studio-clips", `${STUDIO}/clips`, { status }, 50)
   const { data: videos } = useSourceVideos()
   const titles = useMemo(() => new Map((videos ?? []).map((v) => [v.id, v.title])), [videos])
@@ -65,7 +67,7 @@ export default function Clips() {
       <PageHeader
         title={t("Clip maker")}
         subtitle={t("Cut short vertical reels with captions from your long videos, then publish them to your channel.")}
-        actions={<Button onClick={() => setPicking(true)}><Plus size={15} /> {t("New clip")}</Button>}
+        actions={canEdit ? <Button onClick={() => setPicking(true)}><Plus size={15} /> {t("New clip")}</Button> : undefined}
       />
       <DataTable
         label={t("Clips")}
@@ -83,7 +85,7 @@ export default function Clips() {
         emptyDescription={t("Open a long video's Clips tab to see the moments we suggest, or start a new clip.")}
         toolbarRight={<Select value={status} onChange={setStatus} options={STATUS.map((o) => ({ ...o, label: t(o.label) }))} className="w-40" />}
       />
-      <PickSource open={picking} onClose={() => setPicking(false)} videos={videos ?? []} />
+      {canEdit && <PickSource open={picking} onClose={() => setPicking(false)} videos={videos ?? []} />}
     </ListPage>
   )
 }

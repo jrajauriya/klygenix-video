@@ -194,3 +194,20 @@ creator agreement should say hosted videos may be downloaded for offline viewing
 **Advertising integrity** — publish an invalid-traffic policy (what is not billed and why) and the brand-safety categories.
 
 **US region (V5.4)** — data-residency statement for US users (accounts and media stay in the US region); CCPA notice.
+
+## Run 6 additions — to confirm
+
+**Channel teams** — a channel owner can give other accounts access to their studio (managers, editors, moderators, analysts).
+The terms should say the owner is responsible for what their team does, that team members see unpublished videos, comments
+and analytics of that channel (never money), and that the owner can remove them at any time. Privacy policy: team members are
+processors acting for the creator for that channel's data.
+
+**Onboarding mails** — three tips mails in a creator's first week (first upload, first clip, payouts), opt-out in Studio →
+Settings. Confirm under DPDP whether service tips sent to a creator who opened a channel count as transactional or need consent.
+
+**Support desk and read-only support sessions** — staff can view an account as its owner sees it, read-only, for up to
+`IMPERSONATION_MINUTES`, with a recorded reason. The privacy policy should say so and how long the access log is kept.
+
+**Handle renames** — an old handle redirects to the new one for 180 days and cannot be taken by anyone else in that time;
+state it in the creator terms (impersonation and squatting rules).
+

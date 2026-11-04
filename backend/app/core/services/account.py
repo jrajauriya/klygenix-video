@@ -3,7 +3,6 @@ from __future__ import annotations
 import base64
 import hashlib
 import hmac
-import html
 import logging
 import re
 import secrets as pysecrets
@@ -124,36 +123,17 @@ def verified(db: Session, user: User) -> None:
             tenant.verified_at = _now()
 
 
-SUBJECTS = {
-    "verify": "Confirm your email address",
-    "reset": "Reset your password",
-    "invite": "You have been invited to Klygenix Play",
-}
-LINES = {
-    "verify": "Confirm this address to start issuing invoices. The link works for 48 hours.",
-    "reset": "Somebody asked to reset the password on this account. If it was you, the link "
-              "works for 30 minutes; if it was not, ignore this email and nothing changes.",
-    "invite": "{inviter} has added you to {tenant}. Choose a password to sign in. The link "
-              "works for 7 days.",
-}
-BUTTONS = {"verify": "Confirm my email", "reset": "Choose a new password", "invite": "Accept the invitation"}
-
-
 def send_link(db: Session, user: User, purpose: str, token: str, **words) -> bool:
-    from app.core.services.email_service import send_email
+    from app.core.services import mailer
 
-    url = link(purpose, token)
-    text_line = LINES[purpose].format(**{k: html.escape(str(v)) for k, v in words.items()})
-    body = (
-        f"<p>Hello {html.escape(user.name)},</p><p>{text_line}</p>"
-        f'<p><a href="{html.escape(url)}" style="display:inline-block;padding:10px 16px;'
-        f'background:#632B4F;color:#fff;border-radius:6px;text-decoration:none">{BUTTONS[purpose]}</a></p>'
-        f'<p style="color:#777;font-size:12px">Or paste this address into your browser: {html.escape(url)}</p>'
-    )
+    lang = (user.settings or {}).get("language")
     try:
-        return bool(send_email(db=db, to_email=user.email, subject=SUBJECTS[purpose], body_html=body,
-                               tenant_id=user.tenant_id))
+        mailer.send(db, f"account_{purpose}", user.email, {"name": user.name, "link": link(purpose, token), **words},
+                    lang if lang in ("en", "hi") else "en", tenant_id=user.tenant_id)
+        db.commit()
+        return True
     except Exception:
+        db.rollback()
         logger.warning("could not send the %s email to user %s", purpose, user.id)
         return False
 

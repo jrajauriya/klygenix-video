@@ -57,6 +57,9 @@ function Notice({ tone, children }: { tone: "error" | "ok"; children: ReactNode 
 
 export function SignupPage({ afterSignup = "/" }: { afterSignup?: string } = {}) {
   const navigate = useNavigate()
+  const [params] = useSearchParams()
+  const back = params.get("returnUrl") ?? ""
+  const destination = back.startsWith("/") && !back.startsWith("//") ? back : afterSignup
   const setAuth = useAuthStore((s) => s.setAuth)
   const { t } = useAuthText()
   const [form, setForm] = useState({
@@ -98,7 +101,7 @@ export function SignupPage({ afterSignup = "/" }: { afterSignup?: string } = {})
         channel_name: form.creator ? form.channelName.trim() || form.name.trim() : null,
       })
       setAuth(data.access_token, data.user)
-      navigate(afterSignup, { replace: true })
+      navigate(destination, { replace: true })
     } catch (err) {
       setError(detail(err, t("signup.failed")))
     } finally {

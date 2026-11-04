@@ -14,13 +14,17 @@ import { LANGS, setLang, useLang, useT, type Lang } from "../i18n"
 const FeedbackDialog = lazy(() => import("./Feedback"))
 const InboxPanel = lazy(() => import("./InboxPanel"))
 
+const SERVER_WORDED = new Set(["video", "feed", "related", "search", "channel"])
+
 export async function chooseLang(next: Lang) {
   setLang(next)
   const { token, user, setAuth } = useAuthStore.getState()
-  if (!token || !user || user.settings?.language === next) return
-  setAuth(token, { ...user, settings: { ...(user.settings ?? {}), language: next } })
-  const res = await api.patch("/api/video/me", { language: next }).catch(() => null)
-  if (res) queryClient.setQueryData(["me"], res.data)
+  if (token && user && user.settings?.language !== next) {
+    setAuth(token, { ...user, settings: { ...(user.settings ?? {}), language: next } })
+    const res = await api.patch("/api/video/me", { language: next }).catch(() => null)
+    if (res) queryClient.setQueryData(["me"], res.data)
+  }
+  void queryClient.invalidateQueries({ predicate: (q) => SERVER_WORDED.has(String(q.queryKey[0])) })
 }
 
 export function LangSwitch({ className }: { className?: string }) {

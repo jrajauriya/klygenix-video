@@ -3,15 +3,18 @@ import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { router } from "expo-router"
 import { ActivityIndicator, Pressable, Text, TextInput, View } from "react-native"
 
-import { api, detail } from "../../lib/api"
+import { studio } from "../../lib/acting"
+import { detail } from "../../lib/api"
 import { clock, humanise } from "../../lib/format"
+import { useT } from "../../lib/i18n"
 import { colour, s } from "../../lib/theme"
 import type { Clip, StudioVideo, Suggestion } from "../../lib/types"
 import { SETTLED } from "../../lib/upload"
 
 const CLIP_SETTLED = new Set(["rendered", "published", "failed"])
 
-function ClipRow({ clip, onChange }: { clip: Clip; onChange: (c: Clip) => void }) {
+function ClipRow({ clip, locked, onChange }: { clip: Clip; locked: boolean; onChange: (c: Clip) => void }) {
+  const { t } = useT()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [publicId, setPublicId] = useState<string | null>(null)
@@ -19,7 +22,7 @@ function ClipRow({ clip, onChange }: { clip: Clip; onChange: (c: Clip) => void }
   useQuery({
     queryKey: ["clip", clip.id],
     queryFn: async () => {
-      const { data } = await api.get<Clip>(`/api/video/studio/clips/${clip.id}`)
+      const { data } = await studio.get<Clip>(`/api/video/studio/clips/${clip.id}`)
       onChange(data)
       return data
     },
@@ -32,17 +35,17 @@ function ClipRow({ clip, onChange }: { clip: Clip; onChange: (c: Clip) => void }
     setError(null)
     try {
       if (step === "render") {
-        const { data } = await api.post<Clip>(`/api/video/studio/clips/${clip.id}/render`)
+        const { data } = await studio.post<Clip>(`/api/video/studio/clips/${clip.id}/render`)
         onChange(data)
       } else {
-        const { data } = await api.post<{ clip: Clip; public_id: string }>(`/api/video/studio/clips/${clip.id}/publish`, {
+        const { data } = await studio.post<{ clip: Clip; public_id: string }>(`/api/video/studio/clips/${clip.id}/publish`, {
           visibility: "public",
         })
         onChange(data.clip)
         setPublicId(data.public_id)
       }
     } catch (err) {
-      setError(detail(err, step === "render" ? "The clip could not be rendered." : "The clip could not be published."))
+      setError(detail(err, step === "render" ? t("clips.renderFailed") : t("clips.publishFailed")))
     } finally {
       setBusy(false)
     }
@@ -59,13 +62,13 @@ function ClipRow({ clip, onChange }: { clip: Clip; onChange: (c: Clip) => void }
       {working && <ActivityIndicator style={{ marginTop: 8 }} color={colour.brand} />}
       {clip.status === "failed" && clip.error && <Text style={s.error}>{clip.error}</Text>}
       {(clip.status === "draft" || clip.status === "failed") && (
-        <Pressable onPress={() => run("render")} disabled={busy} style={[s.outline, busy && s.disabled]}>
-          <Text style={s.outlineText}>{busy ? "Starting…" : "Render"}</Text>
+        <Pressable onPress={() => run("render")} disabled={busy || locked} style={[s.outline, (busy || locked) && s.disabled]}>
+          <Text style={s.outlineText}>{busy ? t("clips.starting") : t("clips.render")}</Text>
         </Pressable>
       )}
       {clip.status === "rendered" && !publicId && (
-        <Pressable onPress={() => run("publish")} disabled={busy} style={[s.button, { marginTop: 12 }, busy && s.disabled]}>
-          <Text style={s.buttonText}>{busy ? "Publishing…" : "Publish as a reel"}</Text>
+        <Pressable onPress={() => run("publish")} disabled={busy || locked} style={[s.button, { marginTop: 12 }, (busy || locked) && s.disabled]}>
+          <Text style={s.buttonText}>{busy ? t("clips.publishing") : t("clips.publish")}</Text>
         </Pressable>
       )}
       {publicId && (
@@ -80,7 +83,8 @@ function ClipRow({ clip, onChange }: { clip: Clip; onChange: (c: Clip) => void }
   )
 }
 
-function Trim({ video, onMade }: { video: StudioVideo; onMade: (c: Clip) => void }) {
+function Trim({ video, locked, onMade }: { video: StudioVideo; locked: boolean; onMade: (c: Clip) => void }) {
+  const { t } = useT()
   const [start, setStart] = useState("0")
   const [end, setEnd] = useState(String(Math.min(30, Math.floor((video.duration_ms ?? 30000) / 1000))))
   const [error, setError] = useState<string | null>(null)
@@ -90,13 +94,13 @@ function Trim({ video, onMade }: { video: StudioVideo; onMade: (c: Clip) => void
     const a = Math.round(Number(start) * 1000)
     const b = Math.round(Number(end) * 1000)
     if (!Number.isFinite(a) || !Number.isFinite(b) || b <= a) {
-      setError("The end must come after the start.")
+      setError(t("clips.order"))
       return
     }
     setBusy(true)
     setError(null)
     try {
-      const { data } = await api.post<Clip>("/api/video/studio/clips", {
+      const { data } = await studio.post<Clip>("/api/video/studio/clips", {
         source_video_id: video.id,
         title: `${video.title} (${clock(a)}–${clock(b)})`.slice(0, 160),
         start_ms: a,
@@ -104,7 +108,7 @@ function Trim({ video, onMade }: { video: StudioVideo; onMade: (c: Clip) => void
       })
       onMade(data)
     } catch (err) {
-      setError(detail(err, "That clip could not be made."))
+      setError(detail(err, t("clips.makeFailed")))
     } finally {
       setBusy(false)
     }
@@ -112,20 +116,22 @@ function Trim({ video, onMade }: { video: StudioVideo; onMade: (c: Clip) => void
 
   return (
     <View style={s.card}>
-      <Text style={s.cardLabel}>Your own trim (seconds)</Text>
+      <Text style={s.cardLabel}>{t("clips.trim")}</Text>
       <View style={{ flexDirection: "row", gap: 12 }}>
-        <TextInput style={[s.field, { flex: 1 }]} keyboardType="decimal-pad" value={start} onChangeText={setStart} placeholder="Start" />
-        <TextInput style={[s.field, { flex: 1 }]} keyboardType="decimal-pad" value={end} onChangeText={setEnd} placeholder="End" />
+        <TextInput style={[s.field, { flex: 1 }]} keyboardType="decimal-pad" value={start} onChangeText={setStart} placeholder={t("clips.start")} />
+        <TextInput style={[s.field, { flex: 1 }]} keyboardType="decimal-pad" value={end} onChangeText={setEnd} placeholder={t("clips.end")} />
       </View>
       {error && <Text style={s.error}>{error}</Text>}
-      <Pressable onPress={make} disabled={busy} style={[s.outline, busy && s.disabled]}>
-        <Text style={s.outlineText}>{busy ? "Making…" : "Make clip"}</Text>
+      <Pressable onPress={make} disabled={busy || locked} style={[s.outline, (busy || locked) && s.disabled]}>
+        <Text style={s.outlineText}>{busy ? t("clips.making") : t("clips.make")}</Text>
       </Pressable>
     </View>
   )
 }
 
-export function AfterUpload({ video: initial, onDone }: { video: StudioVideo; onDone: () => void }) {
+export function AfterUpload({ video: initial, clipLock = null, onDone }: { video: StudioVideo; clipLock?: string | null; onDone: () => void }) {
+  const { t } = useT()
+  const locked = Boolean(clipLock)
   const qc = useQueryClient()
   const [clips, setClips] = useState<Clip[]>([])
   const [making, setMaking] = useState<number | null>(null)
@@ -133,7 +139,7 @@ export function AfterUpload({ video: initial, onDone }: { video: StudioVideo; on
 
   const { data: video = initial } = useQuery<StudioVideo>({
     queryKey: ["studio-video", initial.id],
-    queryFn: async () => (await api.get(`/api/video/studio/videos/${initial.id}`)).data,
+    queryFn: async () => (await studio.get(`/api/video/studio/videos/${initial.id}`)).data,
     refetchInterval: (q) => {
       const v = q.state.data
       return v && SETTLED.has(v.status) && v.ai_status !== "pending" && v.ai_status !== "running" ? false : 3000
@@ -144,7 +150,7 @@ export function AfterUpload({ video: initial, onDone }: { video: StudioVideo; on
   const aiReady = video.ai_status === "ready"
   const { data: suggestions = [], isLoading } = useQuery<Suggestion[]>({
     queryKey: ["suggestions", video.id],
-    queryFn: async () => (await api.get(`/api/video/studio/videos/${video.id}/suggestions`)).data,
+    queryFn: async () => (await studio.get(`/api/video/studio/videos/${video.id}/suggestions`)).data,
     enabled: settled && aiReady && video.kind === "long",
   })
 
@@ -154,7 +160,7 @@ export function AfterUpload({ video: initial, onDone }: { video: StudioVideo; on
     setMaking(sg.id)
     setError(null)
     try {
-      const { data } = await api.post<Clip>("/api/video/studio/clips", {
+      const { data } = await studio.post<Clip>("/api/video/studio/clips", {
         source_video_id: video.id,
         suggestion_id: sg.id,
         title: sg.title.slice(0, 160),
@@ -163,7 +169,7 @@ export function AfterUpload({ video: initial, onDone }: { video: StudioVideo; on
       })
       upsert(data)
     } catch (err) {
-      setError(detail(err, "That clip could not be made."))
+      setError(detail(err, t("clips.makeFailed")))
     } finally {
       setMaking(null)
     }
@@ -198,7 +204,8 @@ export function AfterUpload({ video: initial, onDone }: { video: StudioVideo; on
 
       {settled && video.status !== "blocked" && video.status !== "failed" && (
         <>
-          <Text style={s.heading}>Clips</Text>
+          <Text style={s.heading}>{t("clips.heading")}</Text>
+          {clipLock && <Text style={[s.text, { marginTop: 8, color: colour.slate500 }]}>{clipLock}</Text>}
           {video.kind === "reel" ? (
             <Text style={s.note}>This is already a reel. Clip suggestions are made for long videos.</Text>
           ) : !aiReady ? (
@@ -215,16 +222,20 @@ export function AfterUpload({ video: initial, onDone }: { video: StudioVideo; on
                   {clock(sg.start_ms)} – {clock(sg.end_ms)} · score {Math.round(sg.score * 100)}
                 </Text>
                 {sg.hook ? <Text style={[s.text, { marginTop: 6 }]}>{sg.hook}</Text> : null}
-                <Pressable onPress={() => fromSuggestion(sg)} disabled={making !== null} style={[s.outline, making !== null && s.disabled]}>
-                  <Text style={s.outlineText}>{making === sg.id ? "Making…" : "Make clip"}</Text>
+                <Pressable
+                  onPress={() => fromSuggestion(sg)}
+                  disabled={making !== null || locked}
+                  style={[s.outline, (making !== null || locked) && s.disabled]}
+                >
+                  <Text style={s.outlineText}>{making === sg.id ? t("clips.making") : t("clips.make")}</Text>
                 </Pressable>
               </View>
             ))
           )}
-          {video.kind === "long" && aiReady && <Trim video={video} onMade={upsert} />}
+          {video.kind === "long" && aiReady && <Trim video={video} locked={locked} onMade={upsert} />}
           {error && <Text style={s.error}>{error}</Text>}
           {clips.map((c) => (
-            <ClipRow key={c.id} clip={c} onChange={upsert} />
+            <ClipRow key={c.id} clip={c} locked={locked} onChange={upsert} />
           ))}
         </>
       )}

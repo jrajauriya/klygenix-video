@@ -5,7 +5,8 @@ import { toast } from "sonner"
 import { Handshake, Megaphone, Save } from "lucide-react"
 import { api } from "@klygenixvideo/auth"
 import { Badge, Button, Card, Field, Input, PageHeader, Select, Spinner, Textarea } from "@klygenixvideo/ui"
-import { useHasPermission } from "@klygenixvideo/client"
+import { useHasPermission } from "../../lib/team"
+import { ViewOnly } from "../../components/team/ViewOnly"
 import { STUDIO } from "../../lib/hooks"
 import { detail } from "../../lib/format"
 import { GSTIN, useBrand, type Brand } from "../../lib/market"
@@ -106,6 +107,7 @@ function Form({ brand }: { brand: Brand | null }) {
 export default function BrandProfile() {
   const t = useT()
   const { data: brand, isLoading } = useBrand()
+  const canEdit = useHasPermission("video.brand", "full")
   if (isLoading) return <Spinner />
   return (
     <div className="pb-8">
@@ -114,6 +116,9 @@ export default function BrandProfile() {
         <p role="alert" className="mb-4 rounded-lg border border-red-300 bg-red-50 px-3.5 py-2.5 text-sm text-red-800">
           {t("This brand account is suspended. Campaigns and briefs are paused. Contact support if you think this is a mistake.")}
         </p>
+      )}
+      {!canEdit && (
+        <ViewOnly className="mb-4" what={brand ? t("Your role can see the brand profile but not change it.") : t("This channel has no brand profile yet. Only someone with full brand access can set one up.")} />
       )}
       <div className="grid gap-5 lg:grid-cols-5 [&>*]:min-w-0">
         <Form key={brand ? "edit" : "new"} brand={brand ?? null} />

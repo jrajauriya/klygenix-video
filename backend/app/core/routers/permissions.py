@@ -34,9 +34,15 @@ ACCESS_LEVELS = ("none", "view", "full")
 ROLE_HINTS = {
     "admin": "Runs the day to day. Approves within their band.",
     "user": "Sees only what this matrix allows.",
+    "manager": "Runs the channel with you and invites the team. Never sees money.",
+    "editor": "Uploads, edits and clips videos.",
+    "moderator": "Looks after comments, danmaku and live chat.",
+    "analyst": "Reads analytics and videos, changes nothing.",
 }
-ROLE_LABELS = {"admin": "Manager", "user": "Staff"}
+ROLE_LABELS = {"admin": "Manager", "user": "Staff", "manager": "Team manager", "editor": "Editor", "moderator": "Moderator",
+               "analyst": "Analyst"}
 EDITABLE_ROLES = ("admin", "user")
+TEAM_ROLES = ("manager", "editor", "moderator", "analyst")
 
 
 def _permissions_for(db: Session, tenant_id: int, app: str, role: str) -> dict[str, str]:
@@ -64,6 +70,7 @@ def build_router(app: str, *, admin_only: bool = False) -> APIRouter:
     """Return the four permission endpoints for one app."""
     router = APIRouter(prefix=f"/api/{app}", tags=[f"{app}-permissions"])
     keys = all_feature_keys(app)
+    roles = EDITABLE_ROLES + (TEAM_ROLES if app == "video" else ())
 
     def guard(key: str, level: str = "view"):
         return require_admin_tenant(key, level) if admin_only else require_permission(key, level)
@@ -97,10 +104,10 @@ def build_router(app: str, *, admin_only: bool = False) -> APIRouter:
             ],
             "roles": [
                 {"role": r, "label": ROLE_LABELS[r], "hint": ROLE_HINTS[r]}
-                for r in EDITABLE_ROLES
+                for r in roles
             ],
             "levels": list(ACCESS_LEVELS),
-            "defaults": {r: defaults_for_app(app, r) for r in EDITABLE_ROLES},
+            "defaults": {r: defaults_for_app(app, r) for r in roles},
         }
 
     @router.get("/permissions")
@@ -118,7 +125,7 @@ def build_router(app: str, *, admin_only: bool = False) -> APIRouter:
         user: User = Depends(guard(admin_key)),
     ):
         tenant = _tenant(db, user)
-        return {r: _permissions_for(db, tenant.id, app, r) for r in EDITABLE_ROLES}
+        return {r: _permissions_for(db, tenant.id, app, r) for r in roles}
 
     @router.put("/roles/permissions")
     def save_role_matrix(
@@ -134,10 +141,10 @@ def build_router(app: str, *, admin_only: bool = False) -> APIRouter:
             tenant_id=tenant.id,
             actor=audit.Actor(audit.USER, user_id=user.id, label=user.email),
         )
-        was = {r: _permissions_for(db, tenant.id, app, r) for r in EDITABLE_ROLES}
+        was = {r: _permissions_for(db, tenant.id, app, r) for r in roles}
 
         for role, items in payload.permissions.items():
-            if role not in EDITABLE_ROLES:
+            if role not in roles:
                 continue
             db.query(RolePermission).filter(
                 RolePermission.tenant_id == tenant.id,
@@ -164,10 +171,10 @@ def build_router(app: str, *, admin_only: bool = False) -> APIRouter:
                     )
                 )
         db.flush()
-        now = {r: _permissions_for(db, tenant.id, app, r) for r in EDITABLE_ROLES}
+        now = {r: _permissions_for(db, tenant.id, app, r) for r in roles}
         moved_before: dict[str, str] = {}
         moved_after: dict[str, str] = {}
-        for role in EDITABLE_ROLES:
+        for role in roles:
             for key in sorted(set(was.get(role, {})) | set(now.get(role, {}))):
                 old_level = was.get(role, {}).get(key, "none")
                 new_level = now.get(role, {}).get(key, "none")

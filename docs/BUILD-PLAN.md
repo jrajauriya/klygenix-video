@@ -2,7 +2,7 @@
 
 The master plan (`../Klygenix_Docs/Klygenix_Video/klygenix-video-master-plan.html`) says what and
 why; this file says what is built, what each test proves, what runs only on sandbox providers and
-what is blocked. Built in unattended runs, 3–4 Nov 2026 (run 5 newest, below). **Run 5 is not committed** (the owner
+what is blocked. Built in unattended runs, 3–4 Nov 2026 (run 7 newest, below). **Runs 6 and 7 are not committed** (the owner
 commits by hand) **and nothing is deployed.**
 
 **Done means:** `npx tsc --noEmit -p tsconfig.app.json` and `vite build` pass for every app it touches;
@@ -29,6 +29,101 @@ its suites green **twice over one database**; CLAUDE.md updated.
 | 13 Verification & docs | Suites ×2, parity, e2e, load test, docs (this file, LAUNCH, PROVIDERS, SECURITY, README, CLAUDE.md), plan HTML updated | See results below | — |
 | 14 Stretch | Playlists and series with progress (V1.7 / V3.1); watch parties with a shared playhead and chat (V3.7); AI thumbnail ideas + custom thumbnails shown (V1.3); data export / erasure; studio analytics with daily series; comment inbox with hide/unhide | Done | `test_playlists.py`, `test_parties.py`, `test_thumbnails.py`, `test_viewer_extras.py` |
 | 14 not started | Tips, boost danmaku, channel memberships, paid videos (V2.2–V2.5) | Waiting | They pay creators: rule S11 needs Razorpay Route linked accounts and creator KYC (V2.1), not forked yet |
+
+## Run 7 — run 6 follow-ups, overnight while the owner slept (4 Nov 2026)
+
+The owner asked to keep going with whatever was still open on the developer side after run 6. Nothing committed, nothing
+deployed; run 6 and run 7 sit together in the working tree.
+
+| Item | Scope | Status | Proven by |
+|---|---|---|---|
+| R7.1 Error codes, account mails | every `err()` refusal carries `code` in the body and `X-Error-Code` (exposed via CORS); verify / reset / invite links go through the mailer (`account_*`, EN/HI) so sandbox captures them and SMTP/Graph deliver them | Done | `test_teams` (codes), `test_support_desk` 21 (verify and reset mails in the outbox) |
+| R7.2 Team mode finished | `/studio/team/me` returns the channel owner's plan and meters (and a full permission map for the owner); the dashboard checklist hides money and channel set-up from members; studio uses the owner's plan/meters and the `code` for fallback; view-only screens hide or disable what the API would refuse; team moderators can delete comments/danmaku and moderate live chat (`teams.can_act`); the invite preview answers 410 when expired; invitees with an account get an inbox notice; mobile: invite accept screen (deep link or pasted link), leave channel, the owner's plan on Create; accessible role matrix in `packages/ui` (named cells, readable hints, a role picker under `sm`) | Done | `test_teams` 48, studio clicked through by the agent, mobile tsc + `expo export` |
+| R7.3 Throughput | channel counters fetched once per page instead of once per card; counter reads without MULTI/EXEC — home feed build 14.8 → 11.5 ms; deferring wide columns tried and reverted (no gain) | Done | load at 100 viewers: p95 watch 22 ms (was 32), home feed 10.5 ms (was 16.1) |
+| R7.4 FastAPI 0.141.1 → 0.162.0 | Starlette 1.10 and Pydantic 2.14 unchanged | Done | both full passes on 0.162 |
+
+### Run 7 results
+| Check | Result |
+|---|---|
+| API suites, **twice over one database** | **48 suites, 1,469 checks per pass, 0 failed both passes** (on FastAPI 0.162) |
+| Browser (`node tests/e2e/run.mjs`) | screens **322/0**, axe **141/0**, speed **14/0** (watch video start 1.61 s, reels 1.59 s; JS home 176 / reels 391 / watch 413 KB of 420) |
+| Mobile | tsc and `expo export` iOS + Android (agent); native imports green in both passes |
+| Production stack (rebuilt) | **smoke 166/0**, **CSP 36/0** |
+| Load, 100 viewers + 200 sockets | **1,179 req/s, 0 errors, p95 ≤ 22 ms**; 197/200 sockets in the load script — a separate 200-socket probe during the same HTTP load opened and held all 200, so the failures were the load generator's own event loop; `tests/load/viewers.py` now runs its sockets in processes of their own — rerun: 1,171 req/s, p95 ≤ 21 ms, 199/200 sockets, GREEN |
+| Live, 1,000 watchers on an ffmpeg-fed stream | **1,000/1,000 connected, 55,000/55,000 deliveries, p95 76 ms**, HLS p95 74 ms, 0 errors |
+| Security | gitleaks pass · bandit 0 · semgrep 0 (262 rules, 808 files) · pip-audit 0 (FastAPI 0.162 included) · npm: the documented mobile-only findings |
+
+### Still open after run 7
+| Item | Needs |
+|---|---|
+| Everything from run 6 that needs others | accounts, CA, lawyer, VPS; the 500-viewer target on the VPS |
+| Universal / App Links for invites | `associatedDomains` and Android `intentFilters` in app.json plus `apple-app-site-association` / `assetlinks.json` on the web host (owner, with the store accounts) |
+| Channel notices for members | `/me/moderation`, `/appeals`, `/me/takedowns` read the member's own tenant; the studio shows members an owner-only note there (the other screens — Community, Calendar, sponsorships, brand, Settings — are gated, e2e 322/0 and axe 141/0 after the change) |
+| Frontend majors | Vite 8, TypeScript 7, Recharts 3, Sonner 2, lucide 1, tailwind-merge 3, plugin-react 6 — a run of their own |
+
+## Run 6 — run 5 gaps, channel teams, creator onboarding & admin support, scale & ops (4 Nov 2026)
+
+Owner's choice: all four developer-side tracks, overnight, no stops. Every V0–V5 roadmap item is done or waits on an
+account, the CA, the lawyer or a VPS, so this run is "beyond the roadmap" (R6.1–R6.4 in the plan HTML). Runs 1–5 committed
+(`d95dd50`, `cccf074`, `57d79d6`, `d1ba83c`, `85cf632`). Baseline on the clean tree: 44 suites, 1,344 checks, 0 failed.
+**Nothing committed, nothing deployed.**
+
+| Phase | Scope | Status | Proven by |
+|---|---|---|---|
+| 1 Run 5 gaps + flake | "Paid partnership with {brand}" from the message catalogue (Hindi, and the anonymous feed cache is now per language); `/admin/ads/ivt?from&to` from daily Redis reason counters (400 days) and `ad_daily`; chapter history keeps each version's chapters and restores one as a new version; every repurpose pack listed and openable; notifications carry `app` (viewer / studio) and the bells filter by it; `test_analytics_reco` fixed | Done | `test_ads` 76, `test_sponsorships` 42, `test_creator_ai` 37, `test_viewer_growth` 34; reco suite 5 runs in a row green |
+| 2 Channel teams | `kv_admin.tenant_members`, invitations by mail (hashed single-use token, 7 days, email-bound), roles manager / editor / moderator / analyst in the channel's own matrix, acting channel by `X-Kv-Tenant` in `deps.studio()`, billing and earnings owner-only, plan seat limits (placeholders 1 / 5 / 25), leave, audit as "member X in channel Y"; studio Team settings, accept page and channel switcher; mobile Create-tab channel picker | Done | `test_teams` 42 |
+| 3 Onboarding & support | bulk YouTube import with per-video progress, resume and no duplicates; handle rename (once per 30 days) with old handles reserved and redirecting for 180 days (API lookups and a 301 from share heads); onboarding mails day 0 / 2 / 7 (EN/HI, skipped once done, opt-out); admin support desk: lookup by email / handle / id / payment, account timeline, sign out everywhere, resend verification, refund from a purchase, read-only support sessions | Done | `test_onboarding` 27, `test_support_desk` 19 |
+| 4 Scale & ops | `reco_impressions` and `activity_log` range-partitioned by month (`kv_admin.maintain_partitions()`, SECURITY DEFINER, run by the retention sweep; old months dropped); tracing (request, job and LLM spans, W3C `traceparent`, OTLP/JSON export, off by default); `pg_stat_statements` + `make -C infra slow-queries`; backend patch/minor upgrades (SQLAlchemy 2.1.8, Alembic 1.20.1, psycopg 3.3.7, cryptography 50.0.2, sentry-sdk 2.73.0 and 7 more) | Done | `test_retention` 14, `test_tracing` 13, `test_migration_parity` |
+| 5 Frontends | studio, admin + web, mobile by three parallel agents (file ownership as before) | Done | tsc + build, e2e, `expo export` |
+| 6 Verification | below | Done (500-viewer target not met on this machine — see results) | — |
+
+### Run 6 results
+| Check | Result |
+|---|---|
+| API suites, **twice over one database** | **48 suites, 1,461 checks per pass, 0 failed both passes.** New: teams 42, onboarding 27, support desk 19, tracing 13 |
+| Migrations | 19 revisions (`…19_teams_onboarding_partitions`); downgrade → upgrade round trip clean; `alembic check` clean (partition children ignored in `env.py`); schema re-dumped (**102 tables**, dated partitions excluded); parity green |
+| Browser (`node tests/e2e/run.mjs`) | screens **322/0**, axe **141/0**, speed **14/0** (watch video start 1.72 s, reels 1.64 s; JS home 176 / reels 391 / watch 413 KB of 420) |
+| Mobile | tsc, `expo export` iOS + Android (agent), native imports green in both passes; not run on a device |
+| Production stack `play.localhost:8443` | **smoke 166/0** incl. run 6 (editor invited by mail and accepted, acting channel, earnings owner-only, handle rename + 301, support-desk lookup); **CSP 36/0** |
+| Load, 100 viewers + 200 sockets | **1,144 req/s, 0 errors, p95 ≤ 32 ms** (watch 32, ad decision 26); 198/200 sockets |
+| Load, 500 viewers + 500 sockets | **not met here**: the stack saturates at ~1,050 req/s (4 workers) / ~1,350 req/s (6 workers) on the 6-CPU Docker VM while 500 viewers offer ~5,000 req/s, so p95 ≈ 500–560 ms and 71–81/500 sockets failed; 0–1 errors. Every endpoint rises evenly (queueing, not one slow query). The §18 target stays a measurement on the VPS |
+| Slow queries | after a full suite pass the costliest statement is transcript full-text search (~30 ms mean, GIN-indexed); no missing index found |
+| Security | gitleaks pass (after allowlisting SECURITY.md's quote of the run 4 prose false positive) · bandit 0 · semgrep 0 (262 rules, 805 files) · pip-audit 0 · npm audit: the same documented mobile-only findings (Expo deep-link parsing, fixed by the store-build SDK upgrade) |
+| Backups · monitoring | off-host rehearsal 12/0 · `monitoring.sh check` 38 rules, promtool tests green |
+| Dependencies | backend: 12 patch/minor bumps, `pip check` clean; FastAPI 0.141 → 0.162, pgvector 0.5 and uharfbuzz 0.57 not taken (0.x minors can break); frontends already on the newest patch/minor — only majors left (Vite 8, TypeScript 7, Recharts 3, Sonner 2, lucide 1, tailwind-merge 3, plugin-react 6) |
+
+### Bugs found and fixed in run 6
+- `test_analytics_reco` "finished video sits lower": the fan and the fresh viewers could land in different A/B arms (model vs
+  heuristic) once a promoted model existed on the second pass — the suite now pins all three to the heuristic arm.
+- Support sessions could never be used: the session row is under RLS and was read before any tenant was set (the dev API
+  runs as the app role).
+- `/repurpose/{pack_id}` would have swallowed `/repurpose/{id}.md` (422) — `{pack_id:int}`.
+- The anonymous feed cache would have served one language's partnership label to everyone — the key now includes the language.
+- Old handles answered 404 on playlists, support, live, posts and study endpoints — all use `handles.resolve` now.
+- Import job counters were written only at the end of a run and not reset by resume — written per video now.
+- Sign-up dropped `returnUrl`, so an invitee without an account lost the invitation link (shared auth package).
+- `/studio/team/me` returned no permission map for a channel's own owner unless their user role was `owner`.
+
+### Decisions taken in run 6
+- One acting channel per request (header), never a second `tenant_id` on the user; viewer routes ignore it.
+- Money stays with the owner: no role, matrix row or manager can reach billing or earnings; members cannot rename the handle.
+- Seat limits are placeholders on the plans (`team_members`: free 1, pro 5, business 25).
+- Connecting YouTube still imports everything (as before); bulk import is for picking more later and is idempotent.
+- Partitions: only the default partition is created by the migration; months are made by the sweep so schema snapshots stay
+  date-independent. Retention: impressions 90 days, activity log 365 days.
+- Tracing is in-house OTLP/JSON (no OpenTelemetry dependency) and off unless an endpoint is set; Sentry tracing is unchanged.
+- Support sessions are read-only.
+
+### Still blocked or open after run 6
+| Item | Needs |
+|---|---|
+| Everything from run 5 | accounts, CA, lawyer, VPS (unchanged) |
+| 500-viewer load target | the VPS (this machine saturates at ~1,350 req/s) |
+| Team mode gaps | `/api/video/me`, `/permissions` and `/tenant-features` describe the member's own account (plan meters, dashboard checklist); some view-only screens still show edit controls a member cannot save (the API refuses) |
+| Error codes | 403s carry only translated text; a machine-readable `code` would let the apps tell "removed from the team" from "not allowed" |
+| Verification mail | account links still go through the old SMTP `email_service`, so in sandbox they never reach the outbox (pre-existing; the desk shows "not sent") |
+| Shared UI | `RoleEditor` cells need accessible names and keys; 11px slate-400 hints; six roles make the matrix scroll sideways |
+| Mobile | no invite-accept screen or "leave channel" on the phone |
 
 ## Run 5 — ad integrity, Hindi & India-first, viewer growth, creator AI v2, V5.4 regions, V5.6 view pool (4 Nov 2026)
 

@@ -5,7 +5,7 @@ import { Bell, CheckCheck, CheckCircle2, Crown, Handshake, MessageCircle, Radio,
 import { cn } from "@klygenixvideo/ui"
 import { errText, getJson } from "../lib/api"
 import { timeAgo } from "../lib/format"
-import { markAllRead, useOpenNote, type Inbox, type Note } from "../lib/inbox"
+import { INBOX_APP, markAllRead, useOpenNote, type Inbox, type Note } from "../lib/inbox"
 import { useT } from "../i18n"
 import { Btn, Empty, Skel } from "./bits"
 
@@ -59,7 +59,7 @@ export function MarkAllRead({ disabled }: { disabled?: boolean }) {
 export default function InboxPanel({ onClose }: { onClose: () => void }) {
   const t = useT("account")
   const open = useOpenNote()
-  const q = useQuery({ queryKey: ["inbox", "panel"], queryFn: () => getJson<Inbox>("/api/video/me/inbox", { limit: 8 }), staleTime: 0 })
+  const q = useQuery({ queryKey: ["inbox", "panel"], queryFn: () => getJson<Inbox>("/api/video/me/inbox", { limit: 8, app: INBOX_APP }), staleTime: 0 })
   const items = q.data?.items ?? []
   return (
     <div role="dialog" aria-label={t("Notifications")} className="absolute right-0 top-11 z-50 flex max-h-[min(80vh,560px)] w-[min(92vw,380px)] flex-col overflow-hidden rounded-2xl border border-line bg-panel shadow-2xl">

@@ -18,6 +18,7 @@ from app.video.routers import limits
 from app.video.routers.deps import Ctx, Viewer, optional_viewer, signed_in
 from app.video.routers.watch import insight_for, readable
 from app.video.sessions import platform_session
+from app.video.services import handles
 
 router = APIRouter(prefix="/api/video", tags=["learning"])
 
@@ -186,7 +187,7 @@ def delete_note(note_id: int, ctx: Ctx = Depends(signed_in)):
 
 def _scope_videos(db, user, scope: str, ref: str) -> tuple[int, list[Video]]:
     if scope == "channel":
-        ch = db.execute(select(Channel).where(Channel.handle == ref.lstrip("@"))).scalars().first()
+        ch = handles.resolve(db, ref)[0]
         if ch is None or ch.is_suspended:
             raise err(404, "channel_not_found")
         vids = db.execute(select(Video).where(Video.channel_id == ch.id, Video.status == "published",

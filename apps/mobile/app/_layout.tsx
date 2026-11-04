@@ -49,6 +49,7 @@ function Screens() {
       <Stack.Screen name="study/[id]" options={pushed} />
       <Stack.Screen name="inbox" options={{ ...pushed, title: t("inbox.title") }} />
       <Stack.Screen name="downloads" options={{ ...pushed, title: t("download.title") }} />
+      <Stack.Screen name="team/accept" options={{ ...pushed, title: t("invite.title") }} />
     </Stack>
   )
 }

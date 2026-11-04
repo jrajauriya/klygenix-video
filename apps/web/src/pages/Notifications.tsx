@@ -7,7 +7,7 @@ import { PageShell } from "../components/Layout"
 import { Btn, Empty, Skel, Tabs } from "../components/bits"
 import { MarkAllRead, NoteRow } from "../components/InboxPanel"
 import { useSignedIn } from "../lib/api"
-import { useOpenNote, type Inbox } from "../lib/inbox"
+import { INBOX_APP, useOpenNote, type Inbox } from "../lib/inbox"
 import { useTitle } from "../lib/title"
 import { useT } from "../i18n"
 
@@ -25,7 +25,7 @@ export default function NotificationsPage() {
     initialPageParam: 0,
     staleTime: 0,
     queryFn: async ({ pageParam }) => {
-      const { data } = await api.get<Inbox>("/api/video/me/inbox", { params: { unread: filter === "unread", limit: PAGE, offset: pageParam } })
+      const { data } = await api.get<Inbox>("/api/video/me/inbox", { params: { unread: filter === "unread", limit: PAGE, offset: pageParam, app: INBOX_APP } })
       return { ...data, offset: pageParam }
     },
     getNextPageParam: (last) => (last.items.length === PAGE ? last.offset + PAGE : undefined),

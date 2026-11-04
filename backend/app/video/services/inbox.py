@@ -17,6 +17,18 @@ def now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+VIEWER_KINDS = frozenset({"new_video", "reply", "live", "membership"})
+APPS = {"web": ("viewer", "all"), "studio": ("studio", "all")}
+
+
+def audience(kind: str) -> str:
+    return "viewer" if kind in VIEWER_KINDS else "studio"
+
+
+def scoped(q, app: str | None):
+    return q.where(Notification.app.in_(APPS[app])) if app in APPS else q
+
+
 def add(db: Session, user_id: int, kind: str, title: str, body: str = "", url: str | None = None, image: str | None = None,
         dedupe_key: str | None = None) -> Notification | None:
     user = db.get(User, user_id)
@@ -24,8 +36,8 @@ def add(db: Session, user_id: int, kind: str, title: str, body: str = "", url: s
         return None
     if dedupe_key and db.execute(select(Notification.id).where(Notification.dedupe_key == dedupe_key)).first():
         return None
-    row = Notification(tenant_id=user.tenant_id, user_id=user_id, kind=kind[:20], title=title[:160], body=(body or "")[:300],
-                       url=url, image=image, dedupe_key=dedupe_key)
+    row = Notification(tenant_id=user.tenant_id, user_id=user_id, kind=kind[:20], app=audience(kind), title=title[:160],
+                       body=(body or "")[:300], url=url, image=image, dedupe_key=dedupe_key)
     try:
         with db.begin_nested():
             db.add(row)
@@ -35,13 +47,15 @@ def add(db: Session, user_id: int, kind: str, title: str, body: str = "", url: s
     return row
 
 
-def unread(db: Session, user_id: int) -> int:
-    return db.execute(select(func.count(Notification.id)).where(Notification.user_id == user_id,
-                                                                Notification.read_at.is_(None))).scalar() or 0
+def unread(db: Session, user_id: int, app: str | None = None) -> int:
+    return db.execute(scoped(select(func.count(Notification.id)).where(Notification.user_id == user_id,
+                                                                       Notification.read_at.is_(None)), app)).scalar() or 0
 
 
-def mark_read(db: Session, user_id: int, ids: list[int] | None) -> int:
+def mark_read(db: Session, user_id: int, ids: list[int] | None, app: str | None = None) -> int:
     q = update(Notification).where(Notification.user_id == user_id, Notification.read_at.is_(None))
+    if app in APPS:
+        q = q.where(Notification.app.in_(APPS[app]))
     if ids:
         q = q.where(Notification.id.in_(ids))
     return db.execute(q.values(read_at=now())).rowcount

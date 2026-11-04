@@ -4,7 +4,8 @@ import { toast } from "sonner"
 import { Trash2, UserPlus } from "lucide-react"
 import { api } from "@klygenixvideo/auth"
 import { Button, Drawer, Field, Input, Spinner, useConfirm } from "@klygenixvideo/ui"
-import { useHasPermission } from "@klygenixvideo/client"
+import { useHasPermission } from "../lib/team"
+import { ViewOnly } from "./team/ViewOnly"
 import { STUDIO } from "../lib/hooks"
 import { detail, when } from "../lib/format"
 import type { Moderator } from "../lib/types"
@@ -54,6 +55,7 @@ export function ModeratorsDrawer({ onClose }: { onClose: () => void }) {
         <p className="rounded-lg bg-slate-50 px-3.5 py-2.5 text-sm text-slate-700">
           {t("Moderators can hide comments, danmaku and community posts on this channel only, from the watch page. They cannot see your earnings, analytics or settings, and cannot change your videos.")}
         </p>
+        {!canEdit && <ViewOnly what={t("Your role can see who moderates this channel but not add or remove moderators.")} />}
         {canEdit && (
           <div className="flex items-end gap-2">
             <Field label={t("Their email")} hint={t("They need a Klygenix Play account.")} className="min-w-0 flex-1">

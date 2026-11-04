@@ -6,6 +6,7 @@ import { api } from "@klygenixvideo/auth"
 import { Button, Card, Field, Input, Select, Textarea, ToggleField } from "@klygenixvideo/ui"
 import { detail, toLocalInput } from "../../lib/format"
 import { LIVE_STUDIO, useTierOptions, type LiveStream } from "../../lib/live"
+import { useHasPermission } from "../../lib/team"
 import { useT } from "../../i18n"
 
 export function LiveSettings({ stream }: { stream: LiveStream }) {
@@ -21,6 +22,7 @@ export function LiveSettings({ stream }: { stream: LiveStream }) {
   const scheduled = stream.status === "scheduled"
   const [saving, setSaving] = useState(false)
   const closed = stream.status === "ended" || stream.status === "failed"
+  const canEdit = useHasPermission("video.live", "full")
 
   async function save() {
     setSaving(true)
@@ -50,6 +52,7 @@ export function LiveSettings({ stream }: { stream: LiveStream }) {
   return (
     <Card className="space-y-4 p-5">
       <h2 className="text-sm font-bold text-navy">{t("Stream settings")}</h2>
+      <fieldset disabled={!canEdit} className="m-0 min-w-0 space-y-4 border-0 p-0">
       <Field label={t("Title")} required>
         <Input value={title} maxLength={160} onChange={(e) => setTitle(e.target.value)} />
       </Field>
@@ -68,9 +71,12 @@ export function LiveSettings({ stream }: { stream: LiveStream }) {
         </Field>
       </div>
       <ToggleField label={t("Keep a replay")} hint={t("Saved as a video on your channel when the stream ends.")} checked={replay} onChange={setReplay} disabled={closed} />
-      <div className="flex justify-end">
-        <Button onClick={save} disabled={saving || !title.trim()}><Save size={14} /> {saving ? t("Saving…") : t("Save")}</Button>
-      </div>
+      </fieldset>
+      {canEdit && (
+        <div className="flex justify-end">
+          <Button onClick={save} disabled={saving || !title.trim()}><Save size={14} /> {saving ? t("Saving…") : t("Save")}</Button>
+        </div>
+      )}
     </Card>
   )
 }

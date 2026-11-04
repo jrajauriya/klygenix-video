@@ -253,6 +253,7 @@ class Notification(Base):
         Index("idx_notifications_user", "user_id", "created_at"),
         Index("idx_notifications_digest", "digest_sent_at", "read_at"),
         UniqueConstraint("dedupe_key", name="uq_notifications_dedupe"),
+        CheckConstraint("app IN ('all','viewer','studio')", name="ck_notifications_app"),
         {"schema": SCHEMA},
     )
 
@@ -260,6 +261,7 @@ class Notification(Base):
     tenant_id: Mapped[int] = tenant_fk()
     user_id: Mapped[int] = mapped_column(Integer, nullable=False)
     kind: Mapped[str] = mapped_column(String(20), nullable=False)
+    app: Mapped[str] = mapped_column(String(8), nullable=False, default="all", server_default="all")
     title: Mapped[str] = mapped_column(String(160), nullable=False)
     body: Mapped[str] = mapped_column(String(300), nullable=False, default="", server_default="")
     url: Mapped[str | None] = mapped_column(String(300))

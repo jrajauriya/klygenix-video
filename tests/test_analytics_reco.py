@@ -42,7 +42,20 @@ print("\n== Recommendations v1.5 (V2.11)")
 with platform_session() as db:
     have = db.execute(Video.__table__.select().where(Video.public_id == pid)).first()
     ok("a published video has a vector", reco.similarities(db, [1.0] + [0.0] * 1535, [have.id]) != {})
-fan = signup("Taste Fan")
+
+
+def heuristic(name):
+    from app.video.reco import service as reco_model
+
+    with platform_session() as db:
+        for n in range(60):
+            who = signup(f"{name} {n}")
+            if reco_model.arm(db, who.user["id"]) == "heuristic":
+                return who
+    return who
+
+
+fan = heuristic("Taste Fan")
 before = [x["id"] for x in fan.get("/api/video/feed/home?limit=10").json()]
 cook = settled(c, upload(c, "dal-tadka", "Dal tadka for two")["id"])
 fan.post(f"/api/video/videos/{cook['public_id']}/progress", json={"position_ms": 0, "started": True})
@@ -60,9 +73,9 @@ def mean(xs):
 
 
 ok("the feed moves toward what was watched", mean(after) > mean(before), (round(mean(before), 3), round(mean(after), 3)))
-fresh = [x["id"] for x in signup("Fresh Fan").get("/api/video/feed/home?limit=10").json()]
+fresh = [x["id"] for x in heuristic("Fresh Fan").get("/api/video/feed/home?limit=10").json()]
 ok("the finished video sits lower for the viewer who finished it", cook["public_id"] not in after or
    cook["public_id"] not in fresh or after.index(cook["public_id"]) > fresh.index(cook["public_id"]), (after[:3], fresh[:3]))
-check("viewers with no history get the same plain ranking", [x["id"] for x in signup("Fresh Fan 2").get("/api/video/feed/home?limit=10").json()], fresh)
+check("viewers with no history get the same plain ranking", [x["id"] for x in heuristic("Fresh Fan 2").get("/api/video/feed/home?limit=10").json()], fresh)
 
 finish()

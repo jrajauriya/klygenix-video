@@ -24,7 +24,8 @@ PUBLIC = {
     ("GET", "/api/video/ads/breaks"), ("GET", "/api/video/ads/decision"), ("POST", "/api/video/ads/events"),
     ("GET", "/api/video/brands"), ("GET", "/api/video/ads/categories"), ("GET", "/api/video/feed/subscriptions"),
 }
-NO_CHANNEL = {("GET", "/api/video/studio/channel"), ("GET", "/api/video/studio/onboarding"), ("GET", "/api/video/studio/brand"),
+NO_CHANNEL = {("GET", "/api/video/studio/channel"), ("GET", "/api/video/studio/team/me"), ("GET", "/api/video/studio/onboarding-mails"),
+              ("PUT", "/api/video/studio/onboarding-mails"), ("GET", "/api/video/studio/onboarding"), ("GET", "/api/video/studio/brand"),
               ("GET", "/api/video/studio/ads/campaigns"), ("GET", "/api/video/studio/sponsorships/my-briefs"),
               ("GET", "/api/video/studio/sponsorships/deals")}
 SIGNED = {p for _, p in routes if p.startswith(("/api/video/webhooks/", "/api/video/sandbox/hls/", "/api/video/sandbox/hls-preview/", "/api/video/sandbox/thumb/", "/api/video/sandbox/download/", "/api/video/dubs/", "/api/video/sandbox/live/",
@@ -38,7 +39,8 @@ def fill(p: str) -> str:
              .replace("{takedown_id}", "1").replace("{invoice_id}", "1").replace("{audience}", "viewer")
              .replace("{rail}", "sandbox").replace("{provider}", "sandbox").replace("{name}", "x.webp")
              .replace("{lang}", "en").replace("{exp}", "1").replace("{sig}", "x").replace("{path}", "master.m3u8")
-             .replace("{tenant_id}", "1").replace("{user_id}", "1").replace("{key_id}", "1").replace("{id}", "1"))
+             .replace("{tenant_id}", "1").replace("{user_id}", "1").replace("{key_id}", "1").replace("{id}", "1")
+             .replace("{pack_id}", "1").replace("{member_id}", "1").replace("{job_id}", "1").replace("{session_id}", "1"))
 
 
 print("\n== Every private route refuses a request with no credential")

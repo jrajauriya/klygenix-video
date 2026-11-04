@@ -4,7 +4,8 @@ import { toast } from "sonner"
 import { ExternalLink, Plus, ShoppingBag, Trash2 } from "lucide-react"
 import { api } from "@klygenixvideo/auth"
 import { Button, Card, Field, Input, Spinner, useConfirm } from "@klygenixvideo/ui"
-import { useHasPermission } from "@klygenixvideo/client"
+import { useHasPermission } from "../../lib/team"
+import { ViewOnly } from "../team/ViewOnly"
 import { STUDIO } from "../../lib/hooks"
 import { compact, detail } from "../../lib/format"
 import type { ProductLink, StudioVideoDetail } from "../../lib/types"
@@ -94,6 +95,7 @@ export function ProductsTab({ video }: { video: StudioVideoDetail }) {
         )}
       </Card>
 
+      {!canEdit && <div className="lg:col-span-2"><ViewOnly /></div>}
       {canEdit && (
         <Card className="space-y-4 p-5 lg:col-span-2">
           <h2 className="text-sm font-bold text-navy">{t("Add a link")}</h2>

@@ -30,6 +30,8 @@ import Waitlist from "./pages/beta/Waitlist"
 import InviteCodes from "./pages/beta/InviteCodes"
 import Outbox from "./pages/beta/Outbox"
 import Feedback from "./pages/beta/Feedback"
+import SupportDesk from "./pages/support/SupportDesk"
+import SupportAccount from "./pages/support/SupportAccount"
 
 const gate = (key: string, el: ReactNode) => <ProtectedRoute permissionKey={key}>{el}</ProtectedRoute>
 
@@ -51,6 +53,8 @@ export const router = createBrowserRouter([
       { path: "/beta/codes", element: gate("admin.beta", <InviteCodes />) },
       { path: "/beta/outbox", element: gate("admin.beta", <Outbox />) },
       { path: "/beta/feedback", element: gate("admin.beta", <Feedback />) },
+      { path: "/support", element: gate("admin.support", <SupportDesk />) },
+      { path: "/support/users/:userId", element: gate("admin.support", <SupportAccount />) },
       { path: "/videos", element: gate("admin.moderation", <Videos />) },
       { path: "/live", element: gate("admin.moderation", <LiveStreams />) },
       { path: "/ai-usage", element: gate("admin.ai_usage", <AiUsage />) },

@@ -1,6 +1,7 @@
 from app.video.routers import (
     admin_money, admin_ops, admin_video, ads, ai, beta, billing, growth, channels, me, parties, playlists, sandbox, social, studio_ai, studio_clips, studio_earnings,
     community, dubbing, learning, live, products, sponsorships, studio_insights, studio_videos, support, trust, watch, webhooks,
+    admin_support, onboarding, teams,
 )
 
 ROUTERS: list = [
@@ -32,5 +33,8 @@ ROUTERS: list = [
     growth.router,
     ads.router,
     sponsorships.router,
+    teams.router,
+    onboarding.router,
+    admin_support.router,
     webhooks.router,
 ]

@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
-import { ArrowDown, ArrowUp, ListOrdered, Plus, RotateCcw, Save, Trash2 } from "lucide-react"
+import { ArrowDown, ArrowUp, Eye, History, ListOrdered, Plus, RotateCcw, Save, Trash2 } from "lucide-react"
 import { api } from "@klygenixvideo/auth"
-import { Badge, Button, Card, EmptyState, Input, Spinner } from "@klygenixvideo/ui"
-import { useHasPermission } from "@klygenixvideo/client"
+import { Badge, Button, Card, EmptyState, Input, Modal, Spinner, useConfirm } from "@klygenixvideo/ui"
+import { useHasPermission } from "../../lib/team"
+import { ViewOnly } from "../team/ViewOnly"
 import { STUDIO } from "../../lib/hooks"
 import { clock, detail, parseClock, when } from "../../lib/format"
 import type { ChapterRow, ChaptersOut, StudioVideoDetail } from "../../lib/types"
@@ -33,6 +34,9 @@ export function ChaptersTab({ video }: { video: StudioVideoDetail }) {
   const [rows, setRows] = useState<Row[]>([])
   const [saving, setSaving] = useState(false)
   const [refused, setRefused] = useState<string | null>(null)
+  const [viewing, setViewing] = useState<number | null>(null)
+  const [restoring, setRestoring] = useState(false)
+  const confirm = useConfirm()
 
   useEffect(() => {
     if (data) setRows(toRows(data.chapters))
@@ -97,6 +101,33 @@ export function ChaptersTab({ video }: { video: StudioVideoDetail }) {
     }
   }
 
+  const shown = viewing === null ? null : data.history.find((h) => h.version === viewing) ?? null
+
+  async function restore(version: number) {
+    if (dirty) {
+      const ok = await confirm({
+        title: t("Discard your unsaved changes?"),
+        message: t("Restoring version {n} replaces the chapters you are editing.", { n: version }),
+        confirmLabel: t("Restore"),
+        variant: "destructive",
+      })
+      if (!ok) return
+    }
+    setRestoring(true)
+    try {
+      const { data: fresh } = await api.post<ChaptersOut>(`${STUDIO}/videos/${video.id}/chapters/restore`, { version })
+      qc.setQueryData(key, fresh)
+      qc.invalidateQueries({ queryKey: ["studio-video", String(video.id)] })
+      setViewing(null)
+      setRefused(null)
+      toast.success(t("Version {n} restored as version {m}", { n: version, m: fresh.version }))
+    } catch (err) {
+      toast.error(detail(err, t("That version could not be restored")))
+    } finally {
+      setRestoring(false)
+    }
+  }
+
   return (
     <div className="grid gap-5 lg:grid-cols-3 [&>*]:min-w-0">
       <Card className="space-y-3 p-5 lg:col-span-2">
@@ -109,6 +140,7 @@ export function ChaptersTab({ video }: { video: StudioVideoDetail }) {
           </div>
           {data.version > 0 && <Badge color="slate">{t("Version {n}", { n: data.version })}</Badge>}
         </div>
+        {!canEdit && <ViewOnly />}
 
         {rows.length === 0 ? (
           <p className="rounded-lg border border-dashed border-slate-300 px-3 py-4 text-center text-sm text-slate-500">
@@ -194,17 +226,62 @@ export function ChaptersTab({ video }: { video: StudioVideoDetail }) {
             {data.history.map((h) => (
               <li key={h.version} className="flex items-center justify-between gap-2 text-sm">
                 <span className="min-w-0">
-                  <span className="font-medium text-slate-800">{t("Version {n}", { n: h.version })}</span>
+                  <span className="flex items-center gap-1.5 font-medium text-slate-800">
+                    {t("Version {n}", { n: h.version })}
+                    {h.version === data.version && <span className="text-xs font-normal text-slate-500">({t("current")})</span>}
+                  </span>
                   <span className="block text-xs text-slate-500">
                     {h.count === 1 ? t("1 chapter") : t("{n} chapters", { n: h.count })} · {when(h.created_at, true)}
                   </span>
                 </span>
-                <Badge color={h.by === "ai" ? "purple" : "blue"}>{h.by === "ai" ? t("AI") : t("You")}</Badge>
+                <span className="flex shrink-0 items-center gap-1.5">
+                  <Badge color={h.by === "ai" ? "purple" : "blue"}>{h.by === "ai" ? t("AI") : t("Creator")}</Badge>
+                  <Button size="sm" variant="ghost" onClick={() => setViewing(h.version)} aria-label={t("View version {n}", { n: h.version })}>
+                    <Eye size={14} />
+                  </Button>
+                </span>
               </li>
             ))}
           </ul>
         )}
       </Card>
+
+      <Modal
+        open={shown !== null}
+        onClose={() => setViewing(null)}
+        title={shown ? t("Version {n}", { n: shown.version }) : ""}
+        footer={
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setViewing(null)}>{t("Close")}</Button>
+            {canEdit && shown && shown.version !== data.version && shown.count > 0 && (
+              <Button onClick={() => restore(shown.version)} disabled={restoring}>
+                <History size={14} /> {restoring ? t("Restoring…") : t("Restore this version")}
+              </Button>
+            )}
+          </div>
+        }
+      >
+        {shown && (
+          <div className="space-y-3">
+            <p className="text-sm text-slate-600">
+              {shown.by === "ai" ? t("Suggested by AI {when}.", { when: when(shown.created_at, true) }) : t("Edited by the creator {when}.", { when: when(shown.created_at, true) })}
+              {shown.version !== data.version && " " + t("Restoring it saves a copy as a new version; nothing is lost.")}
+            </p>
+            {shown.chapters.length === 0 ? (
+              <p className="text-sm text-slate-500">{t("This version has no chapters.")}</p>
+            ) : (
+              <ol className="divide-y divide-slate-100 rounded-lg border border-slate-200">
+                {shown.chapters.map((c, i) => (
+                  <li key={`${c.start_ms}-${i}`} className="flex gap-3 px-3 py-2 text-sm">
+                    <span className="w-14 shrink-0 font-num text-slate-500">{clock(c.start_ms)}</span>
+                    <span className="min-w-0 text-slate-800">{c.title}</span>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </div>
+        )}
+      </Modal>
     </div>
   )
 }

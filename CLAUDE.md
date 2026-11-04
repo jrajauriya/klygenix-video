@@ -28,7 +28,9 @@ merchant of record abroad); trust & safety with scans, reports, strikes, appeals
 V0 + V1 (run 1), V2 Earn + V3 Community & learning (run 2), V4 Live + mobile store-ready + launch hardening (run 3)
 and run 4 (provider go-live readiness, trust & safety gaps, closed beta, and V5.1 ads / V5.2 sponsorships / V5.3 TV web
 app / V5.5 trained recommender started early by the owner) and run 5 (ad integrity & brand safety, Hindi & India-first,
-viewer growth, creator AI v2, V5.4 regions and V5.6 view pool) built and running **locally on sandbox
+viewer growth, creator AI v2, V5.4 regions and V5.6 view pool) and run 6 (run 5 gaps, channel teams, creator onboarding
+& admin support desk, partitions / tracing / slow-query report) and run 7 (error codes, account mails through the outbox,
+team mode finished, feed throughput, FastAPI 0.162) built and running **locally on sandbox
 providers**, not deployed (Nov 2026). Creator money runs on the sandbox rail only: live money waits for
 CA sign-off, creator KYC and Play's Razorpay Route keys. Every provider has a sandbox adapter and a real
 one behind the same interface, switched by `.env`. See `docs/BUILD-PLAN.md` for what is proven,
@@ -56,6 +58,7 @@ backend/app/
 ├── main.py, config.py        every setting has a dev default; sandbox providers by default
 ├── providers_check.py        which providers are real, missing/unsealed keys, webhook URLs; --live probe (launch day)
 ├── core/                     FORKED FROM STORE — tenants, users, auth, two gates, audit, api keys, readiness, metrics
+│                             · services/teams.py (channel members, roles, owner-only keys) · services/tracing.py (spans, OTLP)
 ├── ai/                       llm.py (Insurance: Azure Responses, breaker, budget, llm_calls) · stt · embed (1536) · textkit · captions · intel
 └── video/
     ├── models/               media · social · ai · studio · commerce · trust · ledger · tax  (schemas kv_media … kv_trust)
@@ -92,7 +95,8 @@ backend/app/
     │                         · community (posts, polls, moderators, translation, comment summary) · dubbing
     │                         · beta (waitlist, invites, feedback, onboarding, outbox) · ads · sponsorships
     │                         · growth (downloads, inbox, digest, subscriptions) · studio_ai (AI thumbnails, chapters,
-    │                           repurpose pack, calendar)
+    │                           repurpose pack, calendar) · teams (invites, acting channel, /me/channels)
+    │                         · onboarding (bulk YouTube import, handle rename, onboarding mails) · admin_support (desk)
     ├── jobs/                 RQ queues ai / render / default · scheduler · sweeps
     └── sessions.py           tenant_session() / platform_session()
 packages/  ui auth client types config fonts observe (from Store) · player (hls.js, DanmakuLayer, ChapterBar, YouTube/Bilibili embeds, DanmakuRail)
@@ -281,3 +285,32 @@ bash infra/local-stack.sh up && bash infra/local-stack.sh smoke   # production s
   followed channels, comment replies and deal events; the digest sweep runs at 08:00 IST (weekly on Mondays by default).
 - Downloads are licences, not DRM: `POST /videos/{id}/download` returns a 6-hour MP4 link and a 30-day signed licence the
   app re-checks (`/me/downloads/check`) — Premium lapsing or the video being removed withdraws it.
+- **Channel teams use an acting tenant, never a second `users.tenant_id`.** Studio requests carry `X-Kv-Tenant`;
+  `deps.studio()` checks an active `kv_admin.tenant_members` row, rebinds the session to that tenant and checks the member's
+  role (`teams.level`, role rows per tenant in `role_permissions`). Viewer routes ignore the header. `video.billing` and
+  `video.earnings` are owner-only whatever the matrix says; members never rename the handle. `kv_admin.tenant_members` has
+  no RLS (kv_admin), so every read filters by tenant or user by hand. API keys and support sessions cannot act as members.
+- **`kv_ai.reco_impressions` and `kv_admin.activity_log` are range-partitioned by month** (PK `(id, time)`). Only the
+  `_default` partition is made by the migration; the retention sweep calls `kv_admin.maintain_partitions()` (SECURITY
+  DEFINER — the app role cannot create or attach tables) to add this month and two ahead, move rows out of the default and
+  drop months past the policy. `dump-schema.sh`, the parity test and `alembic/env.py` ignore the dated `_pYYYYMM` children.
+- **Support sessions are read-only** (`get_current_user` refuses non-GET with an `imp` claim) and must set `app.tenant_id`
+  before reading `impersonation_sessions` (RLS) — the dev API runs as the app role.
+- Old channel handles live in `kv_social.channel_handles` for 180 days (`public_read`); `services/handles.resolve` finds a
+  channel by an old handle, `/api/video/render` answers 301 for `/@old…`, and every "handle taken" check uses `handles.taken`.
+- `@router.get("/repurpose/{pack_id:int}")` — without the `:int` convertor it swallows `/repurpose/5.md` and answers 422.
+- Tracing is off unless `OTEL_EXPORTER_OTLP_ENDPOINT` is set (or `TRACING=memory` in tests): request spans, `job <name>`
+  spans continued through `_traceparent`, `llm responses` client spans; OTLP/JSON over httpx, no OpenTelemetry dependency.
+- Dev Postgres preloads `pg_stat_statements`; `make -C infra slow-queries` / `slow-queries-reset` (`PG_CONTAINER` for stacks).
+- No `email-validator` in the venv — validate emails with a pattern, not `EmailStr`.
+- **Errors carry a code.** `err()` sets `X-Error-Code: <message_id>` and the HTTP error handler (`core/errors.py`) adds
+  `"code"` next to `"detail"`; apps branch on the code (e.g. `team_not_member`), never on translated text.
+- Account links (verify / reset / invite) go through `core/services/mailer.py` (`account_*` templates, EN/HI) — in sandbox
+  they land in the outbox; `send_link` commits.
+- "May this user act for that channel?" outside `deps.studio()` → `teams.can_act(db, user, tenant_id, keys)` (owner, or a
+  member whose role reaches the key). Comment/danmaku deletes and live-chat moderation use it.
+- Never write rows for another tenant from a studio session (RLS refuses them): notify an invitee with
+  `after_commit.later(db, push.notify_job, …)`, which runs in a platform session.
+- `counters.pending()` reads with a non-transactional pipeline; card builders pass channel counters prefetched once per page
+  (`video_card(..., channel_pend)`) — one Redis round trip per card was a quarter of the feed's time.
+

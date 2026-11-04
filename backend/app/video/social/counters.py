@@ -60,7 +60,7 @@ def pending(kind: str, ids: list[int]) -> dict[int, dict[str, int]]:
         return {}
     try:
         r = get_redis()
-        pipe = r.pipeline()
+        pipe = r.pipeline(transaction=False)
         for i in ids:
             pipe.hgetall(f"{PREFIX}:{kind}:{i}")
         out = {}

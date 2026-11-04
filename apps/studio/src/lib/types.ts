@@ -353,6 +353,36 @@ export interface Connected {
   sandbox: boolean
 }
 
+export interface RemoteVideo {
+  external_id: string
+  title: string
+  duration_ms: number
+  published_at: string | null
+  imported: boolean
+  public_id: string | null
+}
+
+export interface ImportItem {
+  external_id: string
+  title: string | null
+  status: "pending" | "done" | "failed" | "skipped"
+  error: string | null
+  video_id: number | null
+  public_id: string | null
+}
+
+export interface ImportJob {
+  id: number
+  connected_id: number
+  status: "queued" | "running" | "done" | "failed" | string
+  total: number
+  done: number
+  failed: number
+  created_at: string
+  finished_at: string | null
+  items?: ImportItem[]
+}
+
 export interface ModerationAction {
   id: number
   target_type: string
@@ -564,7 +594,7 @@ export interface ChapterRow {
 export interface ChaptersOut {
   chapters: ChapterRow[]
   version: number
-  history: { version: number; by: "ai" | "creator"; count: number; created_at: string }[]
+  history: { version: number; by: "ai" | "creator"; count: number; chapters: ChapterRow[]; created_at: string }[]
 }
 
 export interface RepurposePack {
@@ -578,6 +608,14 @@ export interface RepurposePack {
   citations: { start_ms: number; label: string; text: string }[]
   model: string
   created_at: string
+}
+
+export interface RepurposePackRow {
+  id: number
+  language: string
+  model: string
+  created_at: string
+  preview: string
 }
 
 export interface CalendarItem {

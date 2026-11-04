@@ -69,10 +69,16 @@ def _impersonating(request: Request, db: Session, user: User, payload: dict) -> 
 
     from app.core.models.impersonation import ImpersonationSession
 
+    from sqlalchemy import text
+
+    if user.tenant_id:
+        db.execute(text("SELECT set_config('app.tenant_id', :tid, true)"), {"tid": str(user.tenant_id)})
     imp = db.get(ImpersonationSession, payload.get("imp"))
     now = datetime.now(timezone.utc)
     if imp is None or imp.target_user_id != user.id or imp.ended_at is not None or imp.expires_at <= now:
         raise err(status.HTTP_401_UNAUTHORIZED, "support_session_has_ended")
+    if request.method not in ("GET", "HEAD", "OPTIONS"):
+        raise err(status.HTTP_403_FORBIDDEN, "support_sessions_read_only")
     staff = db.get(User, imp.staff_user_id)
     user.impersonated_by = {"session_id": imp.id, "staff_user_id": imp.staff_user_id,
                             "staff_email": staff.email if staff else payload.get("imp_by"),

@@ -8,7 +8,8 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
-from app.core.messages import err
+from app.core.messages import current_lang, err
+from app.core.services import teams
 from app.video.models.media import Video
 from app.video.models.social import Channel, Comment, Danmaku, Follow, Like, Profile, WatchProgress
 from app.video.present import iso
@@ -28,7 +29,9 @@ COLOR = r"^#[0-9A-Fa-f]{6}$"
 
 
 def _channel(db, handle: str) -> Channel:
-    c = db.execute(select(Channel).where(Channel.handle == handle.lower().lstrip("@"))).scalars().first()
+    from app.video.services import handles
+
+    c, _ = handles.resolve(db, handle)
     if c is None or c.is_suspended:
         raise err(404, "channel_not_found")
     return c
@@ -181,7 +184,7 @@ def delete_comment(comment_id: int, ctx: Ctx = Depends(signed_in)):
         if c is None:
             raise err(404, "video_not_found")
         v = db.get(Video, c.video_id)
-        if c.user_id != ctx.user.id and (v is None or v.tenant_id != ctx.tenant_id):
+        if c.user_id != ctx.user.id and (v is None or not teams.can_act(db, ctx.user, v.tenant_id, ("video.comments",))):
             raise err(403, "action_not_allowed")
         if c.status == "visible":
             counters.incr("video", c.video_id, "comment_count", -1)
@@ -242,7 +245,7 @@ def delete_danmaku(danmaku_id: int, ctx: Ctx = Depends(signed_in)):
         if d is None:
             raise err(404, "video_not_found")
         v = db.get(Video, d.video_id)
-        if d.user_id != ctx.user.id and (v is None or v.tenant_id != ctx.tenant_id):
+        if d.user_id != ctx.user.id and (v is None or not teams.can_act(db, ctx.user, v.tenant_id, ("video.comments",))):
             raise err(403, "action_not_allowed")
         if d.paid_minor and d.checkout_id and d.status == "visible" and d.user_id != ctx.user.id:
             from app.video.commerce import refunds
@@ -350,7 +353,7 @@ def home(response: Response, limit: int = Query(24, le=60), offset: int = 0, vie
         return len(rows), _cards(viewer.db, rows[offset:offset + limit], viewer.user.id if viewer.user else None)
 
     if viewer.user is None:
-        return _cached(f"kv:feed:home:{limit}:{offset}", response, build)
+        return _cached(f"kv:feed:home:{current_lang()}:{limit}:{offset}", response, build)
     total, body = build()
     response.headers["X-Total-Count"] = str(total)
     return body
@@ -381,7 +384,7 @@ def reels(response: Response, limit: int = Query(10, le=30), offset: int = 0, vi
         return len(rows), cards
 
     if viewer.user is None:
-        return _cached(f"kv:feed:reels:{limit}:{offset}", response, build)
+        return _cached(f"kv:feed:reels:{current_lang()}:{limit}:{offset}", response, build)
     total, body = build()
     response.headers["X-Total-Count"] = str(total)
     return body

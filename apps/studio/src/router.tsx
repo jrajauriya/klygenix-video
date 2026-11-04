@@ -1,8 +1,8 @@
 import type { ReactNode } from "react"
 import { ForgotPage, InvitePage, ResetPage, SignupPage, VerifyPage } from "@klygenixvideo/auth"
 import { createBrowserRouter } from "react-router-dom"
-import { ProtectedRoute } from "@klygenixvideo/client"
 import { StudioLayout } from "./components/layout/StudioLayout"
+import { Guard } from "./components/team/Guard"
 import Login from "./pages/Login"
 import Onboarding from "./pages/Onboarding"
 import Dashboard from "./pages/Dashboard"
@@ -29,12 +29,9 @@ import Campaigns from "./pages/brand/Campaigns"
 import CampaignDetail from "./pages/brand/CampaignDetail"
 import Briefs from "./pages/brand/Briefs"
 import BrandDeals from "./pages/brand/BrandDeals"
+import TeamAccept from "./pages/TeamAccept"
 
-const guard = (key: string, element: ReactNode) => (
-  <ProtectedRoute featureKey={key} permissionKey={key}>
-    {element}
-  </ProtectedRoute>
-)
+const guard = (key: string, element: ReactNode) => <Guard k={key}>{element}</Guard>
 
 export const router = createBrowserRouter([
   { path: "/login", element: <Login /> },
@@ -46,6 +43,7 @@ export const router = createBrowserRouter([
   {
     element: <StudioLayout />,
     children: [
+      { path: "/team/accept", element: <TeamAccept /> },
       { path: "/welcome", element: guard("video.channels", <Onboarding />) },
       { path: "/", element: guard("video.dashboard", <Dashboard />) },
       { path: "/videos", element: guard("video.uploads", <Videos />) },

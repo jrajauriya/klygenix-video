@@ -148,6 +148,61 @@ CREATE FUNCTION kv_admin.is_platform() RETURNS boolean
 
 
 --
+-- Name: maintain_partitions(text, text, text, integer, integer); Type: FUNCTION; Schema: kv_admin; Owner: -
+--
+
+CREATE FUNCTION kv_admin.maintain_partitions(p_schema text, p_table text, p_column text, p_ahead integer, p_keep_days integer) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'pg_temp'
+    AS $_$
+DECLARE
+    v_today date := (now() AT TIME ZONE 'UTC')::date;
+    v_oldest timestamp;
+    v_month date;
+    v_next date;
+    v_name text;
+    v_n bigint;
+    v_moved bigint := 0;
+    v_keep date;
+    v_created text[] := '{}';
+    v_dropped text[] := '{}';
+    r record;
+BEGIN
+    IF (p_schema, p_table, p_column) NOT IN (('kv_ai', 'reco_impressions', 'shown_at'), ('kv_admin', 'activity_log', 'occurred_at')) THEN
+        RAISE EXCEPTION 'not a partitioned table: %.%', p_schema, p_table;
+    END IF;
+    EXECUTE format('SELECT min(%I)::timestamp FROM %I.%I', p_column, p_schema, p_table || '_default') INTO v_oldest;
+    v_month := date_trunc('month', LEAST(COALESCE(v_oldest::date, v_today), v_today))::date;
+    WHILE v_month <= (date_trunc('month', v_today) + make_interval(months => p_ahead))::date LOOP
+        v_next := (v_month + interval '1 month')::date;
+        v_name := p_table || '_p' || to_char(v_month, 'YYYYMM');
+        IF to_regclass(format('%I.%I', p_schema, v_name)) IS NULL THEN
+            EXECUTE format('CREATE TABLE %I.%I (LIKE %I.%I INCLUDING DEFAULTS)', p_schema, v_name, p_schema, p_table);
+            EXECUTE format('WITH m AS (DELETE FROM %I.%I WHERE %I >= %L AND %I < %L RETURNING *) INSERT INTO %I.%I SELECT * FROM m',
+                           p_schema, p_table || '_default', p_column, v_month, p_column, v_next, p_schema, v_name);
+            GET DIAGNOSTICS v_n = ROW_COUNT;
+            v_moved := v_moved + v_n;
+            EXECUTE format('ALTER TABLE %I.%I ATTACH PARTITION %I.%I FOR VALUES FROM (%L) TO (%L)',
+                           p_schema, p_table, p_schema, v_name, v_month, v_next);
+            v_created := v_created || (p_schema || '.' || v_name);
+        END IF;
+        v_month := v_next;
+    END LOOP;
+    v_keep := date_trunc('month', v_today - p_keep_days)::date;
+    FOR r IN SELECT c.relname FROM pg_inherits i JOIN pg_class c ON c.oid = i.inhrelid JOIN pg_class p ON p.oid = i.inhparent
+             JOIN pg_namespace n ON n.oid = p.relnamespace
+             WHERE n.nspname = p_schema AND p.relname = p_table AND c.relname ~ ('^' || p_table || '_p[0-9]{6}$') LOOP
+        IF (to_date(right(r.relname, 6), 'YYYYMM') + interval '1 month')::date <= v_keep THEN
+            EXECUTE format('DROP TABLE %I.%I', p_schema, r.relname);
+            v_dropped := v_dropped || (p_schema || '.' || r.relname);
+        END IF;
+    END LOOP;
+    RETURN jsonb_build_object('created', to_jsonb(v_created), 'dropped', to_jsonb(v_dropped), 'moved', v_moved);
+END
+$_$;
+
+
+--
 -- Name: provider_events_immutable(); Type: FUNCTION; Schema: kv_commerce; Owner: -
 --
 
@@ -187,8 +242,6 @@ CREATE FUNCTION kv_media.video_readable(vid bigint) RETURNS boolean
 
 SET default_tablespace = '';
 
-SET default_table_access_method = heap;
-
 --
 -- Name: activity_log; Type: TABLE; Schema: kv_admin; Owner: -
 --
@@ -208,7 +261,8 @@ CREATE TABLE kv_admin.activity_log (
     duration_ms integer,
     ip character varying(45),
     user_agent character varying(300)
-);
+)
+PARTITION BY RANGE (occurred_at);
 
 
 --
@@ -228,6 +282,30 @@ CREATE SEQUENCE kv_admin.activity_log_id_seq
 --
 
 ALTER SEQUENCE kv_admin.activity_log_id_seq OWNED BY kv_admin.activity_log.id;
+
+
+SET default_table_access_method = heap;
+
+--
+-- Name: activity_log_default; Type: TABLE; Schema: kv_admin; Owner: -
+--
+
+CREATE TABLE kv_admin.activity_log_default (
+    id bigint DEFAULT nextval('kv_admin.activity_log_id_seq'::regclass) NOT NULL,
+    tenant_id integer,
+    user_id integer,
+    occurred_at timestamp without time zone NOT NULL,
+    app character varying(10) NOT NULL,
+    kind character varying(10) NOT NULL,
+    label character varying(200) NOT NULL,
+    method character varying(10) NOT NULL,
+    path character varying(300) NOT NULL,
+    entity_id character varying(50),
+    status_code smallint NOT NULL,
+    duration_ms integer,
+    ip character varying(45),
+    user_agent character varying(300)
+);
 
 
 --
@@ -684,6 +762,47 @@ ALTER SEQUENCE kv_admin.tenant_features_id_seq OWNED BY kv_admin.tenant_features
 
 
 --
+-- Name: tenant_members; Type: TABLE; Schema: kv_admin; Owner: -
+--
+
+CREATE TABLE kv_admin.tenant_members (
+    id bigint NOT NULL,
+    tenant_id integer NOT NULL,
+    user_id integer,
+    email character varying(200) NOT NULL,
+    role character varying(12) NOT NULL,
+    status character varying(10) DEFAULT 'invited'::character varying NOT NULL,
+    token_hash character varying(64),
+    invited_by integer,
+    expires_at timestamp with time zone,
+    accepted_at timestamp with time zone,
+    removed_at timestamp with time zone,
+    created_at timestamp with time zone NOT NULL,
+    CONSTRAINT ck_tenant_members_role CHECK (((role)::text = ANY ((ARRAY['manager'::character varying, 'editor'::character varying, 'moderator'::character varying, 'analyst'::character varying])::text[]))),
+    CONSTRAINT ck_tenant_members_status CHECK (((status)::text = ANY ((ARRAY['invited'::character varying, 'active'::character varying, 'removed'::character varying])::text[])))
+);
+
+
+--
+-- Name: tenant_members_id_seq; Type: SEQUENCE; Schema: kv_admin; Owner: -
+--
+
+CREATE SEQUENCE kv_admin.tenant_members_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: tenant_members_id_seq; Type: SEQUENCE OWNED BY; Schema: kv_admin; Owner: -
+--
+
+ALTER SEQUENCE kv_admin.tenant_members_id_seq OWNED BY kv_admin.tenant_members.id;
+
+
+--
 -- Name: tenant_modules; Type: TABLE; Schema: kv_admin; Owner: -
 --
 
@@ -1112,7 +1231,8 @@ CREATE TABLE kv_ai.reco_impressions (
     shown_at timestamp with time zone NOT NULL,
     clicked_at timestamp with time zone,
     labelled boolean DEFAULT false NOT NULL
-);
+)
+PARTITION BY RANGE (shown_at);
 
 
 --
@@ -1132,6 +1252,23 @@ CREATE SEQUENCE kv_ai.reco_impressions_id_seq
 --
 
 ALTER SEQUENCE kv_ai.reco_impressions_id_seq OWNED BY kv_ai.reco_impressions.id;
+
+
+--
+-- Name: reco_impressions_default; Type: TABLE; Schema: kv_ai; Owner: -
+--
+
+CREATE TABLE kv_ai.reco_impressions_default (
+    id bigint DEFAULT nextval('kv_ai.reco_impressions_id_seq'::regclass) NOT NULL,
+    user_id integer NOT NULL,
+    video_id bigint NOT NULL,
+    "position" integer NOT NULL,
+    surface character varying(8) NOT NULL,
+    arm character varying(10) NOT NULL,
+    shown_at timestamp with time zone NOT NULL,
+    clicked_at timestamp with time zone,
+    labelled boolean DEFAULT false NOT NULL
+);
 
 
 --
@@ -2406,6 +2543,81 @@ ALTER SEQUENCE kv_media.dub_tracks_id_seq OWNED BY kv_media.dub_tracks.id;
 
 
 --
+-- Name: import_items; Type: TABLE; Schema: kv_media; Owner: -
+--
+
+CREATE TABLE kv_media.import_items (
+    id bigint NOT NULL,
+    tenant_id integer NOT NULL,
+    job_id bigint NOT NULL,
+    external_id character varying(40) NOT NULL,
+    title character varying(200) DEFAULT ''::character varying NOT NULL,
+    status character varying(8) DEFAULT 'pending'::character varying NOT NULL,
+    video_id bigint,
+    error character varying(300),
+    updated_at timestamp with time zone,
+    CONSTRAINT ck_import_items_status CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'done'::character varying, 'failed'::character varying, 'skipped'::character varying])::text[])))
+);
+
+
+--
+-- Name: import_items_id_seq; Type: SEQUENCE; Schema: kv_media; Owner: -
+--
+
+CREATE SEQUENCE kv_media.import_items_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: import_items_id_seq; Type: SEQUENCE OWNED BY; Schema: kv_media; Owner: -
+--
+
+ALTER SEQUENCE kv_media.import_items_id_seq OWNED BY kv_media.import_items.id;
+
+
+--
+-- Name: import_jobs; Type: TABLE; Schema: kv_media; Owner: -
+--
+
+CREATE TABLE kv_media.import_jobs (
+    id bigint NOT NULL,
+    tenant_id integer NOT NULL,
+    connected_id bigint NOT NULL,
+    status character varying(8) DEFAULT 'queued'::character varying NOT NULL,
+    total integer DEFAULT 0 NOT NULL,
+    done integer DEFAULT 0 NOT NULL,
+    failed integer DEFAULT 0 NOT NULL,
+    created_by integer,
+    created_at timestamp with time zone NOT NULL,
+    finished_at timestamp with time zone,
+    CONSTRAINT ck_import_jobs_status CHECK (((status)::text = ANY ((ARRAY['queued'::character varying, 'running'::character varying, 'done'::character varying, 'failed'::character varying])::text[])))
+);
+
+
+--
+-- Name: import_jobs_id_seq; Type: SEQUENCE; Schema: kv_media; Owner: -
+--
+
+CREATE SEQUENCE kv_media.import_jobs_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: import_jobs_id_seq; Type: SEQUENCE OWNED BY; Schema: kv_media; Owner: -
+--
+
+ALTER SEQUENCE kv_media.import_jobs_id_seq OWNED BY kv_media.import_jobs.id;
+
+
+--
 -- Name: live_streams; Type: TABLE; Schema: kv_media; Owner: -
 --
 
@@ -2580,6 +2792,39 @@ CREATE SEQUENCE kv_media.videos_id_seq
 --
 
 ALTER SEQUENCE kv_media.videos_id_seq OWNED BY kv_media.videos.id;
+
+
+--
+-- Name: channel_handles; Type: TABLE; Schema: kv_social; Owner: -
+--
+
+CREATE TABLE kv_social.channel_handles (
+    id bigint NOT NULL,
+    tenant_id integer NOT NULL,
+    channel_id bigint NOT NULL,
+    handle character varying(40) NOT NULL,
+    retired_at timestamp with time zone NOT NULL,
+    reserved_until timestamp with time zone NOT NULL
+);
+
+
+--
+-- Name: channel_handles_id_seq; Type: SEQUENCE; Schema: kv_social; Owner: -
+--
+
+CREATE SEQUENCE kv_social.channel_handles_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: channel_handles_id_seq; Type: SEQUENCE OWNED BY; Schema: kv_social; Owner: -
+--
+
+ALTER SEQUENCE kv_social.channel_handles_id_seq OWNED BY kv_social.channel_handles.id;
 
 
 --
@@ -2976,7 +3221,9 @@ CREATE TABLE kv_social.notifications (
     dedupe_key character varying(120),
     read_at timestamp with time zone,
     digest_sent_at timestamp with time zone,
-    created_at timestamp with time zone NOT NULL
+    created_at timestamp with time zone NOT NULL,
+    app character varying(8) DEFAULT 'all'::character varying NOT NULL,
+    CONSTRAINT ck_notifications_app CHECK (((app)::text = ANY ((ARRAY['all'::character varying, 'viewer'::character varying, 'studio'::character varying])::text[])))
 );
 
 
@@ -3893,6 +4140,20 @@ ALTER SEQUENCE kv_trust.takedowns_id_seq OWNED BY kv_trust.takedowns.id;
 
 
 --
+-- Name: activity_log_default; Type: TABLE ATTACH; Schema: kv_admin; Owner: -
+--
+
+ALTER TABLE ONLY kv_admin.activity_log ATTACH PARTITION kv_admin.activity_log_default DEFAULT;
+
+
+--
+-- Name: reco_impressions_default; Type: TABLE ATTACH; Schema: kv_ai; Owner: -
+--
+
+ALTER TABLE ONLY kv_ai.reco_impressions ATTACH PARTITION kv_ai.reco_impressions_default DEFAULT;
+
+
+--
 -- Name: activity_log id; Type: DEFAULT; Schema: kv_admin; Owner: -
 --
 
@@ -3981,6 +4242,13 @@ ALTER TABLE ONLY kv_admin.role_permissions ALTER COLUMN id SET DEFAULT nextval('
 --
 
 ALTER TABLE ONLY kv_admin.tenant_features ALTER COLUMN id SET DEFAULT nextval('kv_admin.tenant_features_id_seq'::regclass);
+
+
+--
+-- Name: tenant_members id; Type: DEFAULT; Schema: kv_admin; Owner: -
+--
+
+ALTER TABLE ONLY kv_admin.tenant_members ALTER COLUMN id SET DEFAULT nextval('kv_admin.tenant_members_id_seq'::regclass);
 
 
 --
@@ -4278,6 +4546,20 @@ ALTER TABLE ONLY kv_media.dub_tracks ALTER COLUMN id SET DEFAULT nextval('kv_med
 
 
 --
+-- Name: import_items id; Type: DEFAULT; Schema: kv_media; Owner: -
+--
+
+ALTER TABLE ONLY kv_media.import_items ALTER COLUMN id SET DEFAULT nextval('kv_media.import_items_id_seq'::regclass);
+
+
+--
+-- Name: import_jobs id; Type: DEFAULT; Schema: kv_media; Owner: -
+--
+
+ALTER TABLE ONLY kv_media.import_jobs ALTER COLUMN id SET DEFAULT nextval('kv_media.import_jobs_id_seq'::regclass);
+
+
+--
 -- Name: live_streams id; Type: DEFAULT; Schema: kv_media; Owner: -
 --
 
@@ -4296,6 +4578,13 @@ ALTER TABLE ONLY kv_media.product_links ALTER COLUMN id SET DEFAULT nextval('kv_
 --
 
 ALTER TABLE ONLY kv_media.videos ALTER COLUMN id SET DEFAULT nextval('kv_media.videos_id_seq'::regclass);
+
+
+--
+-- Name: channel_handles id; Type: DEFAULT; Schema: kv_social; Owner: -
+--
+
+ALTER TABLE ONLY kv_social.channel_handles ALTER COLUMN id SET DEFAULT nextval('kv_social.channel_handles_id_seq'::regclass);
 
 
 --
@@ -4541,7 +4830,15 @@ ALTER TABLE ONLY kv_trust.takedowns ALTER COLUMN id SET DEFAULT nextval('kv_trus
 --
 
 ALTER TABLE ONLY kv_admin.activity_log
-    ADD CONSTRAINT activity_log_pkey PRIMARY KEY (id);
+    ADD CONSTRAINT activity_log_pkey PRIMARY KEY (id, occurred_at);
+
+
+--
+-- Name: activity_log_default activity_log_default_pkey; Type: CONSTRAINT; Schema: kv_admin; Owner: -
+--
+
+ALTER TABLE ONLY kv_admin.activity_log_default
+    ADD CONSTRAINT activity_log_default_pkey PRIMARY KEY (id, occurred_at);
 
 
 --
@@ -4638,6 +4935,14 @@ ALTER TABLE ONLY kv_admin.role_permissions
 
 ALTER TABLE ONLY kv_admin.tenant_features
     ADD CONSTRAINT tenant_features_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: tenant_members tenant_members_pkey; Type: CONSTRAINT; Schema: kv_admin; Owner: -
+--
+
+ALTER TABLE ONLY kv_admin.tenant_members
+    ADD CONSTRAINT tenant_members_pkey PRIMARY KEY (id);
 
 
 --
@@ -4789,7 +5094,15 @@ ALTER TABLE ONLY kv_ai.llm_calls
 --
 
 ALTER TABLE ONLY kv_ai.reco_impressions
-    ADD CONSTRAINT reco_impressions_pkey PRIMARY KEY (id);
+    ADD CONSTRAINT reco_impressions_pkey PRIMARY KEY (id, shown_at);
+
+
+--
+-- Name: reco_impressions_default reco_impressions_default_pkey; Type: CONSTRAINT; Schema: kv_ai; Owner: -
+--
+
+ALTER TABLE ONLY kv_ai.reco_impressions_default
+    ADD CONSTRAINT reco_impressions_default_pkey PRIMARY KEY (id, shown_at);
 
 
 --
@@ -5233,6 +5546,22 @@ ALTER TABLE ONLY kv_media.dub_tracks
 
 
 --
+-- Name: import_items import_items_pkey; Type: CONSTRAINT; Schema: kv_media; Owner: -
+--
+
+ALTER TABLE ONLY kv_media.import_items
+    ADD CONSTRAINT import_items_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: import_jobs import_jobs_pkey; Type: CONSTRAINT; Schema: kv_media; Owner: -
+--
+
+ALTER TABLE ONLY kv_media.import_jobs
+    ADD CONSTRAINT import_jobs_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: live_streams live_streams_pkey; Type: CONSTRAINT; Schema: kv_media; Owner: -
 --
 
@@ -5265,6 +5594,14 @@ ALTER TABLE ONLY kv_media.dub_tracks
 
 
 --
+-- Name: import_items uq_import_items_job_external; Type: CONSTRAINT; Schema: kv_media; Owner: -
+--
+
+ALTER TABLE ONLY kv_media.import_items
+    ADD CONSTRAINT uq_import_items_job_external UNIQUE (job_id, external_id);
+
+
+--
 -- Name: live_streams uq_live_streams_public_id; Type: CONSTRAINT; Schema: kv_media; Owner: -
 --
 
@@ -5294,6 +5631,14 @@ ALTER TABLE ONLY kv_media.videos
 
 ALTER TABLE ONLY kv_media.videos
     ADD CONSTRAINT videos_public_id_key UNIQUE (public_id);
+
+
+--
+-- Name: channel_handles channel_handles_pkey; Type: CONSTRAINT; Schema: kv_social; Owner: -
+--
+
+ALTER TABLE ONLY kv_social.channel_handles
+    ADD CONSTRAINT channel_handles_pkey PRIMARY KEY (id);
 
 
 --
@@ -5462,6 +5807,14 @@ ALTER TABLE ONLY kv_social.push_messages
 
 ALTER TABLE ONLY kv_social.quiz_attempts
     ADD CONSTRAINT quiz_attempts_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: channel_handles uq_channel_handles_handle; Type: CONSTRAINT; Schema: kv_social; Owner: -
+--
+
+ALTER TABLE ONLY kv_social.channel_handles
+    ADD CONSTRAINT uq_channel_handles_handle UNIQUE (handle);
 
 
 --
@@ -5737,17 +6090,45 @@ ALTER TABLE ONLY kv_trust.takedowns
 
 
 --
+-- Name: ix_kv_admin_activity_log_tenant_id; Type: INDEX; Schema: kv_admin; Owner: -
+--
+
+CREATE INDEX ix_kv_admin_activity_log_tenant_id ON ONLY kv_admin.activity_log USING btree (tenant_id);
+
+
+--
+-- Name: activity_log_default_tenant_id_idx; Type: INDEX; Schema: kv_admin; Owner: -
+--
+
+CREATE INDEX activity_log_default_tenant_id_idx ON kv_admin.activity_log_default USING btree (tenant_id);
+
+
+--
 -- Name: idx_activity_log_tenant_time; Type: INDEX; Schema: kv_admin; Owner: -
 --
 
-CREATE INDEX idx_activity_log_tenant_time ON kv_admin.activity_log USING btree (tenant_id, occurred_at);
+CREATE INDEX idx_activity_log_tenant_time ON ONLY kv_admin.activity_log USING btree (tenant_id, occurred_at);
+
+
+--
+-- Name: activity_log_default_tenant_id_occurred_at_idx; Type: INDEX; Schema: kv_admin; Owner: -
+--
+
+CREATE INDEX activity_log_default_tenant_id_occurred_at_idx ON kv_admin.activity_log_default USING btree (tenant_id, occurred_at);
 
 
 --
 -- Name: idx_activity_log_user_time; Type: INDEX; Schema: kv_admin; Owner: -
 --
 
-CREATE INDEX idx_activity_log_user_time ON kv_admin.activity_log USING btree (user_id, occurred_at);
+CREATE INDEX idx_activity_log_user_time ON ONLY kv_admin.activity_log USING btree (user_id, occurred_at);
+
+
+--
+-- Name: activity_log_default_user_id_occurred_at_idx; Type: INDEX; Schema: kv_admin; Owner: -
+--
+
+CREATE INDEX activity_log_default_user_id_occurred_at_idx ON kv_admin.activity_log_default USING btree (user_id, occurred_at);
 
 
 --
@@ -5793,17 +6174,17 @@ CREATE INDEX idx_recovery_codes_user ON kv_admin.recovery_codes USING btree (use
 
 
 --
+-- Name: idx_tenant_members_user; Type: INDEX; Schema: kv_admin; Owner: -
+--
+
+CREATE INDEX idx_tenant_members_user ON kv_admin.tenant_members USING btree (user_id, status);
+
+
+--
 -- Name: idx_waitlist_status; Type: INDEX; Schema: kv_admin; Owner: -
 --
 
 CREATE INDEX idx_waitlist_status ON kv_admin.waitlist USING btree (status, created_at);
-
-
---
--- Name: ix_kv_admin_activity_log_tenant_id; Type: INDEX; Schema: kv_admin; Owner: -
---
-
-CREATE INDEX ix_kv_admin_activity_log_tenant_id ON kv_admin.activity_log USING btree (tenant_id);
 
 
 --
@@ -5849,6 +6230,13 @@ CREATE INDEX ix_kv_admin_tenant_features_tenant_id ON kv_admin.tenant_features U
 
 
 --
+-- Name: ix_kv_admin_tenant_members_tenant_id; Type: INDEX; Schema: kv_admin; Owner: -
+--
+
+CREATE INDEX ix_kv_admin_tenant_members_tenant_id ON kv_admin.tenant_members USING btree (tenant_id);
+
+
+--
 -- Name: ix_kv_admin_tenant_modules_tenant_id; Type: INDEX; Schema: kv_admin; Owner: -
 --
 
@@ -5867,6 +6255,13 @@ CREATE INDEX ix_kv_admin_tenant_payments_tenant_id ON kv_admin.tenant_payments U
 --
 
 CREATE INDEX ix_kv_admin_users_tenant_id ON kv_admin.users USING btree (tenant_id);
+
+
+--
+-- Name: uq_tenant_members_open; Type: INDEX; Schema: kv_admin; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_tenant_members_open ON kv_admin.tenant_members USING btree (tenant_id, email) WHERE ((status)::text <> 'removed'::text);
 
 
 --
@@ -5901,14 +6296,14 @@ CREATE INDEX idx_insights_video ON kv_ai.insights USING btree (video_id, languag
 -- Name: idx_reco_impressions_shown; Type: INDEX; Schema: kv_ai; Owner: -
 --
 
-CREATE INDEX idx_reco_impressions_shown ON kv_ai.reco_impressions USING btree (shown_at);
+CREATE INDEX idx_reco_impressions_shown ON ONLY kv_ai.reco_impressions USING btree (shown_at);
 
 
 --
 -- Name: idx_reco_impressions_user; Type: INDEX; Schema: kv_ai; Owner: -
 --
 
-CREATE INDEX idx_reco_impressions_user ON kv_ai.reco_impressions USING btree (user_id, shown_at);
+CREATE INDEX idx_reco_impressions_user ON ONLY kv_ai.reco_impressions USING btree (user_id, shown_at);
 
 
 --
@@ -6021,6 +6416,20 @@ CREATE INDEX ix_kv_ai_transcripts_tenant_id ON kv_ai.transcripts USING btree (te
 --
 
 CREATE INDEX ix_kv_ai_transcripts_video_id ON kv_ai.transcripts USING btree (video_id);
+
+
+--
+-- Name: reco_impressions_default_shown_at_idx; Type: INDEX; Schema: kv_ai; Owner: -
+--
+
+CREATE INDEX reco_impressions_default_shown_at_idx ON kv_ai.reco_impressions_default USING btree (shown_at);
+
+
+--
+-- Name: reco_impressions_default_user_id_shown_at_idx; Type: INDEX; Schema: kv_ai; Owner: -
+--
+
+CREATE INDEX reco_impressions_default_user_id_shown_at_idx ON kv_ai.reco_impressions_default USING btree (user_id, shown_at);
 
 
 --
@@ -6269,6 +6678,13 @@ CREATE UNIQUE INDEX uq_accounts_role ON kv_ledger.accounts USING btree (tenant_i
 
 
 --
+-- Name: idx_import_items_job; Type: INDEX; Schema: kv_media; Owner: -
+--
+
+CREATE INDEX idx_import_items_job ON kv_media.import_items USING btree (job_id, status);
+
+
+--
 -- Name: idx_live_streams_status; Type: INDEX; Schema: kv_media; Owner: -
 --
 
@@ -6339,6 +6755,20 @@ CREATE INDEX ix_kv_media_dub_tracks_tenant_id ON kv_media.dub_tracks USING btree
 
 
 --
+-- Name: ix_kv_media_import_items_tenant_id; Type: INDEX; Schema: kv_media; Owner: -
+--
+
+CREATE INDEX ix_kv_media_import_items_tenant_id ON kv_media.import_items USING btree (tenant_id);
+
+
+--
+-- Name: ix_kv_media_import_jobs_tenant_id; Type: INDEX; Schema: kv_media; Owner: -
+--
+
+CREATE INDEX ix_kv_media_import_jobs_tenant_id ON kv_media.import_jobs USING btree (tenant_id);
+
+
+--
 -- Name: ix_kv_media_live_streams_tenant_id; Type: INDEX; Schema: kv_media; Owner: -
 --
 
@@ -6357,6 +6787,13 @@ CREATE INDEX ix_kv_media_product_links_tenant_id ON kv_media.product_links USING
 --
 
 CREATE INDEX ix_kv_media_videos_tenant_id ON kv_media.videos USING btree (tenant_id);
+
+
+--
+-- Name: idx_channel_handles_channel; Type: INDEX; Schema: kv_social; Owner: -
+--
+
+CREATE INDEX idx_channel_handles_channel ON kv_social.channel_handles USING btree (channel_id);
 
 
 --
@@ -6420,6 +6857,13 @@ CREATE INDEX idx_push_messages_user ON kv_social.push_messages USING btree (user
 --
 
 CREATE INDEX idx_quiz_attempts_user ON kv_social.quiz_attempts USING btree (user_id, video_id);
+
+
+--
+-- Name: ix_kv_social_channel_handles_tenant_id; Type: INDEX; Schema: kv_social; Owner: -
+--
+
+CREATE INDEX ix_kv_social_channel_handles_tenant_id ON kv_social.channel_handles USING btree (tenant_id);
 
 
 --
@@ -6731,6 +7175,55 @@ CREATE INDEX ix_kv_trust_takedowns_tenant_id ON kv_trust.takedowns USING btree (
 
 
 --
+-- Name: activity_log_default_pkey; Type: INDEX ATTACH; Schema: kv_admin; Owner: -
+--
+
+ALTER INDEX kv_admin.activity_log_pkey ATTACH PARTITION kv_admin.activity_log_default_pkey;
+
+
+--
+-- Name: activity_log_default_tenant_id_idx; Type: INDEX ATTACH; Schema: kv_admin; Owner: -
+--
+
+ALTER INDEX kv_admin.ix_kv_admin_activity_log_tenant_id ATTACH PARTITION kv_admin.activity_log_default_tenant_id_idx;
+
+
+--
+-- Name: activity_log_default_tenant_id_occurred_at_idx; Type: INDEX ATTACH; Schema: kv_admin; Owner: -
+--
+
+ALTER INDEX kv_admin.idx_activity_log_tenant_time ATTACH PARTITION kv_admin.activity_log_default_tenant_id_occurred_at_idx;
+
+
+--
+-- Name: activity_log_default_user_id_occurred_at_idx; Type: INDEX ATTACH; Schema: kv_admin; Owner: -
+--
+
+ALTER INDEX kv_admin.idx_activity_log_user_time ATTACH PARTITION kv_admin.activity_log_default_user_id_occurred_at_idx;
+
+
+--
+-- Name: reco_impressions_default_pkey; Type: INDEX ATTACH; Schema: kv_ai; Owner: -
+--
+
+ALTER INDEX kv_ai.reco_impressions_pkey ATTACH PARTITION kv_ai.reco_impressions_default_pkey;
+
+
+--
+-- Name: reco_impressions_default_shown_at_idx; Type: INDEX ATTACH; Schema: kv_ai; Owner: -
+--
+
+ALTER INDEX kv_ai.idx_reco_impressions_shown ATTACH PARTITION kv_ai.reco_impressions_default_shown_at_idx;
+
+
+--
+-- Name: reco_impressions_default_user_id_shown_at_idx; Type: INDEX ATTACH; Schema: kv_ai; Owner: -
+--
+
+ALTER INDEX kv_ai.idx_reco_impressions_user ATTACH PARTITION kv_ai.reco_impressions_default_user_id_shown_at_idx;
+
+
+--
 -- Name: provider_events trg_provider_events_immutable; Type: TRIGGER; Schema: kv_commerce; Owner: -
 --
 
@@ -6741,7 +7234,7 @@ CREATE TRIGGER trg_provider_events_immutable BEFORE UPDATE ON kv_commerce.provid
 -- Name: activity_log activity_log_tenant_id_fkey; Type: FK CONSTRAINT; Schema: kv_admin; Owner: -
 --
 
-ALTER TABLE ONLY kv_admin.activity_log
+ALTER TABLE kv_admin.activity_log
     ADD CONSTRAINT activity_log_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES kv_admin.tenants(id) ON DELETE CASCADE;
 
 
@@ -6749,7 +7242,7 @@ ALTER TABLE ONLY kv_admin.activity_log
 -- Name: activity_log activity_log_user_id_fkey; Type: FK CONSTRAINT; Schema: kv_admin; Owner: -
 --
 
-ALTER TABLE ONLY kv_admin.activity_log
+ALTER TABLE kv_admin.activity_log
     ADD CONSTRAINT activity_log_user_id_fkey FOREIGN KEY (user_id) REFERENCES kv_admin.users(id);
 
 
@@ -6847,6 +7340,22 @@ ALTER TABLE ONLY kv_admin.role_permissions
 
 ALTER TABLE ONLY kv_admin.tenant_features
     ADD CONSTRAINT tenant_features_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES kv_admin.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: tenant_members tenant_members_tenant_id_fkey; Type: FK CONSTRAINT; Schema: kv_admin; Owner: -
+--
+
+ALTER TABLE ONLY kv_admin.tenant_members
+    ADD CONSTRAINT tenant_members_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES kv_admin.tenants(id);
+
+
+--
+-- Name: tenant_members tenant_members_user_id_fkey; Type: FK CONSTRAINT; Schema: kv_admin; Owner: -
+--
+
+ALTER TABLE ONLY kv_admin.tenant_members
+    ADD CONSTRAINT tenant_members_user_id_fkey FOREIGN KEY (user_id) REFERENCES kv_admin.users(id);
 
 
 --
@@ -7274,6 +7783,22 @@ ALTER TABLE ONLY kv_media.dub_tracks
 
 
 --
+-- Name: import_items import_items_tenant_id_fkey; Type: FK CONSTRAINT; Schema: kv_media; Owner: -
+--
+
+ALTER TABLE ONLY kv_media.import_items
+    ADD CONSTRAINT import_items_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES kv_admin.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: import_jobs import_jobs_tenant_id_fkey; Type: FK CONSTRAINT; Schema: kv_media; Owner: -
+--
+
+ALTER TABLE ONLY kv_media.import_jobs
+    ADD CONSTRAINT import_jobs_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES kv_admin.tenants(id) ON DELETE CASCADE;
+
+
+--
 -- Name: live_streams live_streams_channel_id_fkey; Type: FK CONSTRAINT; Schema: kv_media; Owner: -
 --
 
@@ -7319,6 +7844,14 @@ ALTER TABLE ONLY kv_media.videos
 
 ALTER TABLE ONLY kv_media.videos
     ADD CONSTRAINT videos_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES kv_admin.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: channel_handles channel_handles_tenant_id_fkey; Type: FK CONSTRAINT; Schema: kv_social; Owner: -
+--
+
+ALTER TABLE ONLY kv_social.channel_handles
+    ADD CONSTRAINT channel_handles_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES kv_admin.tenants(id) ON DELETE CASCADE;
 
 
 --
@@ -8205,6 +8738,18 @@ ALTER TABLE kv_media.caption_tracks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE kv_media.dub_tracks ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: import_items; Type: ROW SECURITY; Schema: kv_media; Owner: -
+--
+
+ALTER TABLE kv_media.import_items ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: import_jobs; Type: ROW SECURITY; Schema: kv_media; Owner: -
+--
+
+ALTER TABLE kv_media.import_jobs ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: live_streams; Type: ROW SECURITY; Schema: kv_media; Owner: -
 --
 
@@ -8266,6 +8811,20 @@ CREATE POLICY tenant_isolation ON kv_media.dub_tracks USING (((tenant_id = kv_ad
 
 
 --
+-- Name: import_items tenant_isolation; Type: POLICY; Schema: kv_media; Owner: -
+--
+
+CREATE POLICY tenant_isolation ON kv_media.import_items USING (((tenant_id = kv_admin.current_tenant()) OR kv_admin.is_platform())) WITH CHECK (((tenant_id = kv_admin.current_tenant()) OR kv_admin.is_platform()));
+
+
+--
+-- Name: import_jobs tenant_isolation; Type: POLICY; Schema: kv_media; Owner: -
+--
+
+CREATE POLICY tenant_isolation ON kv_media.import_jobs USING (((tenant_id = kv_admin.current_tenant()) OR kv_admin.is_platform())) WITH CHECK (((tenant_id = kv_admin.current_tenant()) OR kv_admin.is_platform()));
+
+
+--
 -- Name: live_streams tenant_isolation; Type: POLICY; Schema: kv_media; Owner: -
 --
 
@@ -8291,6 +8850,12 @@ CREATE POLICY tenant_isolation ON kv_media.videos USING (((tenant_id = kv_admin.
 --
 
 ALTER TABLE kv_media.videos ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: channel_handles; Type: ROW SECURITY; Schema: kv_social; Owner: -
+--
+
+ALTER TABLE kv_social.channel_handles ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: channel_moderators; Type: ROW SECURITY; Schema: kv_social; Owner: -
@@ -8395,6 +8960,13 @@ ALTER TABLE kv_social.posts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE kv_social.profiles ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: channel_handles public_read; Type: POLICY; Schema: kv_social; Owner: -
+--
+
+CREATE POLICY public_read ON kv_social.channel_handles FOR SELECT USING (true);
+
+
+--
 -- Name: channels public_read; Type: POLICY; Schema: kv_social; Owner: -
 --
 
@@ -8461,6 +9033,13 @@ ALTER TABLE kv_social.push_messages ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE kv_social.quiz_attempts ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: channel_handles tenant_isolation; Type: POLICY; Schema: kv_social; Owner: -
+--
+
+CREATE POLICY tenant_isolation ON kv_social.channel_handles USING (((tenant_id = kv_admin.current_tenant()) OR kv_admin.is_platform())) WITH CHECK (((tenant_id = kv_admin.current_tenant()) OR kv_admin.is_platform()));
+
 
 --
 -- Name: channel_moderators tenant_isolation; Type: POLICY; Schema: kv_social; Owner: -
@@ -8829,6 +9408,14 @@ GRANT ALL ON FUNCTION kv_admin.is_platform() TO klygenix_video_app;
 
 
 --
+-- Name: FUNCTION maintain_partitions(p_schema text, p_table text, p_column text, p_ahead integer, p_keep_days integer); Type: ACL; Schema: kv_admin; Owner: -
+--
+
+REVOKE ALL ON FUNCTION kv_admin.maintain_partitions(p_schema text, p_table text, p_column text, p_ahead integer, p_keep_days integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION kv_admin.maintain_partitions(p_schema text, p_table text, p_column text, p_ahead integer, p_keep_days integer) TO klygenix_video_app;
+
+
+--
 -- Name: FUNCTION video_readable(vid bigint); Type: ACL; Schema: kv_media; Owner: -
 --
 
@@ -8847,6 +9434,13 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE kv_admin.activity_log TO klygenix_vid
 --
 
 GRANT SELECT,USAGE ON SEQUENCE kv_admin.activity_log_id_seq TO klygenix_video_app;
+
+
+--
+-- Name: TABLE activity_log_default; Type: ACL; Schema: kv_admin; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE kv_admin.activity_log_default TO klygenix_video_app;
 
 
 --
@@ -9018,6 +9612,20 @@ GRANT SELECT,USAGE ON SEQUENCE kv_admin.tenant_features_id_seq TO klygenix_video
 
 
 --
+-- Name: TABLE tenant_members; Type: ACL; Schema: kv_admin; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE kv_admin.tenant_members TO klygenix_video_app;
+
+
+--
+-- Name: SEQUENCE tenant_members_id_seq; Type: ACL; Schema: kv_admin; Owner: -
+--
+
+GRANT SELECT,USAGE ON SEQUENCE kv_admin.tenant_members_id_seq TO klygenix_video_app;
+
+
+--
 -- Name: TABLE tenant_modules; Type: ACL; Schema: kv_admin; Owner: -
 --
 
@@ -9169,6 +9777,13 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE kv_ai.reco_impressions TO klygenix_vi
 --
 
 GRANT SELECT,USAGE ON SEQUENCE kv_ai.reco_impressions_id_seq TO klygenix_video_app;
+
+
+--
+-- Name: TABLE reco_impressions_default; Type: ACL; Schema: kv_ai; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE kv_ai.reco_impressions_default TO klygenix_video_app;
 
 
 --
@@ -9613,6 +10228,34 @@ GRANT SELECT,USAGE ON SEQUENCE kv_media.dub_tracks_id_seq TO klygenix_video_app;
 
 
 --
+-- Name: TABLE import_items; Type: ACL; Schema: kv_media; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE kv_media.import_items TO klygenix_video_app;
+
+
+--
+-- Name: SEQUENCE import_items_id_seq; Type: ACL; Schema: kv_media; Owner: -
+--
+
+GRANT SELECT,USAGE ON SEQUENCE kv_media.import_items_id_seq TO klygenix_video_app;
+
+
+--
+-- Name: TABLE import_jobs; Type: ACL; Schema: kv_media; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE kv_media.import_jobs TO klygenix_video_app;
+
+
+--
+-- Name: SEQUENCE import_jobs_id_seq; Type: ACL; Schema: kv_media; Owner: -
+--
+
+GRANT SELECT,USAGE ON SEQUENCE kv_media.import_jobs_id_seq TO klygenix_video_app;
+
+
+--
 -- Name: TABLE live_streams; Type: ACL; Schema: kv_media; Owner: -
 --
 
@@ -9652,6 +10295,20 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE kv_media.videos TO klygenix_video_app
 --
 
 GRANT SELECT,USAGE ON SEQUENCE kv_media.videos_id_seq TO klygenix_video_app;
+
+
+--
+-- Name: TABLE channel_handles; Type: ACL; Schema: kv_social; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE kv_social.channel_handles TO klygenix_video_app;
+
+
+--
+-- Name: SEQUENCE channel_handles_id_seq; Type: ACL; Schema: kv_social; Owner: -
+--
+
+GRANT SELECT,USAGE ON SEQUENCE kv_social.channel_handles_id_seq TO klygenix_video_app;
 
 
 --

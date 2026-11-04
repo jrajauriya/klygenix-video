@@ -54,11 +54,12 @@ class ChaptersIn(BaseModel):
 
 
 def _chapters_out(db, v: Video) -> dict:
-    rows = db.execute(select(Insight).where(Insight.video_id == v.id).order_by(Insight.id.desc()).limit(10)).scalars().all()
+    rows = db.execute(select(Insight).where(Insight.video_id == v.id).order_by(Insight.id.desc()).limit(20)).scalars().all()
     cur = rows[0] if rows else None
     return {"chapters": cur.chapters if cur else [], "version": cur.version if cur else 0,
             "history": [{"version": r.version, "by": "creator" if r.model.startswith("creator-edit") else "ai",
-                         "count": len(r.chapters or []), "created_at": iso(r.created_at)} for r in rows]}
+                         "count": len(r.chapters or []), "chapters": r.chapters or [], "created_at": iso(r.created_at)}
+                        for r in rows]}
 
 
 @router.get("/videos/{video_id}/chapters")
@@ -70,6 +71,22 @@ def get_chapters(video_id: int, ctx: StudioCtx = Depends(studio("video.uploads")
 def put_chapters(video_id: int, data: ChaptersIn, ctx: StudioCtx = Depends(studio("video.uploads", "full"))):
     v = _video(ctx, video_id)
     creator_ai.chapters(ctx.db, v, data.chapters, ctx.user.id)
+    ctx.db.commit()
+    return _chapters_out(ctx.db, v)
+
+
+class RestoreIn(BaseModel):
+    version: int = Field(ge=1)
+
+
+@router.post("/videos/{video_id}/chapters/restore")
+def restore_chapters(video_id: int, data: RestoreIn, ctx: StudioCtx = Depends(studio("video.uploads", "full"))):
+    v = _video(ctx, video_id)
+    old = ctx.db.execute(select(Insight).where(Insight.video_id == v.id, Insight.version == data.version)
+                         .order_by(Insight.id.desc())).scalars().first()
+    if old is None or not old.chapters:
+        raise err(404, "chapters_version_not_found")
+    creator_ai.chapters(ctx.db, v, old.chapters, ctx.user.id)
     ctx.db.commit()
     return _chapters_out(ctx.db, v)
 
@@ -95,6 +112,23 @@ def latest_pack(video_id: int, ctx: StudioCtx = Depends(studio("video.uploads"))
     v = _video(ctx, video_id)
     p = ctx.db.execute(select(RepurposePack).where(RepurposePack.video_id == v.id).order_by(RepurposePack.id.desc())).scalars().first()
     return {"pack": _pack_out(p) if p else None}
+
+
+@router.get("/videos/{video_id}/repurpose/packs")
+def list_packs(video_id: int, ctx: StudioCtx = Depends(studio("video.uploads"))):
+    v = _video(ctx, video_id)
+    rows = ctx.db.execute(select(RepurposePack).where(RepurposePack.video_id == v.id)
+                          .order_by(RepurposePack.id.desc()).limit(50)).scalars().all()
+    return [{"id": p.id, "language": p.language, "model": p.model, "created_at": iso(p.created_at),
+             "preview": (p.content.get("x_post") or "")[:140]} for p in rows]
+
+
+@router.get("/repurpose/{pack_id:int}")
+def get_pack(pack_id: int, ctx: StudioCtx = Depends(studio("video.uploads"))):
+    p = ctx.db.get(RepurposePack, pack_id)
+    if p is None or p.tenant_id != ctx.tenant_id:
+        raise err(404, "video_not_found")
+    return _pack_out(p)
 
 
 @router.get("/repurpose/{pack_id}.md")

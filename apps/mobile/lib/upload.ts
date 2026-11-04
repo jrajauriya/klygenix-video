@@ -1,6 +1,6 @@
 import * as FileSystem from "expo-file-system/legacy"
 
-import { api } from "./api"
+import { studio } from "./acting"
 import type { StudioVideo, UploadTicket } from "./types"
 
 export interface Draft {
@@ -16,7 +16,7 @@ export interface Draft {
 export class TusNotSupported extends Error {}
 
 export async function createAndUpload(draft: Draft): Promise<StudioVideo> {
-  const { data } = await api.post<{ video: StudioVideo; upload: UploadTicket }>("/api/video/studio/videos", {
+  const { data } = await studio.post<{ video: StudioVideo; upload: UploadTicket }>("/api/video/studio/videos", {
     title: draft.title.trim(),
     description: draft.description.trim(),
     visibility: "public",
@@ -33,7 +33,7 @@ export async function createAndUpload(draft: Draft): Promise<StudioVideo> {
     headers: data.upload.headers ?? {},
   })
   if (result.status >= 300) throw new Error(`The upload was refused (${result.status}).`)
-  const done = await api.post<StudioVideo>(`/api/video/studio/videos/${data.video.id}/uploaded`)
+  const done = await studio.post<StudioVideo>(`/api/video/studio/videos/${data.video.id}/uploaded`)
   return done.data
 }
 

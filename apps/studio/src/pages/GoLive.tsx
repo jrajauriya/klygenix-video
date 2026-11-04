@@ -14,6 +14,8 @@ import { BrowserGoLive } from "../components/live/BrowserGoLive"
 import { LiveChat } from "../components/live/LiveChat"
 import { LiveSettings } from "../components/live/LiveSettings"
 import { LiveStatusPill } from "./Live"
+import { useHasPermission } from "../lib/team"
+import { ViewOnly } from "../components/team/ViewOnly"
 import { useT } from "../i18n"
 
 const BUSY = ["uploading", "processing", "scanning"]
@@ -27,6 +29,7 @@ export default function GoLive() {
   const [viewers, setViewers] = useState<number | null>(null)
   const [ending, setEnding] = useState(false)
   const key = ["studio-live", publicId]
+  const canLive = useHasPermission("video.live", "full")
 
   const { data: stream, isLoading, isError } = useQuery({
     queryKey: key,
@@ -78,7 +81,7 @@ export default function GoLive() {
       <PageHeader
         title={stream.title}
         onBack={() => navigate("/live")}
-        actions={!closed ? (
+        actions={!closed && canLive ? (
           <Button variant="destructive" onClick={end} disabled={ending}><Square size={14} /> {ending ? t("Ending…") : t("End stream")}</Button>
         ) : undefined}
       />
@@ -90,6 +93,7 @@ export default function GoLive() {
         {stream.ended_at && <span>{t("Ended {when}", { when: when(stream.ended_at, true) })}</span>}
         {stream.members_rank ? <span>{t("Members level {n}+", { n: stream.members_rank })}</span> : null}
       </div>
+      {!canLive && <ViewOnly className="mb-4" what={t("Your role can watch this stream and its chat but not start, change or end it.")} />}
       {stream.error && <p role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{stream.error}</p>}
       <div className="grid gap-5 pb-8 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <div className="min-w-0 space-y-5">
@@ -106,7 +110,7 @@ export default function GoLive() {
             {stream.status === "scheduled" && <p className="text-sm text-slate-500">{t("Start sending video from OBS or this browser. The preview appears as soon as the stream is live.")}</p>}
             {stream.status === "live" && !stream.playback && <p className="text-sm text-slate-500">{t("Waiting for the first video segments…")}</p>}
           </Card>
-          {closed ? <Replay stream={stream} /> : (
+          {closed ? <Replay stream={stream} /> : canLive && (
             <>
               {stream.ingest.browser && <BrowserGoLive stream={stream} onChange={refresh} />}
               <IngestDetails stream={stream} />

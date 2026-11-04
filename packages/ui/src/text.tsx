@@ -68,6 +68,8 @@ export const UI_TEXT = {
   "roles.full": "Full",
   "roles.saved": "Screen access saved",
   "roles.failed": "Could not save",
+  "roles.role": "Role",
+  "roles.cell": "{role} — {screen}: {level}",
   "theme.subtitle": "How {app} looks for you — other people are not affected",
   "theme.full": "Whole application",
   "theme.fullNote": "Changes every surface, including the page",

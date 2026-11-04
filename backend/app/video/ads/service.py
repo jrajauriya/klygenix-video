@@ -28,6 +28,7 @@ EVENTS = ("start", "q0", "q1", "mid", "q3", "complete", "skip", "click")
 VIEWABLE_MS = 2000
 IVT_KEY = "kv:ads:ivt"
 TOTALS_KEY = "kv:ads:totals"
+IVT_DAYS_KEPT = 400
 IMP_TTL = 3 * 3600
 _cache: tuple[float, list[dict]] = (0.0, [])
 
@@ -172,9 +173,17 @@ def pick(db: Session, *, video: Video, channel: Channel, country: str, device: s
     return random.choices(pool, weights=[c["cpm"] for c in pool])[0]
 
 
+def _ivt_day(day: str) -> str:
+    return f"kv:ads:ivt:d:{day}"
+
+
 def note_ivt(reason: str, n: int = 1) -> None:
     try:
-        get_redis().hincrby(IVT_KEY, reason, n)
+        pipe = get_redis().pipeline()
+        pipe.hincrby(IVT_KEY, reason, n)
+        pipe.hincrby(_ivt_day(ist_today().isoformat()), reason, n)
+        pipe.expire(_ivt_day(ist_today().isoformat()), IVT_DAYS_KEPT * 86400)
+        pipe.execute()
     except Exception:
         pass
 
@@ -268,7 +277,10 @@ def event(token: str, kind: str, *, ip: str | None = None, user: User | None = N
             pipe.sadd(seen, "invalid")
             pipe.hincrby("kv:ads:counts", f"{field}:invalid", 1)
             pipe.hincrby(TOTALS_KEY, "invalid", 1)
+            pipe.hincrby(_ivt_day(imp["day"]), "_invalid", 1)
         pipe.hincrby(IVT_KEY, bad, 1)
+        pipe.hincrby(_ivt_day(imp["day"]), bad, 1)
+        pipe.expire(_ivt_day(imp["day"]), IVT_DAYS_KEPT * 86400)
         pipe.execute()
         return False
     day = imp["day"]
@@ -282,6 +294,8 @@ def event(token: str, kind: str, *, ip: str | None = None, user: User | None = N
     elif kind == "q0":
         pipe.hincrby("kv:ads:counts", f"{field}:q0", 1)
         pipe.hincrby(TOTALS_KEY, "billable", 1)
+        pipe.hincrby(_ivt_day(day), "_billable", 1)
+        pipe.expire(_ivt_day(day), IVT_DAYS_KEPT * 86400)
         pipe.incrby(f"kv:ads:pending:{imp['c']}", imp["cpm"])
         pipe.incrby(f"kv:ads:dayspend:{imp['c']}:{day}", imp["cpm"])
         pipe.expire(f"kv:ads:dayspend:{imp['c']}:{day}", 2 * 86400)
@@ -635,11 +649,25 @@ def _cell(v):
     return v if isinstance(v, str) else int(v)
 
 
-def ivt_summary() -> dict:
+def ivt_summary(start: date | None = None, stop: date | None = None) -> dict:
     r = get_redis()
-    reasons = {(k.decode() if isinstance(k, bytes) else k): int(v) for k, v in r.hgetall(IVT_KEY).items()}
-    totals = {(k.decode() if isinstance(k, bytes) else k): int(v) for k, v in r.hgetall(TOTALS_KEY).items()}
-    return {"reasons": reasons, "billable": totals.get("billable", 0), "invalid": totals.get("invalid", 0)}
+    if start is None and stop is None:
+        reasons = {(k.decode() if isinstance(k, bytes) else k): int(v) for k, v in r.hgetall(IVT_KEY).items()}
+        totals = {(k.decode() if isinstance(k, bytes) else k): int(v) for k, v in r.hgetall(TOTALS_KEY).items()}
+        return {"reasons": reasons, "billable": totals.get("billable", 0), "invalid": totals.get("invalid", 0)}
+    stop = stop or ist_today()
+    start = max(start or stop - timedelta(days=29), stop - timedelta(days=IVT_DAYS_KEPT - 1))
+    pipe = r.pipeline()
+    days = [start + timedelta(days=i) for i in range((stop - start).days + 1)]
+    for d in days:
+        pipe.hgetall(_ivt_day(d.isoformat()))
+    merged: dict[str, int] = {}
+    for row in pipe.execute():
+        for k, v in row.items():
+            key = k.decode() if isinstance(k, bytes) else k
+            merged[key] = merged.get(key, 0) + int(v)
+    billable, invalid = merged.pop("_billable", 0), merged.pop("_invalid", 0)
+    return {"reasons": merged, "billable": billable, "invalid": invalid, "from": start.isoformat(), "to": stop.isoformat()}
 
 
 def _month(period: str) -> tuple[date, date]:

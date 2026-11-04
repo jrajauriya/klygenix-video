@@ -107,7 +107,8 @@ def msg(message_id: str, lang: str | None = None, **values) -> str:
 
 
 def err(status_code: int, message_id: str, headers: dict | None = None, **values) -> HTTPException:
-    return HTTPException(status_code=status_code, detail=msg(message_id, **values), headers=headers)
+    return HTTPException(status_code=status_code, detail=msg(message_id, **values),
+                         headers={**(headers or {}), "X-Error-Code": message_id})
 
 
 def _pattern(text: str) -> re.Pattern:

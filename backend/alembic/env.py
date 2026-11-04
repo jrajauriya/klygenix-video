@@ -1,6 +1,8 @@
+import re
 from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config, pool
+
 from alembic import context
 
 from app.config import settings
@@ -35,6 +37,15 @@ def run_migrations_offline() -> None:
         context.run_migrations()
 
 
+PARTITION_CHILD = re.compile(r"^(reco_impressions|activity_log)_(default|p[0-9]{6})$")
+
+
+def include_name(name, type_, parent_names) -> bool:
+    if type_ == "table":
+        return not PARTITION_CHILD.match(name or "")
+    return True
+
+
 def run_migrations_online() -> None:
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
@@ -46,6 +57,7 @@ def run_migrations_online() -> None:
             connection=connection,
             target_metadata=target_metadata,
             include_schemas=True,
+            include_name=include_name,
         )
         with context.begin_transaction():
             context.run_migrations()

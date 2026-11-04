@@ -184,6 +184,11 @@ def onboarding(ctx: StudioCtx = Depends(studio("video.dashboard", need_channel=F
         {"key": "payouts", "label": "Set up payouts to earn", "done": payout == "activated", "href": "/earnings", "optional": True},
         {"key": "live", "label": "Go live once", "done": live is not None, "href": "/live", "optional": True},
     ]
+    if ctx.member is not None:
+        from app.core.services import teams
+
+        steps = [s for s in steps if s["key"] != "payouts" and not (s["key"] in ("channel", "profile", "youtube") and
+                                                                    teams.level(db, tid, ctx.member.role, "video.channels") < 2)]
     need = [s for s in steps if not s.get("optional")]
     return {"steps": steps, "done": sum(s["done"] for s in need), "total": len(need),
             "complete": all(s["done"] for s in need)}

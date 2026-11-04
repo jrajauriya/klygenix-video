@@ -7,7 +7,9 @@ import { api } from "@klygenixvideo/auth"
 import {
   Button, Card, EmptyState, Field, Input, Modal, PageHeader, Spinner, Tabs, Textarea, useConfirm,
 } from "@klygenixvideo/ui"
-import { STUDIO, useMe } from "../lib/hooks"
+import { STUDIO } from "../lib/hooks"
+import { useHasPermission, useStudioPlan } from "../lib/team"
+import { ViewOnly } from "../components/team/ViewOnly"
 import { clock, detail, seconds, status as httpStatus } from "../lib/format"
 import { CLIP_MAX_MS, cxAt, sameTrack } from "../lib/clips"
 import type { Aspect, CaptionStyle, Clip, ClipMusic, Keyframe, StudioVideoDetail } from "../lib/types"
@@ -36,7 +38,8 @@ export default function ClipEditor() {
   const navigate = useNavigate()
   const qc = useQueryClient()
   const confirm = useConfirm()
-  const { data: me } = useMe()
+  const { plan, theirs } = useStudioPlan()
+  const canEdit = useHasPermission("video.clips", "full")
 
   const { data: clip, isLoading, isError } = useQuery({
     queryKey: ["studio-clip", id],
@@ -85,7 +88,7 @@ export default function ClipEditor() {
 
   const duration = source?.duration_ms ?? clip.end_ms
   const sourceRatio = source?.width && source?.height ? source.width / source.height : 16 / 9
-  const locked = WORKING.includes(clip.status) || clip.status === "published" || clip.status === "processing"
+  const locked = !canEdit || WORKING.includes(clip.status) || clip.status === "published" || clip.status === "processing"
   const length = end - start
   const problem =
     end <= start ? t("The end must come after the start.")
@@ -100,7 +103,7 @@ export default function ClipEditor() {
     title.trim() !== clip.title || start !== clip.start_ms || end !== clip.end_ms || aspect !== clip.aspect ||
     style !== clip.caption_style || trackDirty || centerDirty || musicDirty
   const frameX = keyframes.length ? cxAt(keyframes, playhead) : centerX
-  const watermark = clip.watermark || Boolean(me?.plans.creator.limits?.watermark)
+  const watermark = clip.watermark || Boolean(plan?.limits?.watermark)
 
   const setRange = (s: number, e: number) => {
     const ns = Math.max(0, Math.round(s))
@@ -216,9 +219,11 @@ export default function ClipEditor() {
                 <Film size={14} /> <span className="hidden sm:inline">{t("Source video")}</span>
               </Button>
             )}
-            <Button variant="ghost" size="sm" className="text-red-600" aria-label={t("Delete clip")} onClick={remove} disabled={busy !== null || WORKING.includes(clip.status)}>
-              <Trash2 size={14} /> <span className="hidden sm:inline">{t("Delete")}</span>
-            </Button>
+            {canEdit && (
+              <Button variant="ghost" size="sm" className="text-red-600" aria-label={t("Delete clip")} onClick={remove} disabled={busy !== null || WORKING.includes(clip.status)}>
+                <Trash2 size={14} /> <span className="hidden sm:inline">{t("Delete")}</span>
+              </Button>
+            )}
           </div>
         }
       />
@@ -227,13 +232,14 @@ export default function ClipEditor() {
         {source && <span className="truncate">{t("From “{title}”", { title: source.title })}</span>}
       </div>
 
+      {!canEdit && <ViewOnly className="mb-3" what={t("Your role can watch and download this clip but not edit, render or publish it.")} />}
       {clip.status === "failed" && clip.error && (
         <p className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{t("The render failed: {error}", { error: clip.error })}</p>
       )}
       {quotaHit && (
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
           <span>{quotaHit}</span>
-          <Link to="/billing" className="font-semibold underline">{t("See plans")}</Link>
+          {!theirs && <Link to="/billing" className="font-semibold underline">{t("See plans")}</Link>}
         </div>
       )}
 
@@ -259,7 +265,7 @@ export default function ClipEditor() {
                   className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50">
                   <Download size={15} /> {t("Download MP4")}
                 </a>
-                {clip.status === "rendered" && (
+                {canEdit && clip.status === "rendered" && (
                   <Button onClick={() => setPublishing(true)}><Send size={15} /> {t("Publish as reel")}</Button>
                 )}
                 {clip.status === "published" && clip.output_video_id && (
@@ -343,7 +349,7 @@ export default function ClipEditor() {
           {watermark && (
             <p className="rounded-lg border border-brand-100 bg-brand-50 px-3 py-2 text-sm text-slate-700">
               {t("On the free plan, rendered clips carry a small Klygenix Play watermark.")}{" "}
-              <Link to="/billing" className="font-semibold text-brand underline">{t("Upgrade to remove it")}</Link>
+              {!theirs && <Link to="/billing" className="font-semibold text-brand underline">{t("Upgrade to remove it")}</Link>}
             </p>
           )}
 
@@ -352,18 +358,18 @@ export default function ClipEditor() {
             <p className="flex items-center gap-2 text-sm text-slate-600"><Loader2 size={15} className="animate-spin text-brand" /> {t("Rendering your clip…")}</p>
           )}
 
-          <div className="flex flex-wrap justify-end gap-2">
+          {canEdit && <div className="flex flex-wrap justify-end gap-2">
             <Button variant="outline" onClick={save} disabled={locked || !dirty || Boolean(problem) || busy !== null}>
               <Save size={14} /> {busy === "save" ? t("Saving…") : t("Save")}
             </Button>
             <Button onClick={render} disabled={locked || tracking || Boolean(problem) || busy !== null}>
               <Wand2 size={14} /> {busy === "render" ? t("Starting…") : clip.status === "rendered" ? t("Render again") : t("Render clip")}
             </Button>
-          </div>
+          </div>}
         </div>
       </div>
 
-      {rendered && (
+      {rendered && canEdit && (
         <div className="mt-5 lg:w-3/5">
           <PublishTargets clip={clip} />
         </div>

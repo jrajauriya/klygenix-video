@@ -2,16 +2,19 @@ import { useEffect, useRef, useState, type ReactNode, type RefObject } from "rea
 import { useNavigate, useSearchParams } from "react-router-dom"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
-import { ExternalLink, ImageUp, Instagram, Link2, RefreshCw, Save, ShieldCheck, Unplug, Youtube } from "lucide-react"
+import { AtSign, Download, ExternalLink, ImageUp, Instagram, Link2, RefreshCw, Save, ShieldCheck, Unplug, Youtube } from "lucide-react"
 import { api } from "@klygenixvideo/auth"
 import {
   Badge, Button, Card, Field, Input, PageHeader, Select, Spinner, Tabs, Textarea, useConfirm,
 } from "@klygenixvideo/ui"
 import { MULTIPART, STUDIO, useChannel } from "../lib/hooks"
-import { LANGUAGES, channelUrl, detail, when } from "../lib/format"
+import { LANGUAGES, channelUrl, detail, status, when } from "../lib/format"
 import type { Channel, Connected, StudioVideo } from "../lib/types"
 import { ChannelAvatar } from "../components/ChannelAvatar"
 import { Playlists } from "../components/channel/Playlists"
+import { ImportJobModal, ImportPicker, ImportsPanel } from "../components/channel/YouTubeImport"
+import { useActing, useHasPermission } from "../lib/team"
+import { ViewOnly } from "../components/team/ViewOnly"
 import { useT } from "../i18n"
 
 const TABS = [
@@ -25,6 +28,7 @@ export default function ChannelPage() {
   const [params, setParams] = useSearchParams()
   const tab = params.get("tab") === "playlists" ? "playlists" : "profile"
   const handled = useRef(false)
+  const canAddVideos = useHasPermission("video.uploads", "full")
 
   useEffect(() => {
     const flag = params.get("connected")
@@ -61,7 +65,8 @@ export default function ChannelPage() {
           <div className="space-y-5">
             <Rule />
             <ConnectedAccounts />
-            <AddByLink />
+            <Imports />
+            {canAddVideos && <AddByLink />}
           </div>
         </div>
       )}
@@ -114,6 +119,7 @@ function Profile({ channel }: { channel: Channel }) {
   const [uploading, setUploading] = useState<"avatar" | "banner" | null>(null)
   const avatarRef = useRef<HTMLInputElement>(null)
   const bannerRef = useRef<HTMLInputElement>(null)
+  const canEdit = useHasPermission("video.channels", "full")
 
   const update = (c: Channel) => {
     qc.setQueryData(["studio-channel"], c)
@@ -159,29 +165,36 @@ function Profile({ channel }: { channel: Channel }) {
 
   return (
     <Section title={t("Profile")} hint={t("What viewers see on your channel page.")}>
+      {!canEdit && <ViewOnly className="mb-4" what={t("Your role can see the channel profile but not change it.")} />}
       <div className="relative mb-12">
         <div className="h-32 overflow-hidden rounded-lg bg-gradient-to-r from-brand to-fuchsia-400">
           {channel.banner && <img src={channel.banner} alt={t("Channel banner")} className="h-full w-full object-cover" />}
         </div>
-        <Button size="sm" variant="outline" className="absolute right-2 top-2 bg-white/90" disabled={uploading !== null}
-          onClick={() => bannerRef.current?.click()}>
-          <ImageUp size={14} /> {uploading === "banner" ? t("Uploading…") : t("Change banner")}
-        </Button>
-        <button type="button" onClick={() => avatarRef.current?.click()} disabled={uploading !== null}
-          className="absolute -bottom-9 left-4 rounded-full border-4 border-white bg-white" aria-label={t("Change picture")} title={t("Change picture")}>
-          <ChannelAvatar channel={channel} size={72} />
-        </button>
-        <span className="absolute -bottom-7 left-24 text-xs text-slate-500">{uploading === "avatar" ? t("Uploading…") : t("Click the picture to change it")}</span>
-        {picker("avatar", avatarRef)}
-        {picker("banner", bannerRef)}
+        {canEdit ? (
+          <>
+            <Button size="sm" variant="outline" className="absolute right-2 top-2 bg-white/90" disabled={uploading !== null}
+              onClick={() => bannerRef.current?.click()}>
+              <ImageUp size={14} /> {uploading === "banner" ? t("Uploading…") : t("Change banner")}
+            </Button>
+            <button type="button" onClick={() => avatarRef.current?.click()} disabled={uploading !== null}
+              className="absolute -bottom-9 left-4 rounded-full border-4 border-white bg-white" aria-label={t("Change picture")} title={t("Change picture")}>
+              <ChannelAvatar channel={channel} size={72} />
+            </button>
+            <span className="absolute -bottom-7 left-24 text-xs text-slate-500">{uploading === "avatar" ? t("Uploading…") : t("Click the picture to change it")}</span>
+            {picker("avatar", avatarRef)}
+            {picker("banner", bannerRef)}
+          </>
+        ) : (
+          <span className="absolute -bottom-9 left-4 rounded-full border-4 border-white bg-white">
+            <ChannelAvatar channel={channel} size={72} />
+          </span>
+        )}
       </div>
-      <div className="space-y-4">
+      <fieldset disabled={!canEdit} className="m-0 min-w-0 space-y-4 border-0 p-0">
         <Field label={t("Channel name")} required>
           <Input value={name} maxLength={80} onChange={(e) => setName(e.target.value)} />
         </Field>
-        <Field label={t("Handle")} hint={t("Handles cannot be changed yet.")}>
-          <Input value={`@${channel.handle}`} disabled />
-        </Field>
+        <HandleField channel={channel} onChanged={update} />
         <Field label={t("About")}>
           <Textarea rows={4} value={about} maxLength={2000} onChange={(e) => setAbout(e.target.value)} />
         </Field>
@@ -193,9 +206,9 @@ function Profile({ channel }: { channel: Channel }) {
             {t("{followers} followers · {videos} videos · opened {when}", { followers: channel.followers, videos: channel.video_count, when: when(channel.created_at) })}
             {channel.strike_count > 0 && <span className="ml-1 font-semibold text-red-600">{channel.strike_count === 1 ? t("· 1 active strike") : t("· {n} active strikes", { n: channel.strike_count })}</span>}
           </p>
-          <Button onClick={save} disabled={saving || !name.trim()}><Save size={14} /> {saving ? t("Saving…") : t("Save")}</Button>
+          {canEdit && <Button onClick={save} disabled={saving || !name.trim()}><Save size={14} /> {saving ? t("Saving…") : t("Save")}</Button>}
         </div>
-      </div>
+      </fieldset>
     </Section>
   )
 }
@@ -218,6 +231,10 @@ function ConnectedAccounts() {
   const qc = useQueryClient()
   const confirm = useConfirm()
   const [busy, setBusy] = useState<string | null>(null)
+  const [picking, setPicking] = useState<Connected | null>(null)
+  const [jobId, setJobId] = useState<number | null>(null)
+  const canImport = useHasPermission("video.channels", "full")
+  const canAddVideos = useHasPermission("video.uploads", "full")
   const { data: rows, isLoading } = useQuery({
     queryKey: ["studio-connected"],
     queryFn: async () => (await api.get<Connected[]>(`${STUDIO}/connected`)).data,
@@ -275,7 +292,7 @@ function ConnectedAccounts() {
     <Section
       title={t("Connected accounts")}
       hint={t("Connect YouTube to link your videos here with their captions. Connect Instagram to publish clips as Reels.")}
-      action={
+      action={canImport &&
         <div className="flex flex-wrap justify-end gap-2">
           <Button size="sm" onClick={() => connect("youtube")} disabled={busy !== null}>
             <Youtube size={14} /> {busy === "connect-youtube" ? t("Opening…") : t("Connect YouTube")}
@@ -295,7 +312,7 @@ function ConnectedAccounts() {
           {active.map((r) => (
             <li key={r.id} className="flex flex-wrap items-center gap-3 py-3">
               {r.platform === "instagram" ? <Instagram size={20} className="text-pink-600" /> : <Youtube size={20} className="text-red-600" />}
-              <div className="min-w-0 flex-1">
+              <div className="min-w-[11rem] flex-1">
                 <p className="truncate text-sm font-semibold text-slate-800">
                   {r.title || r.external_channel_id} {r.sandbox && <Badge color="amber">{t("Sandbox")}</Badge>}
                   {r.status === "expired" ? (
@@ -310,24 +327,123 @@ function ConnectedAccounts() {
                     : r.last_synced_at ? t("{n} linked videos · last synced {when}", { n: r.videos, when: when(r.last_synced_at, true) }) : t("{n} linked videos · not synced yet", { n: r.videos })}
                 </p>
               </div>
-              {r.status === "expired" && (r.platform === "youtube" || r.platform === "instagram") && (
+              {canImport && r.status === "expired" && (r.platform === "youtube" || r.platform === "instagram") && (
                 <Button size="sm" onClick={() => connect(r.platform as "youtube" | "instagram")} disabled={busy !== null}>
                   <RefreshCw size={13} /> {busy === `connect-${r.platform}` ? t("Opening…") : t("Reconnect")}
                 </Button>
               )}
-              {r.platform === "youtube" && r.status !== "expired" && (
+              {r.platform === "youtube" && r.status === "active" && canImport && canAddVideos && (
+                <Button size="sm" onClick={() => setPicking(r)} disabled={busy !== null}>
+                  <Download size={13} /> {t("Import videos")}
+                </Button>
+              )}
+              {canImport && r.platform === "youtube" && r.status !== "expired" && (
                 <Button size="sm" variant="outline" onClick={() => sync(r)} disabled={busy !== null}>
                   <RefreshCw size={13} /> {busy === `sync-${r.id}` ? t("Starting…") : t("Sync now")}
                 </Button>
               )}
-              <Button size="sm" variant="ghost" className="text-red-600" onClick={() => disconnect(r)} disabled={busy !== null}>
-                <Unplug size={13} /> {t("Disconnect")}
-              </Button>
+              {canImport && (
+                <Button size="sm" variant="ghost" className="text-red-600" onClick={() => disconnect(r)} disabled={busy !== null}>
+                  <Unplug size={13} /> {t("Disconnect")}
+                </Button>
+              )}
             </li>
           ))}
         </ul>
       )}
+      {picking && (
+        <ImportPicker connected={picking} onClose={() => setPicking(null)} onStarted={(job) => { setPicking(null); setJobId(job.id) }} />
+      )}
+      {jobId !== null && <ImportJobModal jobId={jobId} onClose={() => setJobId(null)} />}
     </Section>
+  )
+}
+
+function Imports() {
+  const [jobId, setJobId] = useState<number | null>(null)
+  return (
+    <>
+      <ImportsPanel onOpen={setJobId} />
+      {jobId !== null && <ImportJobModal jobId={jobId} onClose={() => setJobId(null)} />}
+    </>
+  )
+}
+
+const HANDLE_RE = /^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/
+
+function HandleField({ channel, onChanged }: { channel: Channel; onChanged: (c: Channel) => void }) {
+  const t = useT()
+  const confirm = useConfirm()
+  const acting = useActing()
+  const canEdit = useHasPermission("video.channels", "full")
+  const [editing, setEditing] = useState(false)
+  const [value, setValue] = useState(channel.handle)
+  const [busy, setBusy] = useState(false)
+  const [refused, setRefused] = useState<string | null>(null)
+  const next = value.trim().toLowerCase().replace(/^@/, "")
+  const shapeOk = HANDLE_RE.test(next)
+
+  if (acting !== null || !canEdit) {
+    return (
+      <Field label={t("Handle")} hint={acting !== null ? t("Only the channel owner can change the handle.") : undefined}>
+        <Input value={`@${channel.handle}`} disabled />
+      </Field>
+    )
+  }
+
+  async function rename() {
+    const ok = await confirm({
+      title: t("Change your handle to @{handle}?", { handle: next }),
+      message: t("Links with @{old} keep working for 180 days and lead to your channel. After this you cannot change the handle again for 30 days.", { old: channel.handle }),
+      confirmLabel: t("Change handle"),
+    })
+    if (!ok) return
+    setBusy(true)
+    setRefused(null)
+    try {
+      const { data } = await api.post<Channel>(`${STUDIO}/channel/handle`, { handle: next })
+      onChanged(data)
+      setEditing(false)
+      toast.success(t("Your handle is now @{handle}", { handle: data.handle }))
+    } catch (err) {
+      const code = status(err)
+      setRefused(detail(err, code === 429 ? t("You changed your handle recently. Try again later.") : code === 409 ? t("That handle is taken. Try another.") : t("That handle cannot be used.")))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (!editing) {
+    return (
+      <div>
+        <span className="label">{t("Handle")}</span>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-num text-sm text-slate-700">@{channel.handle}</span>
+          <Button size="sm" variant="outline" onClick={() => { setValue(channel.handle); setRefused(null); setEditing(true) }}>
+            <AtSign size={13} /> {t("Change handle")}
+          </Button>
+        </div>
+        <p className="mt-1 text-xs text-slate-500">{t("Your channel address. Old links keep working for 180 days after a change; you can change it once every 30 days.")}</p>
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      <Field
+        label={t("New handle")}
+        error={refused ?? (next && !shapeOk ? t("3 to 40 lowercase letters, numbers or hyphens; no hyphen at the start or end.") : undefined)}
+        hint={t("Old links keep working for 180 days. You can change it once every 30 days.")}
+      >
+        <Input value={value} maxLength={41} autoComplete="off" spellCheck={false} onChange={(e) => { setValue(e.target.value); setRefused(null) }} />
+      </Field>
+      <div className="mt-2 flex justify-end gap-2">
+        <Button size="sm" variant="ghost" onClick={() => setEditing(false)} disabled={busy}>{t("Cancel")}</Button>
+        <Button size="sm" onClick={rename} disabled={busy || !shapeOk || next === channel.handle}>
+          {busy ? t("Saving…") : t("Change handle")}
+        </Button>
+      </div>
+    </div>
   )
 }
 

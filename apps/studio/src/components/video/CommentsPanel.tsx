@@ -6,6 +6,8 @@ import { api } from "@klygenixvideo/auth"
 import { Badge, Button, Card, Pager, Select, Spinner, useConfirm } from "@klygenixvideo/ui"
 import { formatMoney } from "@klygenixvideo/client"
 import { clock, detail, when } from "../../lib/format"
+import { useHasPermission } from "../../lib/team"
+import { ViewOnly } from "../team/ViewOnly"
 import type { Comment, Danmaku } from "../../lib/types"
 import { useT } from "../../i18n"
 
@@ -36,8 +38,11 @@ export function useRemover() {
 }
 
 export function CommentsPanel({ publicId, durationMs }: { publicId: string; durationMs: number }) {
+  const t = useT()
+  const canModerate = useHasPermission("video.comments", "full")
   return (
     <div className="grid gap-5 xl:grid-cols-2 [&>*]:min-w-0">
+      {!canModerate && <ViewOnly className="xl:col-span-2" what={t("Your role can read comments and danmaku but not remove them.")} />}
       <Comments publicId={publicId} />
       <DanmakuList publicId={publicId} durationMs={durationMs} />
     </div>
@@ -83,6 +88,7 @@ function Comments({ publicId }: { publicId: string }) {
 function CommentRow({ comment, publicId, reply = false }: { comment: Comment; publicId: string; reply?: boolean }) {
   const t = useT()
   const remove = useRemover()
+  const canModerate = useHasPermission("video.comments", "full")
   const [open, setOpen] = useState(false)
   const { data: replies } = useQuery({
     queryKey: ["video-comments", publicId, "replies", comment.id],
@@ -105,9 +111,11 @@ function CommentRow({ comment, publicId, reply = false }: { comment: Comment; pu
             </button>
           )}
         </div>
-        <Button size="icon" variant="ghost" aria-label={t("Delete comment")} onClick={() => remove("comment", comment.id, comment.body)}>
-          <Trash2 size={15} />
-        </Button>
+        {canModerate && (
+          <Button size="icon" variant="ghost" aria-label={t("Delete comment")} onClick={() => remove("comment", comment.id, comment.body)}>
+            <Trash2 size={15} />
+          </Button>
+        )}
       </div>
       {open && replies && (
         <ul className="mt-1 divide-y divide-slate-100 border-l-2 border-slate-100">
@@ -121,6 +129,7 @@ function CommentRow({ comment, publicId, reply = false }: { comment: Comment; pu
 function DanmakuList({ publicId, durationMs }: { publicId: string; durationMs: number }) {
   const t = useT()
   const remove = useRemover()
+  const canModerate = useHasPermission("video.comments", "full")
   const windows = Math.max(1, Math.ceil((durationMs || WINDOW_MS) / WINDOW_MS))
   const [win, setWin] = useState("0")
   const from = Number(win) * WINDOW_MS
@@ -157,10 +166,12 @@ function DanmakuList({ publicId, durationMs }: { publicId: string; durationMs: n
               {d.boost_tier || d.paid_minor ? (
                 <Badge color="purple">{d.paid_minor ? t("Boost {amount}", { amount: formatMoney(d.paid_minor, "INR") }) : t("Boost")}</Badge>
               ) : null}
-              {d.mode !== "scroll" && <span className="text-[11px] text-slate-400">{d.mode}</span>}
-              <Button size="icon" variant="ghost" aria-label={t("Delete danmaku")} onClick={() => remove("danmaku", d.id, d.text)}>
-                <Trash2 size={15} />
-              </Button>
+              {d.mode !== "scroll" && <span className="text-xs text-slate-500">{d.mode}</span>}
+              {canModerate && (
+                <Button size="icon" variant="ghost" aria-label={t("Delete danmaku")} onClick={() => remove("danmaku", d.id, d.text)}>
+                  <Trash2 size={15} />
+                </Button>
+              )}
             </li>
           ))}
         </ul>

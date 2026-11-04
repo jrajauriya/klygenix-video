@@ -224,7 +224,7 @@ class RecoImpression(Base):
     position: Mapped[int] = mapped_column(Integer, nullable=False)
     surface: Mapped[str] = mapped_column(String(8), nullable=False)
     arm: Mapped[str] = mapped_column(String(10), nullable=False)
-    shown_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    shown_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), primary_key=True)
     clicked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     labelled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
 

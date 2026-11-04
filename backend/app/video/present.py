@@ -11,25 +11,25 @@ def iso(dt) -> str | None:
     return dt.isoformat() if dt else None
 
 
-def channel_card(c: Channel | None) -> dict | None:
+def channel_card(c: Channel | None, pend: dict | None = None) -> dict | None:
     if c is None:
         return None
     from app.video.services.images import public_url
 
-    pend = counters.pending("channel", [c.id]).get(c.id, {})
+    pend = counters.pending("channel", [c.id]).get(c.id, {}) if pend is None else pend
     return {"id": c.id, "handle": c.handle, "name": c.name, "avatar": public_url(c.avatar_key),
             "banner": public_url(c.banner_key), "followers": c.follower_count + pend.get("follower_count", 0),
             "verified": c.handle == "klygenix"}
 
 
-def video_card(v: Video, channel: Channel | None, pend: dict | None = None) -> dict:
+def video_card(v: Video, channel: Channel | None, pend: dict | None = None, channel_pend: dict | None = None) -> dict:
     pend = pend or {}
     return {
         "id": v.public_id, "title": v.title, "kind": v.kind, "source": v.source,
         "duration_ms": v.duration_ms, "duration": fmt_ts(v.duration_ms), "thumbnail": media.thumb(v),
         "views": v.view_count + pend.get("view_count", 0), "likes": v.like_count + pend.get("like_count", 0),
         "published_at": iso(v.published_at), "language": v.language, "ai_generated": v.ai_generated,
-        "embed_platform": v.embed_platform, "channel": channel_card(channel), "access": v.access,
+        "embed_platform": v.embed_platform, "channel": channel_card(channel, channel_pend), "access": v.access,
         "price_minor": v.price_inr_minor if v.access == "paid" else None,
     }
 

@@ -5,6 +5,8 @@ import { Download, Upload } from "lucide-react"
 import { api } from "@klygenixvideo/auth"
 import { Badge, Button, Card, Field, FileDropzone, Select, downloadFile } from "@klygenixvideo/ui"
 import { MULTIPART, STUDIO } from "../../lib/hooks"
+import { useHasPermission } from "../../lib/team"
+import { ViewOnly } from "../team/ViewOnly"
 import { LANGUAGES, detail, languageName } from "../../lib/format"
 import type { StudioVideoDetail } from "../../lib/types"
 import { useT } from "../../i18n"
@@ -22,6 +24,7 @@ export function CaptionsTab({ video }: { video: StudioVideoDetail }) {
   const [file, setFile] = useState<File | null>(null)
   const [language, setLanguage] = useState(video.language || "en")
   const [busy, setBusy] = useState(false)
+  const canEdit = useHasPermission("video.uploads", "full")
 
   const available = video.captions?.available ?? []
   const translatable = video.captions?.translatable ?? []
@@ -49,6 +52,9 @@ export function CaptionsTab({ video }: { video: StudioVideoDetail }) {
 
   return (
     <div className="grid gap-5 lg:grid-cols-2">
+      {!canEdit ? (
+        <div><ViewOnly what={t("Your role can download captions but not upload new ones.")} /></div>
+      ) : (
       <Card className="space-y-4 p-5">
         <div>
           <h3 className="text-sm font-bold text-navy">{t("Upload captions")}</h3>
@@ -79,6 +85,7 @@ export function CaptionsTab({ video }: { video: StudioVideoDetail }) {
           </Button>
         </div>
       </Card>
+      )}
 
       <Card className="p-5">
         <h3 className="mb-3 text-sm font-bold text-navy">{t("Caption languages")}</h3>

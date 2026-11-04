@@ -59,6 +59,13 @@ check("saved in order as a new version", ([x["title"] for x in r.json()["chapter
 check("history keeps who changed it", r.json()["history"][0]["by"], "creator")
 check("viewers see the edited chapters", [x["title"] for x in client().get(f"/api/video/videos/{pid}").json()["insight"]["chapters"]],
       [x["title"] for x in new])
+hist = c.get(f"/api/video/studio/videos/{v['id']}/chapters").json()["history"]
+check("history keeps the old chapters", [x["title"] for x in hist[1]["chapters"]], [x["title"] for x in ch["chapters"]])
+r = c.post(f"/api/video/studio/videos/{v['id']}/chapters/restore", json={"version": ch["version"]})
+check("an old version can be restored as a new one", ([x["title"] for x in r.json()["chapters"]], r.json()["version"]),
+      ([x["title"] for x in ch["chapters"]], ch["version"] + 2))
+check("restoring a version that never existed", c.post(f"/api/video/studio/videos/{v['id']}/chapters/restore",
+                                                         json={"version": 999}).status_code, 404)
 
 print("\n== repurpose pack")
 r = c.post(f"/api/video/studio/videos/{v['id']}/repurpose", json={"language": "en"})
@@ -69,6 +76,10 @@ ok("blog post, social posts and a newsletter", all(p.get(k) for k in ("blog_post
 ok("every claim points at a timestamp", p["citations"] and all(":" in x["label"] for x in p["citations"]), p["citations"][:2])
 check("an X post fits", len(p["x_post"]) <= 280, True)
 check("latest pack", c.get(f"/api/video/studio/videos/{v['id']}/repurpose").json()["pack"]["id"], p["id"])
+p2 = c.post(f"/api/video/studio/videos/{v['id']}/repurpose", json={"language": "hi"}).json()
+packs = c.get(f"/api/video/studio/videos/{v['id']}/repurpose/packs").json()
+check("every pack is listed, newest first", [x["id"] for x in packs][:2], [p2["id"], p["id"]])
+check("an older pack can be opened", c.get(f"/api/video/studio/repurpose/{p['id']}").json()["blog_post"], p["blog_post"])
 md = c.get(f"/api/video/studio/repurpose/{p['id']}.md")
 check("Markdown export", (md.status_code, "## LinkedIn" in md.text, md.text.startswith("# ")), (200, True, True))
 check("another tenant cannot read it", creator("Pack thief").get(f"/api/video/studio/repurpose/{p['id']}.md").status_code, 404)

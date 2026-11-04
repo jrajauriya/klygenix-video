@@ -237,7 +237,7 @@ export function LoginPage({ productName, productKey, signupPath, forgotPath }: L
                 <a href={forgotPath} className="text-[#632B4F] hover:underline">{t("login.forgot")}</a>
               ) : <span />}
               {signupPath && signupOpen && (
-                <a href={signupPath} className="text-[#632B4F] hover:underline">{t("login.create")}</a>
+                <a href={returnUrl !== "/" ? `${signupPath}?returnUrl=${encodeURIComponent(returnUrl)}` : signupPath} className="text-[#632B4F] hover:underline">{t("login.create")}</a>
               )}
             </div>
           )}

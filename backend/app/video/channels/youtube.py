@@ -143,6 +143,50 @@ def my_videos(token: str, limit: int = 50) -> list[RemoteVideo]:
     return out
 
 
+def _sandbox_videos() -> list[RemoteVideo]:
+    import json
+
+    out = []
+    for vid, fixture, title in SANDBOX_VIDEOS:
+        meta = os.path.join(FIXTURES, f"{fixture}.json")
+        dur = int(json.load(open(meta))["duration_s"] * 1000) if os.path.exists(meta) else 60_000
+        out.append(RemoteVideo(vid, title, "Imported from the sandbox YouTube channel.", dur, None))
+    return out
+
+
+def _details(token: str, ids: list[str]) -> list[RemoteVideo]:
+    out = []
+    for i in range(0, len(ids), 50):
+        for v in _get("/videos", token, part="snippet,contentDetails,status", id=",".join(ids[i:i + 50])).get("items") or []:
+            if (v.get("status") or {}).get("embeddable") is False:
+                continue
+            sn = v["snippet"]
+            out.append(RemoteVideo(v["id"], sn.get("title", "")[:200], sn.get("description", ""),
+                                   iso_ms(v["contentDetails"].get("duration", "")), sn.get("publishedAt")))
+    return out
+
+
+def page(token: str, page_token: str | None = None, size: int = 50) -> tuple[list[RemoteVideo], str | None]:
+    if sandbox():
+        return _sandbox_videos(), None
+    ch = _get("/channels", token, part="contentDetails", mine="true").get("items") or []
+    if not ch:
+        return [], None
+    params = {"part": "contentDetails", "playlistId": ch[0]["contentDetails"]["relatedPlaylists"]["uploads"],
+              "maxResults": min(size, 50)}
+    if page_token:
+        params["pageToken"] = page_token
+    data = _get("/playlistItems", token, **params)
+    ids = [i["contentDetails"]["videoId"] for i in data.get("items") or []]
+    return (_details(token, ids) if ids else []), data.get("nextPageToken")
+
+
+def by_ids(token: str, ids: list[str]) -> list[RemoteVideo]:
+    if sandbox():
+        return [v for v in _sandbox_videos() if v.external_id in set(ids)]
+    return _details(token, ids)
+
+
 def captions(token: str, external_id: str) -> tuple[str, str] | None:
     if sandbox():
         fixture = next((f for vid, f, _ in SANDBOX_VIDEOS if vid == external_id), None)

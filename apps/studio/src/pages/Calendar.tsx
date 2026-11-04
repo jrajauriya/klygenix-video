@@ -5,7 +5,8 @@ import { toast } from "sonner"
 import { CalendarClock, ChevronLeft, ChevronRight, Clapperboard, PlaySquare, X } from "lucide-react"
 import { api } from "@klygenixvideo/auth"
 import { Button, Card, DataTable, Field, Input, Modal, PageHeader, StatusPill, cn, useConfirm } from "@klygenixvideo/ui"
-import { useHasPermission } from "@klygenixvideo/client"
+import { useHasPermission } from "../lib/team"
+import { ViewOnly } from "../components/team/ViewOnly"
 import { STUDIO } from "../lib/hooks"
 import { TZ, detail, fromLocalInput, toLocalInput, when } from "../lib/format"
 import type { CalendarItem } from "../lib/types"
@@ -73,6 +74,7 @@ export default function Calendar() {
   const confirm = useConfirm()
   const canVideos = useHasPermission("video.uploads", "full")
   const canClips = useHasPermission("video.clips", "full")
+  const seeClips = useHasPermission("video.clips")
   const [params, setParams] = useSearchParams()
   const month = /^\d{4}-\d{2}$/.test(params.get("month") ?? "") ? params.get("month")! : thisMonth()
   const days = useMemo(() => grid(month), [month])
@@ -165,6 +167,7 @@ export default function Calendar() {
   }
 
   const link = (i: CalendarItem) => (i.type === "video" ? `/videos/${i.id}` : `/clips/${i.clip_id}`)
+  const linked = (i: CalendarItem) => i.type === "video" || seeClips
 
   return (
     <div className="pb-8">
@@ -192,6 +195,7 @@ export default function Calendar() {
         </div>
       </div>
 
+      {!canVideos && !canClips && <ViewOnly className="mb-3" what={t("Your role can see the schedule but not move or cancel posts.")} />}
       {isError && <p role="alert" className="mb-3 text-sm text-red-700">{t("The calendar could not be loaded.")}</p>}
 
       <Card className="overflow-hidden p-0">
@@ -239,6 +243,10 @@ export default function Calendar() {
                           <button type="button" onClick={() => open(i)} className={cls} style={{ background: tone.hex }} title={label}>
                             {body}
                           </button>
+                        ) : !linked(i) ? (
+                          <span className={cn(cls, "hover:opacity-100")} style={{ background: tone.hex }} title={label}>
+                            {body}
+                          </span>
                         ) : (
                           <Link to={link(i)} className={cls} style={{ background: tone.hex }} title={label}>
                             {body}
@@ -268,11 +276,16 @@ export default function Calendar() {
             {
               key: "title",
               header: t("What"),
-              render: (i) => (
-                <Link to={link(i)} className="inline-flex max-w-xs items-center gap-1.5 font-medium text-navy hover:text-brand">
-                  <ItemIcon item={i} /> <span className="truncate">{i.title}</span>
-                </Link>
-              ),
+              render: (i) =>
+                linked(i) ? (
+                  <Link to={link(i)} className="inline-flex max-w-xs items-center gap-1.5 font-medium text-navy hover:text-brand">
+                    <ItemIcon item={i} /> <span className="truncate">{i.title}</span>
+                  </Link>
+                ) : (
+                  <span className="inline-flex max-w-xs items-center gap-1.5 font-medium text-navy">
+                    <ItemIcon item={i} /> <span className="truncate">{i.title}</span>
+                  </span>
+                ),
             },
             {
               key: "target",

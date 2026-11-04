@@ -1,11 +1,12 @@
 import {
-  Bot, Building2, FileBarChart, FileClock, FlaskConical, Handshake, IndianRupee, Film, Gavel, Inbox, Layers, LayoutDashboard, Mail,
+  Bot, Building2, FileBarChart, FileClock, FlaskConical, Handshake, IndianRupee, Film, Gavel, Inbox, LifeBuoy, Layers, LayoutDashboard, Mail,
   MessageSquareText, MonitorPlay, Radio, Rocket, ScrollText, Settings, ShieldAlert, ShieldCheck, Sparkles, Ticket, TriangleAlert, Users,
 } from "lucide-react"
 import type { NavItem, NavSection } from "@klygenixvideo/ui"
 
 export const topLinks: NavItem[] = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, permissionKey: "admin.dashboard" },
+  { to: "/support", label: "Support desk", icon: LifeBuoy, permissionKey: "admin.support" },
 ]
 
 export const sections: NavSection[] = [
