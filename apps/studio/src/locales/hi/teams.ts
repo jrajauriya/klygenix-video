@@ -192,9 +192,6 @@ const HI: Record<string, string> = {
     "आपकी भूमिका यह स्ट्रीम और उसकी चैट देख सकती है, पर उसे शुरू, बदल या ख़त्म नहीं कर सकती।",
   "Your role can watch streams and their chat but not start, change or end them.":
     "आपकी भूमिका स्ट्रीम और उनकी चैट देख सकती है, पर उन्हें शुरू, बदल या ख़त्म नहीं कर सकती।",
-  "Only the channel owner sees these": "इन्हें केवल चैनल का मालिक देखता है",
-  "Notices, strikes, appeals and takedowns for {channel} go to its owner. Switch to your own channel to see yours.":
-    "{channel} के नोटिस, स्ट्राइक, अपील और टेकडाउन उसके मालिक के पास जाते हैं। अपने नोटिस देखने के लिए अपने चैनल पर जाएँ।",
   "Your role can read posts and poll results but not post or delete.": "आपकी भूमिका पोस्ट और पोल के नतीजे पढ़ सकती है, पर पोस्ट कर या हटा नहीं सकती।",
   "Your role can see who moderates this channel but not add or remove moderators.":
     "आपकी भूमिका देख सकती है कि इस चैनल को कौन मॉडरेट करता है, पर मॉडरेटर जोड़ या हटा नहीं सकती।",

@@ -144,7 +144,7 @@ def subscriptions(response: Response, limit: int = Query(24, le=60), offset: int
     key = f"kv:subs:seen:{ctx.user.id}"
     r = get_redis()
     last = r.get(key)
-    since = datetime.fromtimestamp(int(last), timezone.utc) if last else datetime.now(timezone.utc) - timedelta(days=7)
+    since = datetime.fromtimestamp(float(last), timezone.utc) if last else datetime.now(timezone.utc) - timedelta(days=7)
     chans = ctx.db.execute(select(Follow.channel_id).where(Follow.user_id == ctx.user.id)).scalars().all()
     if not chans:
         response.headers["X-Total-Count"] = "0"
@@ -158,6 +158,7 @@ def subscriptions(response: Response, limit: int = Query(24, le=60), offset: int
     for c, v in zip(out, rows):
         c["new"] = bool(v.published_at and v.published_at > since)
     if mark_seen and offset == 0:
-        r.set(key, int(datetime.now(timezone.utc).timestamp()))
+        seen = max([datetime.now(timezone.utc)] + [v.published_at for v in rows[:1] if v.published_at])
+        r.set(key, f"{seen.timestamp():.6f}")
     response.headers["X-Total-Count"] = str(len(out))
     return {"new_count": new_count, "since": iso(since), "channels": len(chans), "items": out}

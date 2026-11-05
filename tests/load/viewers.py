@@ -59,6 +59,7 @@ class Stats:
         self.samples: dict[str, str] = {}
         self.ws_open = 0
         self.ws_failed = 0
+        self.ws_why: dict[str, int] = defaultdict(int)
         self.ws_messages = 0
 
     def record(self, step: str, seconds: float, ok: bool, why: str = "") -> None:
@@ -110,8 +111,9 @@ async def room(ws_base: str, pid: str, stats: Stats, stop_at: float, ssl_ctx=Non
                     stats.ws_messages += 1
                 except asyncio.TimeoutError:
                     continue
-    except Exception:
+    except Exception as exc:
         stats.ws_failed += 1
+        stats.ws_why[f"{type(exc).__name__}: {str(exc)[:60]}"] += 1
 
 
 async def poster(api: str, token: str, pid: str, stats: Stats, stop_at: float, verify=True) -> None:
@@ -139,7 +141,8 @@ async def drive(a: dict, videos: list[str], token: str | None, users: int, rooms
             tasks.append(poster(api, token, videos[0], stats, stop_at, verify))
         await asyncio.gather(*tasks)
     return {"times": dict(stats.times), "errors": dict(stats.errors), "samples": stats.samples,
-            "ws_open": stats.ws_open, "ws_failed": stats.ws_failed, "ws_messages": stats.ws_messages}
+            "ws_open": stats.ws_open, "ws_failed": stats.ws_failed, "ws_messages": stats.ws_messages,
+            "ws_why": dict(stats.ws_why)}
 
 
 def run_part(a: dict, videos: list[str], token: str | None, users: int, rooms: int) -> dict:
@@ -183,6 +186,8 @@ async def main(args) -> int:
             stats.samples.setdefault(step, why)
         stats.ws_open += part["ws_open"]
         stats.ws_failed += part["ws_failed"]
+        for why, n in part["ws_why"].items():
+            stats.ws_why[why] += n
         stats.ws_messages += part["ws_messages"]
     elapsed = time.perf_counter() - started
     total = sum(len(v) for v in stats.times.values())
@@ -199,6 +204,8 @@ async def main(args) -> int:
     rate = errors / total if total else 1.0
     print(f"\n{total} requests in {elapsed:.1f}s = {total / elapsed:.0f} req/s; errors {errors} ({rate:.2%})")
     print(f"WebSockets: {stats.ws_open} opened, {stats.ws_failed} failed, {stats.ws_messages} live messages received")
+    for why, n in sorted(stats.ws_why.items(), key=lambda x: -x[1]):
+        print(f"  socket ended: {n} × {why}")
     if rate > args.max_error_rate:
         failed.append(f"error rate {rate:.2%} > {args.max_error_rate:.2%}")
     if args.rooms and stats.ws_failed > args.rooms * 0.01:

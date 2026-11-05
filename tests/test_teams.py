@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from urllib.parse import parse_qs, urlparse
 
-from harness import check, client, creator, finish, ok, premium, settled, signup, sql, upload, wait_for
+from harness import admin_login, check, client, creator, finish, ok, premium, settled, signup, sql, uid, upload, wait_for
 
 
 def token_for(email: str) -> str:
@@ -93,6 +93,38 @@ r = owner.put("/api/video/roles/permissions", json={"permissions": {"moderator":
 check("the owner can widen a role", r.status_code, 200)
 check("the change applies to the moderator at once", ma.get("/api/video/studio/analytics").status_code, 200)
 
+print("\n== the channel's moderation notices")
+admin = admin_login()
+r = admin.post("/api/video/admin/actions", json={"target_type": "video", "target_id": v["id"], "action": "remove", "reason": "Misleading title"})
+act = r.json()["id"] if r.status_code == 201 else None
+check("the platform removes a team upload", r.status_code, 201)
+ids = lambda c: [a["id"] for a in c.get("/api/video/me/moderation").json()["actions"]]
+ok("the owner sees the notice", act in ids(owner))
+ok("the moderator sees the channel's notice", act in ids(ma))
+ok("an editor reads it too", act in ids(ea))
+ok("without the channel header the moderator sees only their own", act not in ids(mod))
+check("an outsider forging the header is refused", acting(stranger, tid).get("/api/video/me/moderation").status_code, 403)
+check("an editor cannot appeal", ea.post("/api/video/appeals", json={"action_id": act, "text": "This title is accurate, please look again."}).status_code, 403)
+r = ma.post("/api/video/appeals", json={"action_id": act, "text": "The title matches the video, please look again."})
+check("the moderator appeals for the channel", r.status_code, 201)
+check("the appeal is the channel's, filed by the moderator", sql("SELECT tenant_id, user_id FROM kv_trust.appeals WHERE id = :i", i=r.json()["id"])[0],
+      (tid, mod.user["id"]))
+v2 = settled(owner, upload(owner, "reel-chai", "Owner chai for a notice")["id"])
+t = client().post("/api/video/takedowns", json={"kind": "copyright", "complainant_name": "Rights Holder", "complainant_email": f"rights-{uid()}@example.com",
+                                                "target_url": f"https://play.klygenix.com/watch/{v2['public_id']}",
+                                                "details": "This is my original recording uploaded without licence.", "sworn": True})
+ref = t.json()["reference"]
+td = next(x for x in admin.get("/api/video/admin/takedowns").json() if x["reference"] == ref)
+admin.post(f"/api/video/admin/takedowns/{td['id']}", json={"status": "actioned", "note": "Matches the claim"})
+seen = {x["reference"]: x["can_counter"] for x in ma.get("/api/video/me/takedowns").json()}
+check("the moderator sees the takedown but may not counter it", seen.get(ref), False)
+check("the owner may", {x["reference"]: x["can_counter"] for x in owner.get("/api/video/me/takedowns").json()}.get(ref), True)
+cn = {"full_name": "Team Moderator", "address": "12 MG Road, Pune 411001, India", "phone": "+91 98200 00000",
+      "email": mod.email, "statement": "I recorded this video myself; the claimant has misidentified it.",
+      "good_faith": True, "consent_jurisdiction": True, "signature": "Team Moderator"}
+r = ma.post(f"/api/video/me/takedowns/{ref}/counter-notice", json=cn)
+check("a counter-notice is the owner's alone", (r.status_code, r.headers.get("X-Error-Code")), (403, "owner_only"))
+
 print("\n== managers, roles and removal")
 r = owner.patch(f"/api/video/studio/team/{mid}", json={"role": "manager"})
 check("the owner promotes the editor to manager", r.json()["role"], "manager")
@@ -112,6 +144,7 @@ check("the owner removes the manager", owner.delete(f"/api/video/studio/team/{mi
 check("a removed member loses access at once", ea.get("/api/video/studio/videos").status_code, 403)
 check("the moderator can leave", mod.post(f"/api/video/me/channels/{tid}/leave").status_code, 200)
 check("and is gone", ma.get("/api/video/studio/comments").status_code, 403)
+check("and no longer sees the notices", ma.get("/api/video/me/moderation").status_code, 403)
 actions = {a for (a,) in sql("SELECT action FROM kv_admin.audit_log WHERE action LIKE 'team.%' AND target_id IN "
                              "(SELECT id FROM kv_admin.tenant_members WHERE tenant_id = :t)", t=tid)}
 ok("every team change is audited", {"team.invite", "team.accept", "team.role", "team.remove"} <= actions, actions)

@@ -85,6 +85,20 @@ def signed_in(db: Session = Depends(get_tenant_db), user: User = Depends(get_cur
     return Ctx(db=db, user=user, tenant_id=user.tenant_id)
 
 
+def notices(level: str = "view"):
+    def dep(request: Request, db: Session = Depends(get_tenant_db), user: User = Depends(get_current_user)) -> StudioCtx:
+        tenant_id, member = acting_tenant(request, db, user)
+        if member is None:
+            reading_as_viewer(user)
+        else:
+            from app.core.services import teams
+
+            teams.assert_member(db, tenant_id, member, "video.comments", level)
+        return StudioCtx(db=db, user=user, tenant_id=tenant_id, channel=None, member=member)
+
+    return dep
+
+
 def feature_on(db: Session, tenant_id: int, key: str) -> bool:
     row = db.execute(select(TenantFeature.is_enabled).where(
         TenantFeature.tenant_id == tenant_id, TenantFeature.feature_key == key)).first()

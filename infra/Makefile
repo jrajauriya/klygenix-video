@@ -42,7 +42,7 @@ seed:
 test:
 	cd ../tests && for t in test_accounts test_tenancy test_upload_flow test_ai_pipeline test_search test_ask_citations \
 	  test_quota test_social test_clips test_plans_billing test_moderation test_embed_policy test_security \
-	  test_viewer_extras test_playlists test_parties test_thumbnails test_payouts test_monetisation test_refunds test_analytics_reco test_publishing test_community test_learning test_dubbing test_live test_push test_retention test_admin_ops test_readiness test_provider_contracts test_live_cloudflare test_trust_beta test_ads test_sponsorships test_reco_model test_device_login test_viewer_growth test_creator_ai test_view_pool test_teams test_onboarding test_support_desk test_tracing test_graph_mail test_error_tracking test_native_imports test_migration_parity; do \
+	  test_viewer_extras test_playlists test_parties test_thumbnails test_payouts test_monetisation test_refunds test_analytics_reco test_publishing test_community test_learning test_dubbing test_live test_push test_retention test_admin_ops test_readiness test_provider_contracts test_live_cloudflare test_trust_beta test_ads test_sponsorships test_reco_model test_device_login test_viewer_growth test_creator_ai test_view_pool test_teams test_onboarding test_support_desk test_tracing test_graph_mail test_error_tracking test_app_links test_native_imports test_migration_parity; do \
 	  echo "### $$t"; ../backend/venv/bin/python $$t.py || exit 1; done
 
 slow-queries:

@@ -46,3 +46,14 @@ refuses both.
 |---|---|---|---|
 | Trace collector (optional) | `OTEL_EXPORTER_OTLP_ENDPOINT` (any OTLP/HTTP collector: Grafana Cloud, Honeycomb, an OpenTelemetry Collector) | `OTEL_EXPORTER_OTLP_HEADERS` (seal it if it carries an API key) | Open a watch page; one trace shows the request span, the `job …` spans it queued and any `llm responses` span |
 | Slow-query report | `pg_stat_statements` is preloaded by `docker-compose.prod.yml` (needs a Postgres restart the first time) | — | `make -C infra slow-queries PG_CONTAINER=klygenix-video-postgres` after a day of traffic |
+
+## Run 8 hosts and app links
+
+| Provider / host | Switch | Keys | First real check |
+|---|---|---|---|
+| iOS Universal Links | `APPLE_TEAM_ID` in the compose env for nginx (`infra/.env`, `infra/.env.staging`) | the Apple Developer Team ID (10 characters); bundle id `com.klygenix.play` | `curl https://play.klygenix.com/.well-known/apple-app-site-association` answers JSON; Apple's AASA validator passes; tapping an invite mail on an iPhone with the app opens the accept screen |
+| Android App Links | `ANDROID_CERT_SHA256` in the same env | the Play app signing key's SHA-256 fingerprint (Play Console → App integrity), plus the upload key's if you sideload test builds — comma-separated | `curl …/.well-known/assetlinks.json`; `adb shell pm verify-app-links --re-verify com.klygenix.play` then `adb shell pm get-app-links com.klygenix.play` shows both hosts `verified` |
+| App build | `EXPO_PUBLIC_DOMAIN` (defaults to `play.klygenix.com`) when building with EAS | — | `npx expo config --type public` lists `applinks:` for the web and studio hosts and verified intent filters |
+
+Until both values are set, the well-known paths answer 404 and links open the website as before.
+

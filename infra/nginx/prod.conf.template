@@ -110,6 +110,7 @@ server {
     index index.html;
     client_max_body_size 1M;
     include /etc/nginx/snippets/headers-studio.conf;
+    include /etc/nginx/snippets/applinks.conf;
 
     location /assets/ {
         expires 1y;
@@ -155,6 +156,7 @@ server {
     }
 
     location /api/video/images/ { include /etc/nginx/snippets/media.conf; }
+    include /etc/nginx/snippets/applinks.conf;
 
     location /assets/ {
         root /var/www/web;

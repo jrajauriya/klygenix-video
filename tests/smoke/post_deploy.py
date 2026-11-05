@@ -161,6 +161,16 @@ def run(args: argparse.Namespace) -> None:
     check("web: the app manifest is served", r.status_code == 200 and "Klygenix" in r.text, f"HTTP {r.status_code}")
     r = client.get(f"{base}/reels")
     check("web: deep link /reels falls back to the app", r.status_code == 200 and '<div id="root">' in r.text, f"HTTP {r.status_code}")
+    for origin in (base, sibling(base, "studio")):
+        for name, key in (("apple-app-site-association", "applinks"), ("assetlinks.json", None)):
+            r = client.get(f"{origin}/.well-known/{name}")
+            try:
+                body = r.json() if r.status_code == 200 else None
+            except ValueError:
+                body = None
+            shaped = body is not None and "json" in r.headers.get("content-type", "") and (key in body if key else isinstance(body, list))
+            check(f"app links: {origin.split('//')[1].split('.')[0]} {name} is valid JSON or absent", r.status_code == 404 or shaped,
+                  f"HTTP {r.status_code} {r.headers.get('content-type')}")
 
     if args.http_base:
         section("plain http")

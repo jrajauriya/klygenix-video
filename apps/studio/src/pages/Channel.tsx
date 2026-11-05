@@ -2,7 +2,8 @@ import { useEffect, useRef, useState, type ReactNode, type RefObject } from "rea
 import { useNavigate, useSearchParams } from "react-router-dom"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
-import { AtSign, Download, ExternalLink, ImageUp, Instagram, Link2, RefreshCw, Save, ShieldCheck, Unplug, Youtube } from "lucide-react"
+import { AtSign, Download, ExternalLink, ImageUp, Link2, RefreshCw, Save, ShieldCheck, Unplug } from "lucide-react"
+import { Instagram, Youtube } from "../components/BrandIcons"
 import { api } from "@klygenixvideo/auth"
 import {
   Badge, Button, Card, Field, Input, PageHeader, Select, Spinner, Tabs, Textarea, useConfirm,

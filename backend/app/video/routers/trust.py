@@ -11,7 +11,7 @@ from app.video.models.media import Video
 from app.video.models.trust import Appeal, ModerationAction, Report, Strike, Takedown
 from app.video.present import iso
 from app.video.routers import limits
-from app.video.routers.deps import Ctx, signed_in
+from app.video.routers.deps import Ctx, StudioCtx, notices, signed_in
 from app.video.sessions import platform_session
 from app.video.trust import service as trust
 
@@ -163,11 +163,15 @@ def _my_takedown(t: Takedown, v: Video | None) -> dict:
 
 
 @router.get("/me/takedowns")
-def my_takedowns(ctx: Ctx = Depends(signed_in)):
+def my_takedowns(ctx: StudioCtx = Depends(notices())):
     with platform_session() as db:
         rows = db.execute(select(Takedown).where(Takedown.target_tenant_id == ctx.tenant_id)
                           .order_by(Takedown.received_at.desc()).limit(100)).scalars().all()
-        return [_my_takedown(t, db.get(Video, t.video_id) if t.video_id else None) for t in rows]
+        out = [_my_takedown(t, db.get(Video, t.video_id) if t.video_id else None) for t in rows]
+    if ctx.member is not None:
+        for o in out:
+            o["can_counter"] = False
+    return out
 
 
 class CounterIn(BaseModel):
@@ -182,12 +186,14 @@ class CounterIn(BaseModel):
 
 
 @router.post("/me/takedowns/{reference}/counter-notice")
-def counter_notice(reference: str, data: CounterIn, ctx: Ctx = Depends(signed_in)):
+def counter_notice(reference: str, data: CounterIn, ctx: StudioCtx = Depends(notices("full"))):
     from app.config import settings
     from app.core import audit
     from app.core.audit import USER, Actor
     from app.core.services import mailer
 
+    if ctx.member is not None:
+        raise err(403, "owner_only")
     if not (data.good_faith and data.consent_jurisdiction):
         raise err(400, "counter_notice_statements_needed")
     if data.signature.strip().lower() != data.full_name.strip().lower():
@@ -215,7 +221,7 @@ def counter_notice(reference: str, data: CounterIn, ctx: Ctx = Depends(signed_in
 
 
 @router.get("/me/moderation")
-def my_moderation(ctx: Ctx = Depends(signed_in)):
+def my_moderation(ctx: StudioCtx = Depends(notices())):
     acts = ctx.db.execute(select(ModerationAction).where(ModerationAction.tenant_id == ctx.tenant_id)
                           .order_by(ModerationAction.id.desc()).limit(100)).scalars().all()
     strikes = ctx.db.execute(select(Strike).where(Strike.tenant_id == ctx.tenant_id).order_by(Strike.id.desc())).scalars().all()
@@ -237,7 +243,7 @@ class AppealIn(BaseModel):
 
 
 @router.post("/appeals", status_code=201)
-def appeal(data: AppealIn, ctx: Ctx = Depends(signed_in)):
+def appeal(data: AppealIn, ctx: StudioCtx = Depends(notices("full"))):
     act = ctx.db.get(ModerationAction, data.action_id)
     if act is None or act.tenant_id != ctx.tenant_id or act.action not in ("remove", "restrict", "suspend"):
         raise err(404, "action_not_allowed")

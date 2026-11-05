@@ -1,13 +1,13 @@
 import { useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
-import { ShieldCheck, ShieldOff } from "lucide-react"
+import { ShieldCheck } from "lucide-react"
 import { api } from "@klygenixvideo/auth"
 import { Badge, Button, Card, Field, Modal, PageHeader, Spinner, Textarea } from "@klygenixvideo/ui"
 import { detail, when } from "../lib/format"
 import type { ModerationAction, Strike } from "../lib/types"
 import { Notices } from "../components/Notices"
-import { useActing, useTeamMe } from "../lib/team"
+import { useActing, useHasPermission } from "../lib/team"
 import { useT } from "../i18n"
 
 const APPEALABLE = ["remove", "restrict", "suspend"]
@@ -30,33 +30,12 @@ const APPEAL_LABEL: Record<string, { label: string; color: "amber" | "green" | "
   overturned: { label: "Appeal granted", color: "green" },
 }
 
-function OwnerOnly() {
-  const t = useT()
-  const { data: me } = useTeamMe()
-  return (
-    <div className="pb-8">
-      <PageHeader title={t("Moderation notices")} subtitle={t("Actions our trust and safety team has taken on your content, and your strikes.")} />
-      <Card className="flex items-start gap-3 p-5">
-        <ShieldOff size={22} className="mt-0.5 shrink-0 text-slate-500" aria-hidden="true" />
-        <div>
-          <p className="font-semibold text-navy">{t("Only the channel owner sees these")}</p>
-          <p className="text-sm text-slate-600">
-            {t("Notices, strikes, appeals and takedowns for {channel} go to its owner. Switch to your own channel to see yours.", { channel: me?.channel?.name ?? t("this channel") })}
-          </p>
-        </div>
-      </Card>
-    </div>
-  )
-}
-
 export default function Moderation() {
-  return useActing() === null ? <OwnModeration /> : <OwnerOnly />
-}
-
-function OwnModeration() {
   const t = useT()
+  const acting = useActing()
+  const canAppeal = useHasPermission("video.comments", "full") || acting === null
   const { data, isLoading } = useQuery({
-    queryKey: ["video-moderation"],
+    queryKey: ["video-moderation", acting],
     queryFn: async () => (await api.get<{ actions: ModerationAction[]; strikes: Strike[] }>("/api/video/me/moderation")).data,
   })
   const [appealing, setAppealing] = useState<ModerationAction | null>(null)
@@ -98,7 +77,7 @@ function OwnModeration() {
                     </div>
                     {a.appeal ? (
                       <Badge color={APPEAL_LABEL[a.appeal.status]?.color ?? "slate"}>{APPEAL_LABEL[a.appeal.status] ? t(APPEAL_LABEL[a.appeal.status].label) : t("Appeal {status}", { status: a.appeal.status })}</Badge>
-                    ) : APPEALABLE.includes(a.action) ? (
+                    ) : APPEALABLE.includes(a.action) && canAppeal ? (
                       <Button size="sm" variant="outline" onClick={() => setAppealing(a)}>{t("Appeal")}</Button>
                     ) : null}
                   </li>

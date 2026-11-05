@@ -30,7 +30,8 @@ and run 4 (provider go-live readiness, trust & safety gaps, closed beta, and V5.
 app / V5.5 trained recommender started early by the owner) and run 5 (ad integrity & brand safety, Hindi & India-first,
 viewer growth, creator AI v2, V5.4 regions and V5.6 view pool) and run 6 (run 5 gaps, channel teams, creator onboarding
 & admin support desk, partitions / tracing / slow-query report) and run 7 (error codes, account mails through the outbox,
-team mode finished, feed throughput, FastAPI 0.162) built and running **locally on sandbox
+team mode finished, feed throughput, FastAPI 0.162) and run 8 (channel notices for team members, app links, Vite 8 /
+TypeScript 7 / Sonner 2 / lucide 1 / tailwind-merge 3) built and running **locally on sandbox
 providers**, not deployed (Nov 2026). Creator money runs on the sandbox rail only: live money waits for
 CA sign-off, creator KYC and Play's Razorpay Route keys. Every provider has a sandbox adapter and a real
 one behind the same interface, switched by `.env`. See `docs/BUILD-PLAN.md` for what is proven,
@@ -311,6 +312,16 @@ bash infra/local-stack.sh up && bash infra/local-stack.sh smoke   # production s
   member whose role reaches the key). Comment/danmaku deletes and live-chat moderation use it.
 - Never write rows for another tenant from a studio session (RLS refuses them): notify an invitee with
   `after_commit.later(db, push.notify_job, …)`, which runs in a platform session.
+- Moderation notices, strikes, appeals and takedowns use `deps.notices(level)`: the owner (no header) as before, a member through
+  `X-Kv-Tenant` at `video.comments` view (appeal at full). The counter-notice is owner-only (403 `owner_only`).
+- **App links**: `infra/nginx/applinks.sh` writes `apple-app-site-association` / `assetlinks.json` at nginx start from
+  `APPLE_TEAM_ID` / `ANDROID_CERT_SHA256` (compose env); empty or malformed → nothing written → 404. `apps/mobile/app.config.ts`
+  adds associated domains and verified intent filters for `EXPO_PUBLIC_DOMAIN` on top of app.json; incoming links are mapped by
+  `lib/links.ts` (`app/+native-intent.tsx`): `/@handle` → `/channel/handle`, `/reels/x` → `/watch/x`, unknown web paths → feed.
+- **Vite 8 (Rolldown) and TypeScript 7** in web/studio/admin/tv: TS 7 removed `baseUrl` (paths are relative to the tsconfig);
+  Vite configs use `import.meta.dirname`, not `__dirname`. Mobile stays on Expo SDK 58's TypeScript 6. lucide 1 has no brand
+  icons — the studio's YouTube / Instagram glyphs live in `components/BrandIcons.tsx`. After a lockfile change run `npm dedupe`
+  if `npm ls vite` shows a second copy (`@tailwindcss/vite` kept a hoisted Vite 6 once).
 - `counters.pending()` reads with a non-transactional pipeline; card builders pass channel counters prefetched once per page
   (`video_card(..., channel_pend)`) — one Redis round trip per card was a quarter of the feed's time.
 

@@ -8,6 +8,6 @@
     "react": "^19.0.0",
     "@tanstack/react-query": "^5.62.0",
     "@klygenixvideo/auth": "*",
-    "sonner": "^1.7.0"
+    "sonner": "^2.0.8"
   }
 }

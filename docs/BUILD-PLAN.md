@@ -2,8 +2,8 @@
 
 The master plan (`../Klygenix_Docs/Klygenix_Video/klygenix-video-master-plan.html`) says what and
 why; this file says what is built, what each test proves, what runs only on sandbox providers and
-what is blocked. Built in unattended runs, 3–4 Nov 2026 (run 7 newest, below). **Runs 6 and 7 are not committed** (the owner
-commits by hand) **and nothing is deployed.**
+what is blocked. Built in unattended runs, 3–4 Nov 2026 (run 8 newest, below). **Run 8 is not committed** (the owner
+commits by hand; runs 1–7 are) **and nothing is deployed.**
 
 **Done means:** `npx tsc --noEmit -p tsconfig.app.json` and `vite build` pass for every app it touches;
 `alembic upgrade head` + `alembic check` clean; `db-scripts/dump-schema.sh` re-run and parity green;
@@ -29,6 +29,49 @@ its suites green **twice over one database**; CLAUDE.md updated.
 | 13 Verification & docs | Suites ×2, parity, e2e, load test, docs (this file, LAUNCH, PROVIDERS, SECURITY, README, CLAUDE.md), plan HTML updated | See results below | — |
 | 14 Stretch | Playlists and series with progress (V1.7 / V3.1); watch parties with a shared playhead and chat (V3.7); AI thumbnail ideas + custom thumbnails shown (V1.3); data export / erasure; studio analytics with daily series; comment inbox with hide/unhide | Done | `test_playlists.py`, `test_parties.py`, `test_thumbnails.py`, `test_viewer_extras.py` |
 | 14 not started | Tips, boost danmaku, channel memberships, paid videos (V2.2–V2.5) | Waiting | They pay creators: rule S11 needs Razorpay Route linked accounts and creator KYC (V2.1), not forked yet |
+
+## Run 8 — channel notices for members, app links, frontend majors (4 Nov 2026)
+
+Runs 6 and 7 committed by the owner as `1feb57e`. Every item still open in the plan HTML waits on an account, the CA, a lawyer,
+a VPS or a vendor; the owner chose the three developer items left after run 7, overnight, no stops. Nothing committed, nothing
+deployed.
+
+| Item | Scope | Status | Proven by |
+|---|---|---|---|
+| R8.1 Channel notices | `/me/moderation`, `/appeals`, `/me/takedowns` and the counter-notice use `deps.notices(level)`: owner unchanged, a team member through `X-Kv-Tenant` at `video.comments` view (appeal at full); the counter-notice is owner-only (403 `owner_only`, `can_counter` false for members); the studio's Moderation page shows members the channel's notices and hides Appeal without full access | Done | `test_teams` 61 (moderator reads and appeals, editor reads but cannot appeal, forged header 403, member counter-notice 403, removed member 403) |
+| R8.2 App links | `infra/nginx/applinks.sh` writes `apple-app-site-association` / `assetlinks.json` at nginx start from `APPLE_TEAM_ID` / `ANDROID_CERT_SHA256` (validated; empty or malformed → 404), served on the web and studio hosts; `apps/mobile/app.config.ts` adds associated domains and verified intent filters for `EXPO_PUBLIC_DOMAIN`; `lib/links.ts` + `app/+native-intent.tsx` map `/watch`, `/reels`, `/live`, `/@handle` and `/team/accept?token=` to screens, anything else to the feed | Done (real Team ID and fingerprint wait for the store accounts) | `test_app_links` 24 (in `make test` and CI); stack smoke (well-known files); `expo export` iOS + Android |
+| R8.3 Frontend majors | web, studio, admin, tv: Vite 6 → 8.3 (Rolldown), plugin-react 4 → 6.2, TypeScript 5.9 → 7.0, Sonner 1 → 2, lucide 0.468 → 1.68, tailwind-merge 2 → 3.7; Recharts removed (declared, never imported). Mobile stays on Expo SDK 58's TypeScript 6 | Done | tsc + `tsc -b` + build for every app; e2e screens 322/0, axe 141/0, speed 14/0 (watch JS 413 → 405 KB) |
+
+### Run 8 results
+| Check | Result |
+|---|---|
+| Suites, run twice over one database | **49 suites × 1,518 checks, 0 failed — twice** (after the subscriptions fix; the first double run was 1,518/0 then 1 failure in pass 2, see bugs); `alembic check` clean; parity 6/6 |
+| e2e on the new toolchain | screens 322/0 · axe 141/0 · speed 14/0 — watch LCP 1.64 s, video start 1.67 s, watch JS 405 KB (was 413), home JS 177 KB |
+| Bundles (gzip, all JS) | web 512 → 494 KB · studio 556 → 534 KB · admin 231 → 220 KB · tv 356 → 339 KB |
+| Mobile | `tsc` clean; `expo export` iOS 3.3 MB / Android 3.7 MB; `expo config` carries the associated domains |
+| Stack | rebuilt; smoke **170/0** (four new app-link checks) · CSP 36/0 · both well-known files served as JSON on web and studio with test values, 404 without · load 100 viewers + 200 sockets: **1,070–1,120 req/s, 0 HTTP errors, p95 ≤ 45 ms**, sockets 193–197/200 (RED by the 1 % rule) — a video call was using the same Mac's CPU during the run; the dropped sockets closed without a close frame mid-run (now reported by `viewers.py`), and 200 sockets alone held 200/200 GREEN. No realtime, socket or proxy code changed in run 8 (run 7: 199/200 on a quiet machine) |
+| Scans | gitleaks 0 · semgrep 0 (262 rules, 814 files) · bandit 0 medium+ · pip-audit 0 · npm: only the documented Expo-toolchain findings (mobile) |
+
+### Bugs found and fixed in run 8
+- **Subscriptions "new" marker** (`/feed/subscriptions`): the last-seen time was stored in whole seconds, so a video published in
+  the same second as a visit stayed "new" after it (pass 2 of the first double run). Stored with microseconds and never earlier
+  than the newest video shown; `test_viewer_growth` 5/5 after.
+- lucide 1 removed brand icons; the studio's YouTube / Instagram glyphs are local (`components/BrandIcons.tsx`).
+- `npm install` kept a hoisted Vite 6 for `@tailwindcss/vite`; `npm dedupe` left one Vite 8.
+
+### Decisions taken in run 8
+- Notices reuse the `video.comments` key (manager and moderator full, editor and analyst view) instead of a new feature key, so
+  no plan or matrix migration was needed.
+- TypeScript 7 kept (every app and package typechecks and builds); `baseUrl` dropped from each `tsconfig.app.json`.
+- App links are configured on nginx, not the API: the files are static and must answer without the backend.
+
+### Still open after run 8
+| Item | Needs |
+|---|---|
+| Everything that needs others | accounts, CA, lawyer, VPS; the 500-viewer target on the VPS |
+| App links live | the Apple Team ID and the Play signing fingerprint (`docs/GO-LIVE.md` "Run 8"), then a device check |
+| Native TV wrappers (V5.3) | store accounts and devices |
+| Sockets under HTTP load | re-measure 100 viewers + 200 sockets on a quiet machine or the VPS; if drops persist, look at the nginx ↔ uvicorn WebSocket path under CPU pressure |
 
 ## Run 7 — run 6 follow-ups, overnight while the owner slept (4 Nov 2026)
 
