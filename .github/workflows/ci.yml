@@ -84,6 +84,8 @@ jobs:
           for pass in 1 2; do
             for s in $SUITES; do echo "::group::$s (pass $pass)"; (cd tests && python3 "$s.py"); echo "::endgroup::"; done
           done
+      - name: nginx — WebSocket upgrades bypass the upstream keepalive pool
+        run: python3 tests/test_nginx_conf.py
       - name: monitoring — promtool rules and config
         run: bash infra/monitoring.sh check
       - uses: actions/setup-node@v4

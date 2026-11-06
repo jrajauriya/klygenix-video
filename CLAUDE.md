@@ -31,7 +31,7 @@ app / V5.5 trained recommender started early by the owner) and run 5 (ad integri
 viewer growth, creator AI v2, V5.4 regions and V5.6 view pool) and run 6 (run 5 gaps, channel teams, creator onboarding
 & admin support desk, partitions / tracing / slow-query report) and run 7 (error codes, account mails through the outbox,
 team mode finished, feed throughput, FastAPI 0.162) and run 8 (channel notices for team members, app links, Vite 8 /
-TypeScript 7 / Sonner 2 / lucide 1 / tailwind-merge 3) built and running **locally on sandbox
+TypeScript 7 / Sonner 2 / lucide 1 / tailwind-merge 3) and run 9 (WebSocket upgrades off nginx's keepalive pool) built and running **locally on sandbox
 providers**, not deployed (Nov 2026). Creator money runs on the sandbox rail only: live money waits for
 CA sign-off, creator KYC and Play's Razorpay Route keys. Every provider has a sandbox adapter and a real
 one behind the same interface, switched by `.env`. See `docs/BUILD-PLAN.md` for what is proven,
@@ -223,6 +223,10 @@ RLS: `tenant_isolation` (`tenant_id = current_tenant() OR is_platform()`) on eve
   failed). `prod.conf.template` uses `upstream kv_api { server backend:9300 resolve; keepalive 64; }` (needs nginx
   ≥ 1.27.3 for `resolve`; the image is `nginx:1.30-alpine`); `proxy-backend.conf` sets HTTP/1.1 and an empty
   `Connection` header except for WebSocket upgrades.
+- **…but never for WebSocket upgrades.** uvicorn arms its 5 s keep-alive timer when a request's ASGI task finishes, a few ms after
+  the response is sent; if nginx reuses that pooled connection for a WebSocket upgrade inside the window, the old HTTP handler's
+  timer closes the socket 5 s later with no close frame (1–4 of 200 under load). `/api/video/ws/` on the api and web hosts goes to
+  `upstream kv_ws` (no `keepalive`) via `$kv_ws_backend`; `tests/test_nginx_conf.py` guards it.
 - **Dev and the local stack use different RTMP ports**: dev 19350–19359 (inline worker), staging 19450–19459
   (`LIVE_RTMP_PORTS` in `infra/.env.staging`, read by both the app and the compose port mapping).
 - **Dates are IST**: invoices, credit notes, ledger business dates, number series and analytics windows use

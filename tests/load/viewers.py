@@ -113,7 +113,7 @@ async def room(ws_base: str, pid: str, stats: Stats, stop_at: float, ssl_ctx=Non
                     continue
     except Exception as exc:
         stats.ws_failed += 1
-        stats.ws_why[f"{type(exc).__name__}: {str(exc)[:60]}"] += 1
+        stats.ws_why[f"{type(exc).__name__}: {str(exc)[:60]} ({max(0, stop_at - time.monotonic()):.0f}s left)"] += 1
 
 
 async def poster(api: str, token: str, pid: str, stats: Stats, stop_at: float, verify=True) -> None:

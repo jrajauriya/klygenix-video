@@ -2,8 +2,8 @@
 
 The master plan (`../Klygenix_Docs/Klygenix_Video/klygenix-video-master-plan.html`) says what and
 why; this file says what is built, what each test proves, what runs only on sandbox providers and
-what is blocked. Built in unattended runs, 3–4 Nov 2026 (run 8 newest, below). **Run 8 is not committed** (the owner
-commits by hand; runs 1–7 are) **and nothing is deployed.**
+what is blocked. Built in unattended runs, 3–5 Nov 2026 (run 9 newest, below). **Run 9 is not committed** (the owner
+commits by hand; runs 1–8 are) **and nothing is deployed.**
 
 **Done means:** `npx tsc --noEmit -p tsconfig.app.json` and `vite build` pass for every app it touches;
 `alembic upgrade head` + `alembic check` clean; `db-scripts/dump-schema.sh` re-run and parity green;
@@ -29,6 +29,61 @@ its suites green **twice over one database**; CLAUDE.md updated.
 | 13 Verification & docs | Suites ×2, parity, e2e, load test, docs (this file, LAUNCH, PROVIDERS, SECURITY, README, CLAUDE.md), plan HTML updated | See results below | — |
 | 14 Stretch | Playlists and series with progress (V1.7 / V3.1); watch parties with a shared playhead and chat (V3.7); AI thumbnail ideas + custom thumbnails shown (V1.3); data export / erasure; studio analytics with daily series; comment inbox with hide/unhide | Done | `test_playlists.py`, `test_parties.py`, `test_thumbnails.py`, `test_viewer_extras.py` |
 | 14 not started | Tips, boost danmaku, channel memberships, paid videos (V2.2–V2.5) | Waiting | They pay creators: rule S11 needs Razorpay Route linked accounts and creator KYC (V2.1), not forked yet |
+
+## Run 9 — live sockets under HTTP load (5 Nov 2026)
+Run 8 committed by the owner as `1f8e34d`. Every item still open in the plan HTML waits on an account, the CA, a lawyer, a VPS or
+a vendor; the one developer item left was "Sockets under HTTP load" (RED in run 8). The owner chose to re-measure it. Nothing
+committed, nothing deployed.
+
+| Item | Scope | Status | Proven by |
+|---|---|---|---|
+| R9.1 Sockets under HTTP load | Found a real bug, not machine noise: a WebSocket upgrade that nginx sends on a just-freed pooled upstream connection is closed by uvicorn 5 s later. `/api/video/ws/` on the api and web hosts now goes to `upstream kv_ws` (no `keepalive`); HTTP keeps its pool | Done | load 200/200 ×3 (was 199, 199, 199, 196, 196 on the same quiet machine); `test_nginx_conf` 11 (in `make test` and CI) |
+
+### How it was found
+- On a quiet machine the mixed run was GREEN but lost **exactly one** socket each time (199/200 ×3, as in run 7) — too regular for
+  noise. An instrumented copy of `viewers.py` showed every dropped socket ending ~5 s after it opened, in the same second across
+  processes and rooms; sockets alone held 200/200; nginx logged the drops at that second, the backend logged nothing.
+- 5 s is uvicorn's `--timeout-keep-alive`. uvicorn arms that timer in `on_response_complete`, i.e. when the request's ASGI task
+  finishes (after the metrics / activity / tracing middleware), a few ms after the response bytes left. nginx (upstream `keepalive 64`,
+  the run 3 fix) gets the full response, pools the connection and, under load, sends the next request — a WebSocket upgrade — on it
+  at once. uvicorn switches the transport to the WebSocket protocol, then the old HTTP handler's task finishes and arms the timer,
+  which closes the shared transport 5 s later without a close frame.
+- Reproduced deterministically against uvicorn directly (raw sockets, dev API): upgrade on a reused keep-alive connection right after
+  the response → **40/40 closed at 5 s**; 5 ms later → 1/40; 50 ms → 0/40; on a fresh connection → 60/60 held. Through nginx at low
+  load it never hit (the pool hands connections back well after the window), which is why only 1–4 of 200 dropped under load and
+  3–7 with a video call slowing the event loop. In production with real traffic every live chat / danmaku socket was exposed.
+
+### Run 9 results
+| Check | Result |
+|---|---|
+| Load before the fix (quiet machine) | 1,129–1,177 req/s, 0 HTTP errors; sockets **199, 199, 199, 196, 196 / 200**, every drop ~5 s after open |
+| Load after the fix | **1,174–1,178 req/s, 0 HTTP errors, p95 ≤ 46 ms (danmaku post; reads lower), sockets 200/200 ×3 — GREEN**; 200 sockets alone 200/200 |
+| Idle sockets through nginx | web host and api host each held 75 s idle and answered `ping` |
+| Suites, run twice over one database | **50 suites × 1,529 checks, 0 failed — twice** (new `test_nginx_conf` 11) |
+| Stack | nginx re-rendered, `nginx -t` OK; smoke **170/0** · CSP 36/0 |
+| Scans | gitleaks 0 · semgrep 0 (262 rules) |
+
+### Changes
+- `infra/nginx/prod.conf.template`: `upstream kv_ws` (no keepalive) and `map $host $kv_ws_backend`; `/api/video/ws/` on the api host
+  uses it; the web host gets its own `/api/video/ws/` location (same-origin sockets from the web app's fallback) with the hour-long
+  timeouts.
+- `tests/test_nginx_conf.py` (new, `make test` + CI backend job): HTTP upstream keeps `keepalive 64`; the WebSocket upstream has none;
+  every host that proxies the API sends `/api/video/ws/` to it with the upgrade headers and hour-long timeouts. Fails on `1f8e34d`.
+- `tests/load/viewers.py`: each "socket ended" reason says how many seconds of the run were left.
+
+### Decisions taken in run 9
+- Fixed in nginx, not uvicorn: the race is inside uvicorn's HTTP protocol (keep-alive armed after the app task, not after the write),
+  and browsers never upgrade on a reused HTTP connection — only a pooling proxy does. Raising `--timeout-keep-alive` would only delay
+  the close.
+- Not reported upstream from here (no outside posting without the owner); the raw-socket reproduction is in this section if the owner
+  wants to file it with uvicorn.
+
+### Still open after run 9
+| Item | Needs |
+|---|---|
+| Everything that needs others | accounts, CA, lawyer, VPS; the 500-viewer target on the VPS |
+| App links live | the Apple Team ID and the Play signing fingerprint (`docs/GO-LIVE.md` "Run 8"), then a device check |
+| Native TV wrappers (V5.3) | store accounts and devices (no Android SDK on this machine) |
 
 ## Run 8 — channel notices for members, app links, frontend majors (4 Nov 2026)
 

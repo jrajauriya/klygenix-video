@@ -9,7 +9,13 @@ upstream kv_api {
     keepalive_requests 10000;
     keepalive_timeout 60s;
 }
+# No keepalive: an upgrade on a just-freed pooled connection is closed by uvicorn's keep-alive timer 5 s later.
+upstream kv_ws {
+    zone kv_ws 64k;
+    server backend:9300 resolve;
+}
 map $host $kv_backend { default kv_api; }
+map $host $kv_ws_backend { default kv_ws; }
 map $http_upgrade $kv_connection { default upgrade; '' ''; }
 
 gzip on;
@@ -43,7 +49,7 @@ server {
     }
 
     location /api/video/ws/ {
-        proxy_pass http://$kv_backend;
+        proxy_pass http://$kv_ws_backend;
         include /etc/nginx/snippets/proxy-backend.conf;
         proxy_read_timeout 3600s;
         proxy_send_timeout 3600s;
@@ -153,6 +159,14 @@ server {
         proxy_pass http://$kv_backend;
         include /etc/nginx/snippets/proxy-backend.conf;
         include /etc/nginx/snippets/headers-api.conf;
+    }
+
+    location /api/video/ws/ {
+        proxy_pass http://$kv_ws_backend;
+        include /etc/nginx/snippets/proxy-backend.conf;
+        include /etc/nginx/snippets/headers-api.conf;
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
     }
 
     location /api/video/images/ { include /etc/nginx/snippets/media.conf; }
