@@ -7,6 +7,7 @@ from app.video.sessions import platform_session
 
 print("\n== Data retention (sweeps)")
 c = creator("Retention Creator")
+premium(c, "creator_pro")
 v = settled(c, upload(c, "reel-chai", "Retention reel")["id"])
 asker = signup("Retention Asker")
 premium(asker)

@@ -83,6 +83,7 @@ PLAY_MESSAGES: dict[str, dict[str, str]] = {
     "live_ports_busy": {"en": "All live slots are in use. Try again in a few minutes.", "hi": "सभी लाइव स्लॉट उपयोग में हैं। कुछ मिनट बाद फिर कोशिश करें।"},
     "live_already_open": {"en": "This channel already has a live stream open. End it first.", "hi": "इस चैनल की एक लाइव स्ट्रीम पहले से खुली है। पहले उसे समाप्त करें।"},
     "live_not_found": {"en": "That live stream does not exist.", "hi": "यह लाइव स्ट्रीम मौजूद नहीं है।"},
+    "live_plan_required": {"en": "Live streaming is part of Creator Pro and Creator Business. Upgrade your plan to go live.", "hi": "लाइव स्ट्रीमिंग Creator Pro और Creator Business में शामिल है। लाइव जाने के लिए अपना प्लान अपग्रेड करें।"},
     "live_not_live": {"en": "This stream is not live right now.", "hi": "यह स्ट्रीम अभी लाइव नहीं है।"},
     "live_slow_mode": {"en": "Slow mode is on. Wait {seconds} seconds between messages.", "hi": "स्लो मोड चालू है। संदेशों के बीच {seconds} सेकंड रुकें।"},
     "live_timed_out": {"en": "A moderator has paused your chat for a while.", "hi": "एक मॉडरेटर ने कुछ समय के लिए आपकी चैट रोक दी है।"},

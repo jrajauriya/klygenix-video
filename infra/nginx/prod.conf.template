@@ -104,7 +104,11 @@ server {
         include /etc/nginx/snippets/headers-admin.conf;
         try_files $uri =404;
     }
-    location / { try_files $uri $uri/ /index.html; }
+    location / {
+        add_header Cache-Control "no-cache, no-transform" always;
+        include /etc/nginx/snippets/headers-admin.conf;
+        try_files $uri $uri/ /index.html;
+    }
 }
 
 server {
@@ -124,7 +128,11 @@ server {
         include /etc/nginx/snippets/headers-studio.conf;
         try_files $uri =404;
     }
-    location / { try_files $uri $uri/ /index.html; }
+    location / {
+        add_header Cache-Control "no-cache, no-transform" always;
+        include /etc/nginx/snippets/headers-studio.conf;
+        try_files $uri $uri/ /index.html;
+    }
 }
 
 server {
@@ -143,7 +151,11 @@ server {
         include /etc/nginx/snippets/headers-tv.conf;
         try_files $uri =404;
     }
-    location / { try_files $uri $uri/ /index.html; }
+    location / {
+        add_header Cache-Control "no-cache, no-transform" always;
+        include /etc/nginx/snippets/headers-tv.conf;
+        try_files $uri $uri/ /index.html;
+    }
 }
 
 server {

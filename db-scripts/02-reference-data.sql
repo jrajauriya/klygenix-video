@@ -25,9 +25,9 @@ SET row_security = off;
 COPY kv_commerce.plans (id, key, audience, name, description, price_inr_minor, price_usd_minor, limits, is_active, sort) FROM stdin;
 1	viewer_free	viewer	Free	Watch everything; summaries, chapters and subtitles; 5 Ask questions a day.	0	0	{"languages": 2, "ask_per_day": 5}	t	10
 2	viewer_premium	viewer	Viewer Premium	Ask without the daily limit, notes, every subtitle language.	14900	499	{"notes": true, "languages": 6, "ask_per_day": 200}	t	20
-3	creator_free	creator	Creator Free	Upload and publish; 60 AI minutes and 3 clip renders a month.	0	0	{"seats": 1, "renders": 3, "ai_images": 10, "watermark": true, "ai_minutes": 60, "team_members": 1, "commission_bps": 2000}	t	30
-4	creator_pro	creator	Creator Pro	600 AI minutes, unlimited clips within fair use, no watermark, analytics.	49900	999	{"seats": 1, "renders": 500, "ai_images": 200, "watermark": false, "ai_minutes": 600, "team_members": 5, "commission_bps": 1000}	t	40
-5	creator_business	creator	Creator Business	3,000 AI minutes, 5 seats, brand kit, priority renders.	199900	3999	{"seats": 5, "renders": 3000, "priority": true, "ai_images": 1000, "watermark": false, "ai_minutes": 3000, "team_members": 25, "commission_bps": 800}	t	50
+3	creator_free	creator	Creator Free	Upload and publish; 60 AI minutes and 3 clip renders a month.	0	0	{"live": false, "seats": 1, "renders": 3, "ai_images": 10, "watermark": true, "ai_minutes": 60, "team_members": 1, "commission_bps": 2000}	t	30
+4	creator_pro	creator	Creator Pro	600 AI minutes, unlimited clips within fair use, no watermark, analytics.	49900	999	{"live": true, "seats": 1, "renders": 500, "ai_images": 200, "watermark": false, "ai_minutes": 600, "team_members": 5, "commission_bps": 1000}	t	40
+5	creator_business	creator	Creator Business	3,000 AI minutes, 5 seats, brand kit, priority renders.	199900	3999	{"live": true, "seats": 5, "renders": 3000, "priority": true, "ai_images": 1000, "watermark": false, "ai_minutes": 3000, "team_members": 25, "commission_bps": 800}	t	50
 \.
 
 

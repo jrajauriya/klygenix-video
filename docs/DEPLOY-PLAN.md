@@ -79,6 +79,14 @@ Production is live on **189.72.147.237** behind Cloudflare: `play.klygenix.com`,
 | Checked | Smoke **98/0**; real uploads through Bunny (TUS → webhook → Azure Speech → Content Safety → published) for an English and a Hindi video; signed playback (403 without token); Ask cites timestamps in English and Hindi; outside load through Cloudflare 100 viewers + 200 WebSockets: 0 errors, 200/200 sockets, server ~96% of requests ≤100 ms |
 | Test videos | Two **unlisted** videos on the `klygenix` channel ("Deploy check: …", ids `o5BeMnVGz3v`, `63tnS9usCVC`) — delete them from the studio when no longer needed |
 
+### Content (12 Nov 2026)
+| What | State |
+|---|---|
+| `@klygenix` | 12 company demos (DMS, HR, Pay, channel intro; EN + HI) from `Klygenix_Docs/Demo_Videos`, public, owner's own thumbnails and `.srt` captions; Ask cites timestamps. Complimentary **Creator Business** (grant, ends 12 Dec 2026) for the AI minutes |
+| `@klygenixbuzz` | New channel (contact@klygenix.com, login in `vps3-kvm4-play/klygenix-buzz.txt`). 30 reels from the Etsy "244 Talking Food & Body Facts" pack, all marked AI-made: **13 public** (household/kitchen tips, cobra facts), **17 unlisted for owner review** — diet and medical claims, swearing, a Coca-Cola can |
+| Not used | `50 Short Videos.zip` (filenames show it was downloaded from an Instagram account); rust and ASMR packs |
+| Workers | `worker-ai` runs 3 replicas (R10.25); three jobs cut off by a restart were re-queued by hand |
+
 ### Waiting on the owner
 1. **Company details** — `https://play-admin.klygenix.com` → Accounts → Klygenix Technologies → **Company** tab: address, GSTIN, support email (today it shows `admin@klygenix.com`), phone, CIN, privacy/legal emails, grievance officer. The legal pages fill these in automatically.
 2. **Legal review** of `/legal/*` — about 45 yellow placeholders are decisions (refund rule, notice period, liability cap, jurisdiction, TCS/TDS with the CA…). Remove the draft banner after review.

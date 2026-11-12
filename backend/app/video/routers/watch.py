@@ -187,4 +187,4 @@ def render(path: str = "/"):
     page = re.sub(r"<title>.*?</title>", "", page, flags=re.S)
     page = re.sub(r'<meta name="description"[^>]*>', "", page)
     page = page.replace("</head>", "    " + "\n    ".join(tags) + "\n  </head>", 1)
-    return HTMLResponse(page, headers={"Cache-Control": "public, max-age=60"})
+    return HTMLResponse(page, headers={"Cache-Control": "public, max-age=60, no-transform"})

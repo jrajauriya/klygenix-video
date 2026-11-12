@@ -7,8 +7,8 @@ import time
 import httpx
 import websockets
 
-from harness import (BASE, PAYOUT_ACCOUNT, admin_login, check, client, creator, finish, ok, settled, signup, sql, support_pay,
-                     wait_for)
+from harness import (BASE, PAYOUT_ACCOUNT, admin_login, check, client, creator, finish, ok, premium, settled, signup, sql,
+                     support_pay, wait_for)
 
 FIXTURE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "media", "reframe-marker.mp4")
 
@@ -23,6 +23,10 @@ def publish(server: str, key: str, seconds: int | None = None) -> subprocess.Pop
 
 print("\n== Going live from an encoder (V4.1, V4.2)")
 c = creator("Live Creator")
+r = c.post("/api/video/studio/live", json={"title": "On the free plan"})
+check("Creator Free cannot go live", r.status_code, 402)
+check("the refusal names the plan", r.headers.get("X-Error-Code"), "live_plan_required")
+premium(c, "creator_pro")
 handle = sql("SELECT handle FROM kv_social.channels WHERE tenant_id = :t", t=c.user["tenant_id"])[0][0]
 r = c.post("/api/video/studio/live", json={"title": "Chai live session", "description": "Making chai live"})
 check("a stream is created", r.status_code, 201)

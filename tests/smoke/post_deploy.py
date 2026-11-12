@@ -240,6 +240,12 @@ def live(client: httpx.Client, args: argparse.Namespace, base: str, api: str) ->
     auth = _signup(client, api, "Smoke Live Creator", f"smokelive-{uuid.uuid4().hex[:8]}")
     if not check("live creator sign-up", auth is not None):
         return
+    r = client.post(f"{api}/api/video/checkout", headers=auth, json={"plan_key": "creator_pro"})
+    if r.status_code == 201:
+        client.post(f"{api}/api/video/sandbox/pay/{r.json()['id']}", headers=auth)
+        end = time.time() + 30
+        while time.time() < end and client.get(f"{api}/api/video/me", headers=auth).json()["plans"]["creator"]["key"] != "creator_pro":
+            time.sleep(0.5)
     r = client.post(f"{api}/api/video/studio/live", headers=auth, json={"title": "Smoke live", "replay_enabled": True})
     if not check("stream created", r.status_code == 201, f"HTTP {r.status_code} {r.text[:200]} (is the live feature on?)"):
         return

@@ -306,6 +306,14 @@ def _own(ctx: StudioCtx, public_id: str) -> LiveStream:
     return s
 
 
+def _plan_allows(ctx: StudioCtx) -> None:
+    from app.video.commerce import quotas
+
+    owner = quotas.owner_user_id(ctx.db, ctx.tenant_id)
+    if owner and not (quotas.active_plan(ctx.db, owner, "creator").limits or {}).get("live", True):
+        raise err(402, "live_plan_required")
+
+
 @router.get("/studio/live")
 def studio_streams(ctx: StudioCtx = Depends(studio("video.live"))):
     rows = ctx.db.execute(select(LiveStream).where(LiveStream.tenant_id == ctx.tenant_id)
@@ -315,6 +323,7 @@ def studio_streams(ctx: StudioCtx = Depends(studio("video.live"))):
 
 @router.post("/studio/live", status_code=201)
 def create_stream(data: StreamIn, ctx: StudioCtx = Depends(studio("video.live", "full"))):
+    _plan_allows(ctx)
     with platform_session() as db:
         s = service.create(db, channel=db.get(Channel, ctx.channel.id), title=data.title, description=data.description,
                            scheduled_at=data.scheduled_at, members_rank=data.members_rank,
@@ -332,6 +341,7 @@ def studio_stream(public_id: str, ctx: StudioCtx = Depends(studio("video.live"))
 @router.get("/studio/live/{public_id}/key")
 def stream_key(public_id: str, ctx: StudioCtx = Depends(studio("video.live", "full"))):
     s = _own(ctx, public_id)
+    _plan_allows(ctx)
     return {"server": _ingest(s)["server"], "stream_key": service.key_of(s)}
 
 

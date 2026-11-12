@@ -81,8 +81,9 @@ services:
 
   worker-ai:
     image: klygenix-video-backend:current
-    container_name: klygenix-video-worker-ai
     restart: unless-stopped
+    deploy:
+      replicas: ${KV_AI_WORKERS:-3}
     command: ["rq", "worker", "--url", "${REDIS_URL}", "-c", "app.video.jobs.rq_boot", "ai", "default"]
     env_file: [../backend/.env.prod]
     environment:
