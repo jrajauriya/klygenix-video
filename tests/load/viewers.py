@@ -34,9 +34,11 @@ def resolve_localhost() -> None:
 def ssl_context(insecure: bool):
     import ssl
 
+    import certifi
+
+    ctx = ssl.create_default_context(cafile=certifi.where())
     if not insecure:
-        return None
-    ctx = ssl.create_default_context()
+        return ctx
     ctx.check_hostname = False
     ctx.verify_mode = ssl.CERT_NONE
     return ctx
@@ -157,7 +159,7 @@ async def main(args) -> int:
     async with httpx.AsyncClient(base_url=api, timeout=30, verify=verify) as c:
         feed = (await c.get("/api/video/feed/home", params={"limit": 30})).json()
         reels = (await c.get("/api/video/feed/reels", params={"limit": 30})).json()
-        videos = [v["id"] for v in feed + reels]
+        videos = [v["id"] for v in feed + reels] or [v for v in args.videos.split(",") if v]
         if not videos:
             print("No published videos — run db-scripts/seed-demo.py first.")
             return 2
@@ -228,6 +230,7 @@ if __name__ == "__main__":
     ap.add_argument("--email", default="rohan@demo.klygenix.com")
     ap.add_argument("--password", default="Welcome@12345")
     ap.add_argument("--insecure", action="store_true")
+    ap.add_argument("--videos", default="", help="public ids to watch when the feeds are empty (e.g. unlisted videos on a fresh server)")
     ap.add_argument("--procs", type=int, default=max(1, min(8, (multiprocessing.cpu_count() or 2) // 2)),
                     help="load-generator processes; one Python event loop cannot drive hundreds of viewers without adding its own lag")
     resolve_localhost()

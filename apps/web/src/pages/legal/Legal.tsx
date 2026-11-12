@@ -1,11 +1,12 @@
 import { useState, type FormEvent, type ReactNode } from "react"
 import { Link, NavLink } from "react-router-dom"
-import { CheckCircle2, FileWarning } from "lucide-react"
+import { useQuery } from "@tanstack/react-query"
+import { CheckCircle2 } from "lucide-react"
 import { api } from "@klygenixvideo/auth"
 import { cn } from "@klygenixvideo/ui"
 import { PageShell } from "../../components/Layout"
 import { Btn, Field, INPUT, TEXTAREA } from "../../components/bits"
-import { errText } from "../../lib/api"
+import { errText, getJson } from "../../lib/api"
 import { longDate } from "../../lib/format"
 import { useTitle } from "../../lib/title"
 import { useLang, useT } from "../../i18n"
@@ -18,31 +19,31 @@ const NAV = [
   { to: "/legal/grievance", label: "Grievance Officer" },
   { to: "/legal/monetisation", label: "Creator Monetisation Terms" },
   { to: "/legal/live", label: "Live Streaming Rules" },
+  { to: "/legal/refunds", label: "Refunds & cancellations" },
+  { to: "/legal/contact", label: "Contact us" },
 ]
 
 const COMPANY = "Klygenix Technologies Private Limited"
-const DRAFTED = "3 November 2026"
+const EFFECTIVE = "11 November 2026"
 const A = "text-brand-soft underline underline-offset-2"
 
 function Ph({ children }: { children: ReactNode }) {
   return <mark className="rounded bg-[#FACC15] px-1 font-semibold text-black">[PLACEHOLDER: {children}]</mark>
 }
 
-function L({ to, children }: { to: string; children: ReactNode }) {
-  return <Link to={to} className={A}>{children}</Link>
+type CompanyInfo = { name: string; address: string; gstin: string; cin: string; email: string; phone: string; privacy_email: string
+  legal_email: string; grievance_officer: { name: string; email: string; phone: string } }
+
+function useCompany() {
+  return useQuery({ queryKey: ["company"], queryFn: () => getJson<CompanyInfo>("/api/video/company"), staleTime: 300_000 }).data
 }
 
-function DraftBanner() {
-  const t = useT("legal")
-  return (
-    <div role="note" className="mt-4 flex gap-3 rounded-2xl border border-[#FACC15]/60 bg-[#422006] p-4 text-sm text-[#fef3c7]">
-      <FileWarning size={20} className="mt-0.5 shrink-0 text-[#FACC15]" aria-hidden="true" />
-      <div>
-        <p className="font-bold text-[#fde68a]">{t("Draft — pending legal review")}</p>
-        <p className="mt-1 leading-relaxed">{t("This text has not yet been reviewed by a lawyer and may change before Klygenix Play launches. It describes how the product works today. Items marked")} <span lang="en" className="rounded bg-[#FACC15] px-1 font-semibold text-black">[PLACEHOLDER]</span> {t("are still to be decided or filled in.")}</p>
-      </div>
-    </div>
-  )
+function Fact({ v, children }: { v?: string; children: ReactNode }) {
+  return v ? <>{v}</> : <Ph>{children}</Ph>
+}
+
+function L({ to, children }: { to: string; children: ReactNode }) {
+  return <Link to={to} className={A}>{children}</Link>
 }
 
 function S({ title, children }: { title: string; children: ReactNode }) {
@@ -92,8 +93,7 @@ function LegalShell({ title: raw, children }: { title: string; children: ReactNo
         </nav>
         <article className="min-w-0 max-w-3xl">
           <h1 className="text-2xl font-bold sm:text-3xl">{title}</h1>
-          <p className="mt-1 text-xs text-faint">{t("Draft of {date}", { date: DRAFTED })} · {t("Effective date:")} <Ph>effective date</Ph></p>
-          <DraftBanner />
+          <p className="mt-1 text-xs text-faint">{t("Effective date:")} {EFFECTIVE}</p>
           {hindi && <p role="note" className="mt-4 rounded-2xl border border-line bg-panel px-4 py-3 text-sm text-ink">हिन्दी अनुवाद जल्द — नीचे का पाठ अंग्रेज़ी में है।</p>}
           <div lang={hindi ? "en" : undefined} className="mt-6 space-y-7 text-[15px] leading-relaxed text-ink/85 [&_h2]:mb-2 [&_h2]:text-lg [&_h2]:font-bold [&_h2]:text-ink [&_h3]:mt-3 [&_h3]:font-semibold [&_h3]:text-ink [&_ul>li]:ml-5 [&_ul>li]:list-disc [&_ul>li]:pl-1 [&_ul]:space-y-1.5">
             {children}
@@ -105,12 +105,14 @@ function LegalShell({ title: raw, children }: { title: string; children: ReactNo
 }
 
 function Company() {
+  const co = useCompany()
   return (
-    <>{COMPANY}, a company incorporated in India (CIN <Ph>CIN</Ph>), with its registered office at <Ph>registered address</Ph></>
+    <>{COMPANY}, a company incorporated in India (CIN <Fact v={co?.cin}>CIN</Fact>), with its registered office at <Fact v={co?.address}>registered address</Fact></>
   )
 }
 
 export function TermsPage() {
+  const co = useCompany()
   return (
     <LegalShell title="Terms of Service">
       <p>These Terms of Service are an agreement between you and <Company /> ("Klygenix", "we", "us"). They cover Klygenix Play on the web at play.klygenix.com, our mobile apps, and Klygenix Studio, together "the Service". By creating an account or using the Service you agree to these terms.</p>
@@ -152,7 +154,7 @@ export function TermsPage() {
           <li>Every Ask answer cites the moments in the video it is based on. If the video does not cover your question, Ask says so instead of guessing.</li>
           <li>Dubbed audio is only made when the creator has given consent for that video, and it is labelled "AI-dubbed".</li>
           <li>Creators must label videos that are made or materially changed with AI. AI-made content is shown with an "AI-generated" label.</li>
-          <li>We send the text needed for each feature to our AI providers. We do not allow them to use your content to train their own models. <Ph>confirm against the AI provider contracts</Ph></li>
+          <li>We send the text needed for each feature to our AI providers. We do not allow them to use your content to train their own models.</li>
         </ul>
       </S>
 
@@ -172,13 +174,13 @@ export function TermsPage() {
           <li>Viewer Premium and creator plans renew every month until you cancel. Cancelling keeps the plan until the end of the period you have paid for.</li>
           <li>Prices are shown before you pay and include the taxes that apply. In India, payments are processed by Razorpay and you get a GST tax invoice from Klygenix. Outside India, a merchant of record sells the plan to you, charges local tax and issues the receipt, and its own terms also apply to the payment.</li>
           <li>We do not see or store your full card, UPI or bank details.</li>
-          <li>Plan fees are not refunded for part of a period, except where the law requires it. <Ph>confirm plan refund policy</Ph></li>
+          <li>If you are unhappy with a plan, you can ask for a full refund within 7 days of your first payment for that plan. Renewals are not refunded for part of a period, except where the law requires it.</li>
           <li>Plans include usage limits (for example AI minutes and clip renders). When a limit is reached, the feature pauses until the next period or an upgrade.</li>
         </ul>
       </S>
 
       <S title="8. Paying creators">
-        <p>You can support creators with tips, boosted danmaku, memberships, paid videos and series, and live super chats and gifts. These payments are only available in India, in rupees, and only on videos hosted on Klygenix Play. You pay the creator; Klygenix collects the payment as an e-commerce operator, keeps a platform commission and passes the rest to the creator. <Ph>confirm legal characterisation of the marketplace with counsel and CA</Ph></p>
+        <p>You can support creators with tips, boosted danmaku, memberships, paid videos and series, and live super chats and gifts. These payments are only available in India, in rupees, and only on videos hosted on Klygenix Play. You pay the creator; Klygenix collects the payment as an e-commerce operator, keeps a platform commission and passes the rest to the creator.</p>
         <ul>
           <li>Tips are gifts to the creator and are not refundable.</li>
           <li>If a creator deletes a boost, super chat or gift you paid for, you are refunded in full automatically.</li>
@@ -202,37 +204,37 @@ export function TermsPage() {
       </S>
 
       <S title="12. Disclaimers and liability">
-        <p>The Service is provided "as is" and "as available". We work hard to keep it running and accurate, but we do not promise it will be uninterrupted or error-free, or that AI output will be correct. To the extent the law allows, Klygenix is not liable for indirect or consequential loss, and our total liability to you for any claim is limited to the greater of the amount you paid us in the twelve months before the claim and <Ph>liability cap amount in INR</Ph>. Nothing in these terms limits liability that cannot be limited by law, or your rights as a consumer.</p>
-        <p>You are responsible for the content you post. You agree to compensate Klygenix for losses and reasonable costs arising from a third-party claim that your content or conduct broke these terms or the law. <Ph>confirm indemnity scope for consumers</Ph></p>
+        <p>The Service is provided "as is" and "as available". We work hard to keep it running and accurate, but we do not promise it will be uninterrupted or error-free, or that AI output will be correct. To the extent the law allows, Klygenix is not liable for indirect or consequential loss, and our total liability to you for any claim is limited to the greater of the amount you paid us in the twelve months before the claim and ₹1,000. Nothing in these terms limits liability that cannot be limited by law, or your rights as a consumer.</p>
+        <p>You are responsible for the content you post. You agree to compensate Klygenix for losses and reasonable costs arising from a third-party claim that your content or conduct broke these terms or the law.</p>
       </S>
 
       <S title="13. Changes to these terms">
-        <p>We may update these terms as the Service changes or the law requires. For material changes we will tell you in the app or by email at least <Ph>notice period, e.g. 30 days</Ph> before they take effect. If you keep using the Service after that, the new terms apply.</p>
+        <p>We may update these terms as the Service changes or the law requires. For material changes we will tell you in the app or by email at least 30 days before they take effect. If you keep using the Service after that, the new terms apply.</p>
       </S>
 
       <S title="14. Law and disputes">
-        <p>These terms are governed by the laws of India. Subject to the next sentence, the courts at <Ph>jurisdiction city</Ph> have exclusive jurisdiction. If you live outside India, you keep the protection of the mandatory consumer laws of your country. <Ph>decide whether to include an arbitration clause</Ph></p>
+        <p>These terms are governed by the laws of India. Subject to the next sentence, the courts at Pune, Maharashtra have exclusive jurisdiction. If you live outside India, you keep the protection of the mandatory consumer laws of your country. Nothing in these terms stops you from approaching a consumer commission.</p>
       </S>
 
       <S title="15. Contact">
-        <p>{COMPANY}, <Ph>registered address</Ph>. GSTIN <Ph>GSTIN</Ph>. Questions about these terms: <Ph>legal contact email</Ph>. Complaints: see the <L to="/legal/grievance">Grievance Officer</L> page.</p>
+        <p>{COMPANY}, <Fact v={co?.address}>registered address</Fact>. GSTIN <Fact v={co?.gstin}>GSTIN</Fact>. Questions about these terms: <Fact v={co?.legal_email || co?.email}>legal contact email</Fact>. Complaints: see the <L to="/legal/grievance">Grievance Officer</L> page.</p>
       </S>
     </LegalShell>
   )
 }
 
 export function PrivacyPage() {
+  const co = useCompany()
   return (
     <LegalShell title="Privacy Policy">
       <p>This policy explains what personal data <Company /> collects when you use Klygenix Play, why, who we share it with, how long we keep it, and your rights. Klygenix is the data fiduciary under India's Digital Personal Data Protection Act, 2023 ("DPDP Act") and, for people in the European Union, the controller under the GDPR.</p>
 
       <S title="1. Contact">
         <ul>
-          <li>Privacy questions and requests: <Ph>privacy contact email</Ph></li>
-          <li>Data Protection Officer: <Ph>DPO name and contact</Ph></li>
+          <li>Privacy questions and requests: <Fact v={co?.privacy_email || co?.email}>privacy contact email</Fact></li>
+          <li>Data protection contact: <Fact v={co?.grievance_officer?.name}>grievance officer name</Fact>, at <Fact v={co?.privacy_email || co?.email}>privacy contact email</Fact></li>
           <li>Grievance Officer: see the <L to="/legal/grievance">Grievance Officer</L> page.</li>
-          <li>Representative in the European Union: <Ph>EU representative, if required</Ph></li>
-        </ul>
+                  </ul>
       </S>
 
       <S title="2. What we collect">
@@ -264,7 +266,7 @@ export function PrivacyPage() {
           rows={[
             ["Run your account, play videos, remember where you stopped, show your Following feed and notifications", "Your consent and the contract with you (GDPR: contract)"],
             ["AI features you use: transcripts, Ask, translation, study tools, clips, dubbing", "Your consent (GDPR: contract)"],
-            ["Recommendations and the For you feed, based on what you watch", <>Your consent (GDPR: legitimate interests) <Ph>confirm basis</Ph></>],
+            ["Recommendations and the For you feed, based on what you watch", "Our legitimate interest in showing you relevant videos; you can remove videos from your history or clear it at any time"],
             ["Bill plans and creator sales, issue invoices, keep tax records, pay creators", "Legal obligation and contract"],
             ["Safety: scans, moderation, age checks, fraud and abuse prevention, security logs", "Legitimate uses under the DPDP Act and legal obligation (GDPR: legitimate interests)"],
             ["Answer court orders and lawful requests", "Legal obligation"],
@@ -286,16 +288,16 @@ export function PrivacyPage() {
         <ul>
           <li><strong>Everyone:</strong> your public profile, channel, published videos, comments, danmaku, live chat messages, super chats and gifts (with your display name).</li>
           <li><strong>Creators you pay:</strong> your name, email and state appear on the tax invoice issued for your purchase, which the creator can see. Creators see analytics only as totals.</li>
-          <li><strong>Service providers</strong> who process data for us under contract: video hosting and delivery (Bunny.net), AI and speech services (Microsoft Azure), payments (Razorpay in India; a merchant of record abroad), payouts (Razorpay Route), email (Microsoft 365), push notifications (Expo, Apple and Google), error reporting (Sentry), content safety scanning <Ph>safety vendor</Ph>, and encrypted backups <Ph>backup provider and region</Ph>.</li>
+          <li><strong>Service providers</strong> who process data for us under contract: video hosting and delivery (Bunny.net), AI and speech services (Microsoft Azure), payments (Razorpay in India; a merchant of record abroad), payouts (Razorpay Route), email (Microsoft 365), push notifications (Expo, Apple and Google), error reporting (Sentry), content safety scanning (Microsoft Azure AI Content Safety), and encrypted backups (Cloudflare R2, Asia-Pacific).</li>
           <li><strong>Platforms you connect:</strong> YouTube (Google) when you link your channel or publish a clip there.</li>
           <li><strong>Authorities:</strong> when the law requires it, for example a court order or a lawful request under Indian law.</li>
           <li><strong>A buyer of our business</strong>, under the same protections, if Klygenix is reorganised or sold.</li>
         </ul>
-        <p>We do not sell personal data and we do not show third-party advertising. <Ph>confirm advertising plans</Ph></p>
+        <p>We do not sell personal data. We may show ads and sponsored content from brands that buy them directly from Klygenix. An ad is chosen by the video, its language, your country and your type of device, never from a profile of you; we do not use ad networks or advertising cookies, and brands get only totals (impressions, views, clicks), never who you are. Premium members see no ads.</p>
       </S>
 
       <S title="6. Where your data is stored">
-        <p>Our database and servers are in India. Some providers process data in other countries <Ph>list provider regions</Ph>. When data leaves India we do so only where the DPDP Act allows it and, for EU users, under safeguards such as standard contractual clauses.</p>
+        <p>Our database and servers are in India. Some providers process data in other countries: Bunny.net stores videos in Germany with copies in Singapore and the United States and delivers them from its worldwide network; Microsoft Azure runs speech, AI and safety scanning in the United States (Central US); Cloudflare R2 keeps backups in Asia-Pacific. When data leaves India we do so only where the DPDP Act allows it and, for EU users, under safeguards such as standard contractual clauses.</p>
       </S>
 
       <S title="7. How long we keep it">
@@ -309,9 +311,9 @@ export function PrivacyPage() {
             ["Live stream recording segments", "24 hours after the stream ends (a replay, if turned on, becomes an ordinary video)"],
             ["Comment and danmaku translations", "180 days"],
             ["Deleted videos", "Removed from view at once; media purged from the video host within 30 days"],
-            ["Invoices, payments, payouts and tax records", <>As long as tax law requires <Ph>confirm period, e.g. 8 years</Ph></>],
-            ["Backups", <>Encrypted; a monthly backup is kept for up to 7 years <Ph>confirm backup retention against erasure duties</Ph></>],
-            ["Security logs", <Ph>log retention period</Ph>],
+            ["Invoices, payments, payouts and tax records", <>8 years, as tax and company law require</>],
+            ["Backups", "Encrypted; a monthly backup is kept for up to 7 years. Data you have erased can remain in a backup until it expires, but it is never restored into the Service, and it is erased again if a backup is ever restored"],
+            ["Security logs", "180 days"],
           ]}
         />
       </S>
@@ -326,7 +328,7 @@ export function PrivacyPage() {
           <li><strong>Grievance:</strong> complain to our Grievance Officer and, if you are not satisfied, to the Data Protection Board of India.</li>
           <li><strong>In the EU:</strong> you also have the rights to restrict or object to processing, to data portability, and to complain to your local supervisory authority.</li>
         </ul>
-        <p>We reply within <Ph>response time for rights requests</Ph>.</p>
+        <p>We reply within 30 days.</p>
       </S>
 
       <S title="9. Children">
@@ -338,7 +340,7 @@ export function PrivacyPage() {
       </S>
 
       <S title="11. Cookies and local storage">
-        <p>The web app stores your sign-in session and preferences (such as danmaku settings and translation language) in your browser's local storage. We do not use advertising cookies or cross-site trackers. The Razorpay checkout loads its own script only when you pay. <Ph>confirm whether any analytics will be added</Ph></p>
+        <p>The web app stores your sign-in session and preferences (such as danmaku settings and translation language) in your browser's local storage. We do not use advertising cookies or cross-site trackers. The Razorpay checkout loads its own script only when you pay. To fix bugs we may collect error reports (what went wrong, on which page, with your browser type), without advertising or third-party analytics.</p>
       </S>
 
       <S title="12. Changes">
@@ -362,6 +364,63 @@ const RULES: [string, string][] = [
   ["Danmaku and chat etiquette", "Keep danmaku and live chat short, on topic and kind. No spoiler flooding and no personal attacks. Viewers can block words and hide danmaku at any time; creators and their moderators can remove messages."],
 ]
 
+export function RefundsPage() {
+  const co = useCompany()
+  return (
+    <LegalShell title="Refunds & cancellations">
+      <p>This page explains how cancelling and refunds work for payments made on Klygenix Play in India. Payments are processed by Razorpay. Everything you buy here is digital and is available in your account as soon as the payment succeeds; nothing is shipped.</p>
+      <S title="1. Viewer Premium and creator plans">
+        <ul>
+          <li>Plans renew every month until you cancel. You can cancel at any time from your account; the plan stays active until the end of the period you have already paid for, and you are not charged again.</li>
+          <li>If you are unhappy with a plan, you can ask for a full refund within 7 days of your first payment for that plan. Renewals are not refunded for part of a period, except where the law requires it.</li>
+          <li>If you were charged twice, charged after cancelling, or charged for a plan that never became active, write to us and we refund the payment in full.</li>
+        </ul>
+      </S>
+      <S title="2. Payments to creators">
+        <ul>
+          <li>Tips are gifts to the creator and are not refundable.</li>
+          <li>If a creator deletes a boost, super chat or gift you paid for, you are refunded in full automatically.</li>
+          <li>Memberships last 30 days per payment and do not renew on their own. Paid videos and series stay available while they remain on the Service. Once access is given, memberships, paid videos and series are not refunded, except as described below.</li>
+          <li>Money paid for content that is removed after a valid copyright or legal notice may be refunded.</li>
+          <li>When a payment is refunded, the access it bought ends.</li>
+        </ul>
+      </S>
+      <S title="3. How refunds are paid">
+        <ul>
+          <li>Refunds go back to the card, UPI account, wallet or bank account you paid with, through Razorpay. Once we issue a refund it usually reaches you within 5 to 7 working days, depending on your bank.</li>
+          <li>If money left your account but the payment failed, your bank or Razorpay reverses it automatically, usually within 5 to 7 working days. If it has not arrived after that, write to us with the payment date and amount.</li>
+          <li>For each refund we issue a GST credit note against the original tax invoice.</li>
+        </ul>
+      </S>
+      <S title="4. Asking for a refund">
+        <p>Write to <Fact v={co?.email}>support email</Fact> from the email address on your account, with the date, the amount and what you bought. We reply within 3 working days. If you are not satisfied with the answer, you can write to the <L to="/legal/grievance">Grievance Officer</L>.</p>
+      </S>
+    </LegalShell>
+  )
+}
+
+export function ContactPage() {
+  const co = useCompany()
+  return (
+    <LegalShell title="Contact us">
+      <Table head={["", ""]} rows={[
+        ["Company", COMPANY],
+        ["Registered office", <Fact v={co?.address}>registered address</Fact>],
+        ["CIN", <Fact v={co?.cin}>CIN</Fact>],
+        ["GSTIN", <Fact v={co?.gstin}>GSTIN</Fact>],
+        ["Support email", <Fact v={co?.email}>support email</Fact>],
+        ["Phone", <Fact v={co?.phone}>support phone</Fact>],
+        ["Working hours", "Monday to Friday, 10:00 to 18:00 IST, except public holidays"],
+      ]} />
+      <ul>
+        <li>Payments and refunds: see <L to="/legal/refunds">Refunds &amp; cancellations</L>.</li>
+        <li>Complaints about content or how we handle your data: the <L to="/legal/grievance">Grievance Officer</L>.</li>
+        <li>Copyright notices: the <L to="/legal/copyright">copyright form</L>.</li>
+      </ul>
+    </LegalShell>
+  )
+}
+
 export function GuidelinesPage() {
   return (
     <LegalShell title="Community Guidelines">
@@ -378,7 +437,7 @@ export function GuidelinesPage() {
         ))}
       </ol>
       <S title="Age-restricted content">
-        <p>Content that is allowed but not suitable for younger viewers, for example strong language or mature themes, must be marked as age-restricted. It is only shown to signed-in viewers who meet the age limit. <Ph>confirm the age-restriction standard</Ph></p>
+        <p>Content that is allowed but not suitable for younger viewers, for example strong language or mature themes, must be marked as age-restricted. It is only shown to signed-in viewers who meet the age limit (18 in India).</p>
       </S>
       <S title="How we check content">
         <ul>
@@ -437,7 +496,7 @@ export function CopyrightPage() {
           <li>the link to the content on Klygenix Play (for a video, its /watch/ link) and, for long videos, the time where the infringement appears;</li>
           <li>a statement in good faith that the use is not authorised and that the information in the notice is accurate.</li>
         </ul>
-        <p>We acknowledge every notice within 24 hours. Non-consensual intimate imagery is held from view as soon as the notice arrives and handled within 24 hours, court and government orders within 36 hours, and other notices within 15 days. <Ph>confirm timelines against Copyright Rules 2013 r.75 (36 hours, 21-day court order window) and the IT Rules 72-hour requirement</Ph></p>
+        <p>We acknowledge every notice within 24 hours. Non-consensual intimate imagery is held from view as soon as the notice arrives and handled within 24 hours, court and government orders within 36 hours, and other notices within 15 days.</p>
       </S>
 
       {done ? (
@@ -479,7 +538,7 @@ export function CopyrightPage() {
 
       <S title="2. What happens next">
         <ul>
-          <li>We review the notice. If it is complete and the claim is plausible, we remove or disable the content and tell the uploader, with the reason and the complainant's name. <Ph>confirm what complainant details are shared with the uploader</Ph></li>
+          <li>We review the notice. If it is complete and the claim is plausible, we remove or disable the content and tell the uploader, with the reason and the complainant's name. The complainant's contact details are shared only if the uploader sends a valid counter-notice.</li>
           <li>A valid copyright removal gives the channel a strike. Strikes expire after 90 days; three active strikes suspend the channel.</li>
           <li>Money paid for content that is removed after a valid notice may be refunded to buyers and recovered from the creator under the Creator Monetisation Terms.</li>
           <li>Incomplete or clearly abusive notices are rejected. Sending false notices can make you liable for the harm caused.</li>
@@ -492,11 +551,11 @@ export function CopyrightPage() {
           <li>your full name, postal address, phone number and email;</li>
           <li>why you believe the removal was a mistake or that you have the right to use the material;</li>
           <li>a statement under penalty of perjury that you have a good faith belief the material was removed by mistake or misidentification;</li>
-          <li>your consent to the jurisdiction of the court for your address, and that you will accept service from the person who sent the notice <Ph>confirm jurisdiction wording</Ph>;</li>
+          <li>your consent to the jurisdiction of the court for your address, and that you will accept service from the person who sent the notice;</li>
           <li>your signature, which is your full name typed again.</li>
         </ul>
         <p>Other moderation decisions, such as removals for breaking the Community Guidelines, are appealed under <L to="/account?tab=notices">Account → Notices</L> instead.</p>
-        <p>We send the counter-notice to the complainant. Unless the complainant tells us within <Ph>counter-notice waiting period, e.g. 21 days</Ph> that they have started court proceedings, we may restore the content and lift the strike. <Ph>decide whether to also follow the US DMCA counter-notice process and appoint a designated agent</Ph></p>
+        <p>We send the counter-notice to the complainant. Unless the complainant tells us within 14 days that they have started court proceedings, we may restore the content and lift the strike.</p>
       </S>
 
       <S title="4. Embedded videos">
@@ -508,12 +567,13 @@ export function CopyrightPage() {
 
 export function GrievancePage() {
   const t = useT("legal")
+  const co = useCompany()
   const lang = useLang()
   const rows: [string, ReactNode][] = [
-    ["Name", <Ph>grievance officer name</Ph>],
+    ["Name", <Fact v={co?.grievance_officer.name}>grievance officer name</Fact>],
     ["Designation", "Grievance Officer, Klygenix Play"],
-    ["Email", <Ph>grievance officer email</Ph>],
-    ["Phone", <Ph>grievance officer phone</Ph>],
+    ["Email", <Fact v={co?.grievance_officer.email}>grievance officer email</Fact>],
+    ["Phone", <Fact v={co?.grievance_officer.phone}>grievance officer phone</Fact>],
     ["Address", <><Company /></>],
     ["Working hours", "Monday to Friday, 10:00 to 18:00 IST, except public holidays"],
   ]
@@ -536,7 +596,7 @@ export function GrievancePage() {
         <ul>
           <li><strong>Acknowledgement:</strong> within 24 hours.</li>
           <li><strong>Resolution:</strong> within 15 days.</li>
-          <li><strong>Removal requests</strong> about content that is unlawful under the IT Rules: within 72 hours. <Ph>confirm the 72-hour category list</Ph></li>
+          <li><strong>Removal requests</strong> about content that is unlawful under the IT Rules: within 72 hours.</li>
           <li><strong>Non-consensual intimate imagery</strong>, including morphed images: acted on within 24 hours.</li>
         </ul>
       </S>
@@ -555,7 +615,7 @@ export function MonetisationPage() {
       <S title="1. Who can earn">
         <ul>
           <li>You need a channel in good standing (not suspended) and an activated payout account. Activation means completing KYC with our payout partner, Razorpay Route: your legal name, PAN, bank account and, if you are registered, your GSTIN.</li>
-          <li>Selling is available in India, in rupees, only. <Ph>minimum age for payouts, e.g. 18</Ph></li>
+          <li>Selling is available in India, in rupees, only. You must be at least 18 to receive payouts.</li>
           <li>You can only earn on videos hosted on Klygenix Play. Videos embedded from YouTube or Bilibili cannot be tipped, boosted or sold.</li>
           <li>You cannot buy from your own channel.</li>
         </ul>
@@ -573,8 +633,8 @@ export function MonetisationPage() {
             ["Live gifts", "During a live stream a viewer sends a gift (currently Chai ₹19, Rose ₹49 or Trophy ₹199) that shows in the chat."],
           ]}
         />
-        <p>Prices for fixed tiers and gifts are set by Klygenix and may change; the price shown at checkout applies. <Ph>confirm launch prices</Ph></p>
-        <p>Klygenix does not pay per view and does not share advertising revenue. Your earnings come only from what viewers choose to pay you.</p>
+        <p>Prices for fixed tiers and gifts are set by Klygenix and may change; the price shown at checkout applies.</p>
+        <p>Klygenix does not pay per view. You earn from what viewers choose to pay you and, where brand ads run on your videos, from a share of that advertising revenue, paid monthly once your payout account is active and shown in Studio → Earnings.</p>
       </S>
 
       <S title="3. Platform commission">
@@ -582,9 +642,9 @@ export function MonetisationPage() {
         <Table
           head={["Creator plan", "Commission"]}
           rows={[
-            ["Creator Free", <>20% <Ph>confirm</Ph></>],
-            ["Creator Pro", <>10% <Ph>confirm</Ph></>],
-            ["Creator Business", <>8% <Ph>confirm</Ph></>],
+            ["Creator Free", "20%"],
+            ["Creator Pro", "10%"],
+            ["Creator Business", "8%"],
           ]}
         />
         <p>GST is charged on the commission. The rate in force on the day of the sale applies; we will give notice before raising it. Studio shows your current rate.</p>
@@ -594,7 +654,7 @@ export function MonetisationPage() {
         <ul>
           <li>Klygenix issues the tax invoice (or bill of supply) to the buyer on your behalf, in your name, for every sale except tips.</li>
           <li>If you gave us a GSTIN, GST is included in the price of boosts, memberships, paid videos and series, super chats and gifts, and shown on the invoice. If you did not, these are sold without GST under a bill of supply. Tips carry no GST.</li>
-          <li>As an e-commerce operator, Klygenix may collect tax at source under section 52 of the CGST Act on taxable sales by registered creators, and deduct tax under section 194-O of the Income-tax Act. These amounts are paid to the government in your name and shown in your statements. <Ph>confirm TCS/TDS rates and the treatment of tips with CA</Ph></li>
+          <li>As an e-commerce operator, Klygenix may collect tax at source under section 52 of the CGST Act on taxable sales by registered creators, and deduct tax under section 194-O of the Income-tax Act. Today this is TCS of 0.5% of the net taxable value under GST, and TDS of 0.1% of the gross amount under section 194-O (5% if you have not given us your PAN). Tips are not counted. These amounts are paid to the government in your name and shown in your statements.</li>
           <li>You are responsible for your own income tax and GST filings. Studio → Earnings gives you sales, commission invoices and statements for filing.</li>
         </ul>
       </S>
@@ -604,14 +664,14 @@ export function MonetisationPage() {
           <li>Each sale is split when it is paid: the commission and its GST, any tax withheld, and your share.</li>
           <li>Your share is held for <strong>7 days</strong> (the refund window) and then released to your bank account through Razorpay Route.</li>
           <li>A reserve of <strong>5%</strong> of each sale is held for <strong>30 days</strong> to cover refunds and chargebacks, then released.</li>
-          <li>Payout timing after release depends on Razorpay and your bank. <Ph>payout schedule and any minimum payout</Ph></li>
+          <li>Payout timing after release depends on Razorpay and your bank. A sale is released 7 days after it is made and usually reaches your bank within 1 to 3 working days; the 5% reserve is released after 30 days. There is no minimum payout.</li>
         </ul>
       </S>
 
       <S title="6. Refunds and removals">
         <ul>
           <li><strong>If you delete a paid boost, super chat or gift</strong>, the viewer is refunded in full automatically.</li>
-          <li>Klygenix may refund a buyer for a membership, paid video or series, boost, super chat or gift where the purchase was not delivered, was made in error or by fraud, the content was removed for breaking our rules or the law, or the law requires it. <Ph>buyer refund policy for memberships and paid videos</Ph></li>
+          <li>Klygenix may refund a buyer for a membership, paid video or series, boost, super chat or gift where the purchase was not delivered, was made in error or by fraud, the content was removed for breaking our rules or the law, or the law requires it.</li>
           <li>A refund ends the access it paid for and issues a credit note. If your share is still held, the held transfer is cancelled. If it has already been paid out, the amount becomes a recovery that is deducted from your next sales.</li>
           <li>Chargebacks are treated like refunds.</li>
         </ul>
@@ -636,7 +696,7 @@ export function MonetisationPage() {
       </S>
 
       <S title="10. Changes">
-        <p>We will give at least <Ph>notice period</Ph> notice in Studio or by email before changing commission rates, holds or reserves. Sales made before the change keep the old terms.</p>
+        <p>We will give at least 30 days' notice in Studio or by email before changing commission rates, holds or reserves. Sales made before the change keep the old terms.</p>
       </S>
     </LegalShell>
   )
@@ -649,7 +709,7 @@ export function LiveRulesPage() {
 
       <S title="1. Going live">
         <ul>
-          <li>Live streaming is available to channels whose plan includes it and that are not suspended. <Ph>which plans include live streaming</Ph></li>
+          <li>Live streaming is available to channels whose plan includes it and that are not suspended. Live streaming is not open yet; when it opens, it will be available on Creator Pro and Creator Business.</li>
           <li>A channel can have one scheduled or live stream at a time.</li>
           <li>Your stream key is like a password: do not share it. Anyone with the key can stream to your channel. You can rotate it in Studio when you are not live.</li>
           <li>A stream ends when you end it in Studio, or automatically if no video arrives for about 45 seconds.</li>
@@ -662,8 +722,8 @@ export function LiveRulesPage() {
           <li>Stream only what you have the rights to. Do not restream TV, sports, films, other creators' streams or paid events.</li>
           <li>Use only music you own, have licensed, or have taken from the Studio music library.</li>
           <li>No sexual content, no dangerous stunts or challenges, no gambling, and no showing other people's private details.</li>
-          <li>Children under <Ph>minimum age to appear unaccompanied</Ph> must not appear on a stream without an adult present.</li>
-          <li>Do not present a pre-recorded video as live in a way that misleads viewers. <Ph>confirm rule on pre-recorded "premieres"</Ph></li>
+          <li>Children under 16 must not appear on a stream without an adult present.</li>
+          <li>Do not present a pre-recorded video as live in a way that misleads viewers. You may stream pre-recorded material if the title or description says it is pre-recorded.</li>
         </ul>
       </S>
 
@@ -686,7 +746,7 @@ export function LiveRulesPage() {
       </S>
 
       <S title="5. Safety and enforcement">
-        <p>Live streams cannot be checked before they are broadcast. The creator is responsible for their stream and chat, supported by their moderators. Klygenix can stop any stream at any time if it breaks these rules or the law, and the channel will see the reason. Breaking these rules can lead to a strike, losing access to live streaming, or suspension, as described in the Community Guidelines. You can report a live stream by reporting the channel. <Ph>reporting individual live chat messages</Ph></p>
+        <p>Live streams cannot be checked before they are broadcast. The creator is responsible for their stream and chat, supported by their moderators. Klygenix can stop any stream at any time if it breaks these rules or the law, and the channel will see the reason. Breaking these rules can lead to a strike, losing access to live streaming, or suspension, as described in the Community Guidelines. You can report a live stream by reporting the channel, and report a single chat message from its menu in the chat.</p>
       </S>
 
       <S title="6. Replays and recordings">

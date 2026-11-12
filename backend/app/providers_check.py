@@ -30,7 +30,7 @@ def _real(value: str | None) -> bool:
 
 
 def providers(s: Settings) -> list[Provider]:
-    api = f"https://api.{s.PUBLIC_DOMAIN}/api/video/webhooks"
+    api = f"https://{s.public_host('api')}/api/video/webhooks"
     return [
         Provider("bunny", "Bunny Stream (upload, encode, playback)", s.VIDEO_PROVIDER == "bunny",
                  ["BUNNY_LIBRARY_ID", "BUNNY_API_KEY", "BUNNY_CDN_HOST", "BUNNY_TOKEN_KEY", "BUNNY_WEBHOOK_SECRET"],
@@ -57,7 +57,8 @@ def providers(s: Settings) -> list[Provider]:
         Provider("lemonsqueezy", "Lemon Squeezy (merchant of record abroad)", bool(s.LEMONSQUEEZY_API_KEY or s.LEMONSQUEEZY_STORE_ID),
                  ["LEMONSQUEEZY_STORE_ID", "LEMONSQUEEZY_API_KEY", "LEMONSQUEEZY_WEBHOOK_SECRET", "LEMONSQUEEZY_VARIANT_ID"],
                  [f"{api}/payments/lemonsqueezy"]),
-        Provider("scan", "Safety scan vendor", _real(s.SCAN_PROVIDER), ["SCAN_API_URL", "SCAN_API_KEY"]),
+        Provider("scan", "Azure AI Content Safety" if s.SCAN_PROVIDER == "azure_content_safety" else "Safety scan vendor",
+                 _real(s.SCAN_PROVIDER), ["SCAN_API_URL", "SCAN_API_KEY"]),
         Provider("mail", "Mail (Microsoft Graph)", bool(s.MS_GRAPH_CLIENT_ID),
                  ["MS_GRAPH_TENANT_ID", "MS_GRAPH_CLIENT_ID", "MS_GRAPH_CLIENT_SECRET", "MS_GRAPH_SENDER"]),
     ]
@@ -94,6 +95,10 @@ def probe(p: Provider) -> str:
 
             llm._call([{"role": "user", "content": [{"type": "input_text", "text": "Reply with OK."}]}],
                       model=settings.LLM_MODEL, max_tokens=16)
+        elif p.key == "scan" and settings.SCAN_PROVIDER == "azure_content_safety":
+            from app.video.trust import scan
+
+            scan.probe_content_safety()
         elif p.key == "mail":
             from app.core.services import graph_mail
 
@@ -115,6 +120,9 @@ def main(argv: list[str] | None = None) -> int:
         from app.core.services.readiness import env_file_settings
 
         s, raw = env_file_settings(args.env_file)
+        if args.live:
+            for k in type(s).model_fields:
+                setattr(settings, k, getattr(s, k))
     else:
         from app.core.services.readiness import _raw_env
 
@@ -132,7 +140,7 @@ def main(argv: list[str] | None = None) -> int:
         if p.active:
             for w in p.webhooks:
                 print(f"    webhook: {w}")
-            if args.live and not p.missing:
+            if args.live and not [m for m in p.missing if not m.startswith("ROUTE_PROFILE_")]:
                 p.live = probe(p)
                 bad += p.live.startswith("FAILED")
                 print(f"    live probe: {p.live}")

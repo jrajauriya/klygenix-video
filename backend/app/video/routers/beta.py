@@ -104,6 +104,24 @@ def beta_state():
     return {"signup": beta.signup_mode(), "creator": beta.creator_mode()}
 
 
+@router.get("/company")
+def company(response: Response):
+    from app.core.models.tenant import Tenant
+    from app.video.sessions import platform_session
+
+    with platform_session() as db:
+        t = db.execute(select(Tenant).where(Tenant.slug == settings.ADMIN_TENANT_SLUG)).scalars().first()
+        extra = dict((t.settings or {}) if t else {})
+        officer = extra.get("grievance_officer") or {}
+        place = ", ".join(p for p in (t.address, t.city, t.state, t.pin_code) if p) if t else ""
+        out = {"name": t.name if t else "", "address": place, "gstin": (t.gst_number or "") if t else "",
+               "cin": str(extra.get("cin") or ""), "email": (t.email or "") if t else "", "phone": (t.phone or "") if t else "",
+               "privacy_email": str(extra.get("privacy_email") or ""), "legal_email": str(extra.get("legal_email") or ""),
+               "grievance_officer": {k: str(officer.get(k) or "") for k in ("name", "email", "phone")}}
+    response.headers["Cache-Control"] = "public, max-age=300"
+    return out
+
+
 class FeedbackIn(BaseModel):
     kind: str = "other"
     body: str = Field(min_length=3, max_length=5000)

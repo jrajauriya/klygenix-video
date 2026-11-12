@@ -1,7 +1,8 @@
 import type { ConfigContext, ExpoConfig } from "expo/config"
 
 const domain = process.env.EXPO_PUBLIC_DOMAIN || "play.klygenix.com"
-const studio = `studio.${domain}`
+const flat = (process.env.EXPO_PUBLIC_HOST_STYLE || "flat") === "flat"
+const studio = flat ? domain.replace(/^([^.]+)\./, "$1-studio.") : `studio.${domain}`
 const category = ["BROWSABLE", "DEFAULT"]
 
 export default ({ config }: ConfigContext): ExpoConfig => ({

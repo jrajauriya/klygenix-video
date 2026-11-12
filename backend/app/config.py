@@ -20,6 +20,7 @@ class Settings(BaseSettings):
 
     BRAND_NAME: str = "Klygenix Play"
     PUBLIC_DOMAIN: str = "play.klygenix.com"
+    HOST_STYLE: str = "nested"
     ADMIN_TENANT_SLUG: str = "klygenix-video-admin"
     ADMIN_TENANT_NAME: str = "Klygenix Technologies Private Limited"
     ADMIN_CHANNEL_HANDLE: str = "klygenix"
@@ -227,6 +228,12 @@ class Settings(BaseSettings):
     @classmethod
     def _decrypt(cls, value: str) -> str:
         return secrets.resolve(value)
+
+    def public_host(self, sub: str) -> str:
+        if self.HOST_STYLE == "flat":
+            first, _, rest = self.PUBLIC_DOMAIN.partition(".")
+            return f"{first}-{sub}.{rest}"
+        return f"{sub}.{self.PUBLIC_DOMAIN}"
 
     @property
     def app_database_url(self) -> str:

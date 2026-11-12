@@ -20,7 +20,7 @@ PUBLIC = {
     ("GET", "/api/video/live"), ("GET", "/api/video/live/{public_id}"), ("GET", "/api/video/channels/{handle}/live"),
     ("GET", "/api/video/live/{public_id}/chat"),
     ("POST", "/api/video/waitlist"), ("POST", "/api/video/waitlist/confirm"), ("POST", "/api/video/invites/check"),
-    ("GET", "/api/video/beta"), ("POST", "/api/video/feedback"),
+    ("GET", "/api/video/beta"), ("GET", "/api/video/company"), ("POST", "/api/video/feedback"),
     ("GET", "/api/video/ads/breaks"), ("GET", "/api/video/ads/decision"), ("POST", "/api/video/ads/events"),
     ("GET", "/api/video/brands"), ("GET", "/api/video/ads/categories"), ("GET", "/api/video/feed/subscriptions"),
 }

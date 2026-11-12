@@ -302,10 +302,12 @@ def release_due(now: datetime | None = None) -> int:
     now = now or datetime.now(timezone.utc)
     released = 0
     with _sessions() as db:
-        route = route_client()
         due = db.execute(select(RouteTransfer.id).where(
             RouteTransfer.status == "held", RouteTransfer.kind.in_(("sale", "reserve")),
             RouteTransfer.hold_until <= now).order_by(RouteTransfer.id)).scalars().all()
+        if not due:
+            return 0
+        route = route_client()
         for tid in due:
             t = db.execute(select(RouteTransfer).where(RouteTransfer.id == tid, RouteTransfer.status == "held")
                            .with_for_update(skip_locked=True)).scalars().first()

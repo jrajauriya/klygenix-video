@@ -88,6 +88,7 @@ services:
     volumes: !override
       - ./nginx/render.sh:/etc/nginx/render.sh:ro
       - ./nginx/applinks.sh:/etc/nginx/applinks.sh:ro
+      - ./nginx/hosts.sh:/etc/nginx/hosts.sh:ro
       - ./nginx/prod.conf.template:/etc/nginx/prod.conf.template:ro
       - ./nginx/snippets:/etc/nginx/snippet-templates:ro
       - ${KV_STAGING_DIR:-./build/staging}/ssl:/etc/nginx/ssl:ro

@@ -35,6 +35,12 @@ ORIGIN_APPS = {
     "play.klygenix.com": "video",
 }
 
+def _public_apps() -> dict[str, str]:
+    from app.config import settings
+
+    return {settings.public_host("admin"): "admin", settings.public_host("studio"): "video", settings.PUBLIC_DOMAIN: "video"}
+
+
 PATH_APPS = (
     ("/api/video", "video"),
     ("/api/admin", "admin"),
@@ -167,7 +173,7 @@ def describe(method: str, template: str) -> tuple[str, str]:
 def app_for(origin: str | None, template: str) -> str:
     if origin:
         host = urlparse(origin).netloc or origin
-        hit = ORIGIN_APPS.get(host.lower())
+        hit = ORIGIN_APPS.get(host.lower()) or _public_apps().get(host.lower())
         if hit:
             return hit
     for prefix, app in PATH_APPS:

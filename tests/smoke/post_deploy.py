@@ -42,9 +42,16 @@ def resolve_localhost() -> None:
     socket.getaddrinfo = patched
 
 
+HOST_STYLE = "auto"
+
+
 def sibling(base: str, prefix: str) -> str:
     parts = urlsplit(base)
-    return f"{parts.scheme}://{prefix}.{parts.netloc}"
+    host, _, port = parts.netloc.partition(":")
+    style = HOST_STYLE if HOST_STYLE != "auto" else ("nested" if host.endswith(".localhost") else "flat")
+    first, _, rest = host.partition(".")
+    name = f"{first}-{prefix}.{rest}" if style == "flat" else f"{prefix}.{host}"
+    return f"{parts.scheme}://{name}{':' + port if port else ''}"
 
 
 def asset_urls(html: str) -> list[str]:
@@ -632,6 +639,8 @@ def main() -> int:
     ap.add_argument("--studio")
     ap.add_argument("--admin")
     ap.add_argument("--http-base", help="plain-http origin to check the https redirect, e.g. http://play.localhost:8080")
+    ap.add_argument("--host-style", choices=["auto", "flat", "nested"], default="auto",
+                    help="flat: play-api.klygenix.com; nested: api.play.localhost; auto: nested only for *.localhost")
     ap.add_argument("--insecure", action="store_true", help="accept a self-signed certificate")
     ap.add_argument("--cacert")
     ap.add_argument("--handle", default="klygenix")
@@ -649,6 +658,8 @@ def main() -> int:
         import warnings
 
         warnings.filterwarnings("ignore")
+    global HOST_STYLE
+    HOST_STYLE = args.host_style
     resolve_localhost()
     started = time.time()
     try:

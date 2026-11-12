@@ -260,10 +260,10 @@ def evaluate(s: Settings, *, mode: str = "app", env: dict | None = None) -> list
               "Install the cron entries for infra/basebackup.sh (02:30) and infra/backup.sh (03:00), run one of each by hand, and rehearse a restore with infra/pitr-rehearse.sh — see infra/BACKUPS.md."))
 
     urls = (
-        ("url.admin", "Admin console URL", "APP_LOGIN_URL", s.APP_LOGIN_URL, f"https://admin.{s.PUBLIC_DOMAIN}/login"),
-        ("url.studio", "Studio URL", "STUDIO_APP_URL", s.STUDIO_APP_URL, f"https://studio.{s.PUBLIC_DOMAIN}"),
+        ("url.admin", "Admin console URL", "APP_LOGIN_URL", s.APP_LOGIN_URL, f"https://{s.public_host('admin')}/login"),
+        ("url.studio", "Studio URL", "STUDIO_APP_URL", s.STUDIO_APP_URL, f"https://{s.public_host('studio')}"),
         ("url.web", "Viewer web URL", "WEB_BASE_URL", s.WEB_BASE_URL, f"https://{s.PUBLIC_DOMAIN}"),
-        ("url.api", "Public API URL", "API_PUBLIC_BASE_URL", s.API_PUBLIC_BASE_URL, f"https://api.{s.PUBLIC_DOMAIN}"),
+        ("url.api", "Public API URL", "API_PUBLIC_BASE_URL", s.API_PUBLIC_BASE_URL, f"https://{s.public_host('api')}"),
     )
     for key, title, name, value, example in urls:
         good, why = _public_https(value)
@@ -278,7 +278,7 @@ def evaluate(s: Settings, *, mode: str = "app", env: dict | None = None) -> list
     add(Check("cors.origins", "CORS allows only public https origins", "Public URLs", BLOCK, bool(origins) and not bad_origins,
               ("CORS_ORIGINS is empty." if not origins else
                f"Not allowed in production: {', '.join(bad_origins)}." if bad_origins else ", ".join(origins)),
-              f"Set CORS_ORIGINS=https://admin.{s.PUBLIC_DOMAIN},https://studio.{s.PUBLIC_DOMAIN},https://{s.PUBLIC_DOMAIN}"))
+              f"Set CORS_ORIGINS=https://{s.public_host('admin')},https://{s.public_host('studio')},https://{s.PUBLIC_DOMAIN}"))
     needed = [o for o in (_origin(s.APP_LOGIN_URL), _origin(s.STUDIO_APP_URL), _origin(s.WEB_BASE_URL)) if o]
     missing = [o for o in needed if o not in origins]
     add(Check("cors.apps", "CORS covers the admin console, studio and web app", "Public URLs", BLOCK, not missing,
@@ -300,7 +300,7 @@ def evaluate(s: Settings, *, mode: str = "app", env: dict | None = None) -> list
     add(Check("razorpay.keys", "Razorpay platform keys", "Payments", BLOCK, not rz_missing,
               (f"Missing: {', '.join(rz_missing)}. Plan billing in India uses these."
                if rz_missing else "Key id, key secret and webhook secret are set."),
-              f"Razorpay Dashboard → Account & Settings → API keys (live mode) for the key pair; Webhooks → add https://api.{s.PUBLIC_DOMAIN}/api/video/webhooks/payments/razorpay for the webhook secret. Seal the secrets with scripts/manage_secrets.py."))
+              f"Razorpay Dashboard → Account & Settings → API keys (live mode) for the key pair; Webhooks → add https://{s.public_host('api')}/api/video/webhooks/payments/razorpay for the webhook secret. Seal the secrets with scripts/manage_secrets.py."))
     kid = s.RAZORPAY_KEY_ID or ""
     if kid.startswith("rzp_live_"):
         add(Check("razorpay.live", "Razorpay is in live mode", "Payments", BLOCK, True, "Key id starts with rzp_live_.", ""))
@@ -351,7 +351,7 @@ def evaluate(s: Settings, *, mode: str = "app", env: dict | None = None) -> list
     add(Check("video.provider", "Video hosting and delivery", "Video & AI", BLOCK, vp == "bunny" and not b_missing,
               ("VIDEO_PROVIDER is sandbox: videos are encoded on this server and served through the API." if vp != "bunny" else
                f"Bunny Stream is missing {', '.join(b_missing)}." if b_missing else "Bunny Stream with signed playback."),
-              f"Bunny → Stream → a library: set VIDEO_PROVIDER=bunny, BUNNY_LIBRARY_ID, BUNNY_API_KEY, BUNNY_TOKEN_KEY (token authentication), BUNNY_CDN_HOST and a webhook to https://api.{s.PUBLIC_DOMAIN}/api/video/webhooks/media/bunny?secret=<BUNNY_WEBHOOK_SECRET>. Enable MP4 fallback for clipping."))
+              f"Bunny → Stream → a library: set VIDEO_PROVIDER=bunny, BUNNY_LIBRARY_ID, BUNNY_API_KEY, BUNNY_TOKEN_KEY (token authentication), BUNNY_CDN_HOST and a webhook to https://{s.public_host('api')}/api/video/webhooks/media/bunny?secret=<BUNNY_WEBHOOK_SECRET>. Enable MP4 fallback for clipping."))
     stt_ok = (s.STT_PROVIDER == "openai" and bool(s.OPENAI_TRANSCRIBE_URL and s.OPENAI_TRANSCRIBE_KEY)) or (
         s.STT_PROVIDER == "azure_speech" and bool(s.AZURE_SPEECH_KEY))
     add(Check("stt.provider", "Speech to text", "Video & AI", BLOCK, stt_ok,
@@ -372,7 +372,9 @@ def evaluate(s: Settings, *, mode: str = "app", env: dict | None = None) -> list
     scan_ok = s.SCAN_PROVIDER != "sandbox" and bool(s.SCAN_API_URL and s.SCAN_API_KEY)
     add(Check("scan.provider", "Upload safety scanning (CSAM hash matching and classification)", "Trust & safety", BLOCK, scan_ok,
               "Configured." if scan_ok else "SCAN_PROVIDER is sandbox: only a local hash list and a keyword lexicon screen uploads.",
-              "Contract a hash-matching vendor and a content classifier; set SCAN_PROVIDER, SCAN_API_URL and SCAN_API_KEY. A public upload platform must not open without it."))
+              "Contract a hash-matching vendor and a content classifier; set SCAN_PROVIDER, SCAN_API_URL and SCAN_API_KEY "
+              "(SCAN_PROVIDER=azure_content_safety with an Azure AI Content Safety endpoint and key classifies frames and text). "
+              "A public upload platform must not open without it."))
     yt_ok = s.YOUTUBE_PROVIDER != "sandbox" and bool(s.GOOGLE_CLIENT_ID and s.GOOGLE_CLIENT_SECRET)
     add(Check("youtube.oauth", "YouTube channel connection", "Integrations", WARN, yt_ok,
               "Configured." if yt_ok else "YOUTUBE_PROVIDER is sandbox: Connect YouTube imports a sample channel.",
@@ -481,7 +483,7 @@ def evaluate_db(db, s: Settings) -> list[Check]:
         add(Check("platform.identity", "Klygenix's seller identity and grievance officer", "Data", BLOCK, not missing,
                   (f"Missing: {', '.join(missing)}. These print on plan invoices, and the IT Rules require a published grievance officer."
                    if missing else f"{tenant.name}, GSTIN {tenant.gst_number}."),
-                  "Admin → Accounts → Klygenix Technologies: legal name, address, GSTIN, support email; settings.grievance_officer {name, email}."))
+                  "Admin → Accounts → Klygenix Technologies → Company: address, GSTIN, support email and the grievance officer."))
 
     since = datetime.now(timezone.utc) - timedelta(days=7)
     last = db.execute(select(ProviderEvent.received_at).where(

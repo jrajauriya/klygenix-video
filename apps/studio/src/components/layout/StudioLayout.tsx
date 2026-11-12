@@ -28,6 +28,7 @@ export function StudioLayout() {
   const location = useLocation()
   const perms = usePermissions()
   const features = useHasFeature
+  const liveOn = useHasFeature("video.live")
   const t = useT()
   useHtmlLang()
   const [changing, setChanging] = useState(false)
@@ -64,6 +65,7 @@ export function StudioLayout() {
   if (needsChannel) return <Navigate to="/welcome" replace />
 
   const canSee = (item: NavItem) => {
+    if (item.featureKey === "video.live" && !liveOn) return false
     if (acting !== null) return Boolean(item.permissionKey) && teamLevel(teamMe, item.permissionKey!) !== "none"
     if (item.featureKey && !features(item.featureKey)) return false
     if (!item.permissionKey) return true

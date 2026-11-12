@@ -1,5 +1,5 @@
 from datetime import date, datetime
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class TenantCreate(BaseModel):
@@ -39,6 +39,23 @@ class TenantUpdate(BaseModel):
     is_active: bool | None = None
     owner_name: str | None = None
     owner_email: str | None = None
+    legal: "TenantLegal | None" = None
+
+
+class GrievanceOfficer(BaseModel):
+    name: str = Field(default="", max_length=200)
+    email: str = Field(default="", max_length=200)
+    phone: str = Field(default="", max_length=30)
+
+
+class TenantLegal(BaseModel):
+    cin: str = Field(default="", max_length=30)
+    privacy_email: str = Field(default="", max_length=200)
+    legal_email: str = Field(default="", max_length=200)
+    grievance_officer: GrievanceOfficer = GrievanceOfficer()
+
+
+TenantUpdate.model_rebuild()
 
 
 class TenantResponse(BaseModel):

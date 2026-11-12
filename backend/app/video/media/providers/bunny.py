@@ -12,7 +12,8 @@ from app.config import settings
 from app.video.media.providers.base import MediaEvent, UploadTicket
 
 TIMEOUT = httpx.Timeout(30.0, connect=10.0)
-STATUS = {3: "encoded", 4: "encoded", 5: "failed", 6: "failed"}
+# Bunny webhook Status: 3 finished, 5 encoding failed, 8 upload failed; 4 (one rendition) and 6/7 (upload started/done) are progress.
+STATUS = {3: "encoded", 5: "failed", 8: "failed"}
 
 
 class BunnyError(Exception):
@@ -61,11 +62,12 @@ class BunnyProvider:
         if kind is None:
             return []
         guid = data.get("VideoGuid", "")
+        event_id = data.get("EventId") or f"{guid}:{status}"
         if kind == "encoded":
             info = self.describe(guid)
-            return [MediaEvent(event_id=f"{guid}:{status}", provider_video_id=guid, kind=kind,
+            return [MediaEvent(event_id=event_id, provider_video_id=guid, kind=kind,
                                duration_ms=info.duration_ms, width=info.width, height=info.height)]
-        return [MediaEvent(event_id=f"{guid}:{status}", provider_video_id=guid, kind=kind)]
+        return [MediaEvent(event_id=event_id, provider_video_id=guid, kind=kind, detail=data.get("Reason") or "")]
 
     def describe(self, provider_video_id: str) -> MediaEvent:
         data = self._api("GET", f"/videos/{provider_video_id}")

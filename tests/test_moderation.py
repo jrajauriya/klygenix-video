@@ -24,7 +24,13 @@ r = viewer.post("/api/video/reports", json={"target_type": "video", "target_id":
 check("report filed", r.status_code, 201)
 check("same report twice refused", viewer.post("/api/video/reports", json={"target_type": "video", "target_id": vids[0]["public_id"], "reason": "spam"}).status_code, 409)
 check("bad reason refused", viewer.post("/api/video/reports", json={"target_type": "video", "target_id": vids[1]["public_id"], "reason": "meh"}).status_code, 400)
-q = admin.get("/api/video/admin/queue").json()
+q, off = [], 0
+while True:
+    page = admin.get("/api/video/admin/queue", params={"limit": 200, "offset": off})
+    q += page.json()
+    off += 200
+    if off >= int(page.headers.get("X-Total-Count", "0")):
+        break
 ok("reported video in the queue", any(i["target_id"] == vids[0]["id"] and i["why"] == "reported" for i in q))
 for v in vids:
     r = admin.post("/api/video/admin/actions", json={"target_type": "video", "target_id": v["id"], "action": "remove", "reason": "Spam", "strike": True})

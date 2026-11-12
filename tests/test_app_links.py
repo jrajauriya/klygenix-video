@@ -49,6 +49,7 @@ cases = {
     "https://play.klygenix.com/@asha": "/channel/asha",
     "https://play.klygenix.com/@asha/": "/channel/asha",
     "https://studio.play.klygenix.com/team/accept?token=t0k-en_1": "/team/accept?token=t0k-en_1",
+    "https://play-studio.klygenix.com/team/accept?token=t0k-en_1": "/team/accept?token=t0k-en_1",
     "https://play.klygenix.com/account": "/",
     "https://play.klygenix.com/@x": "/",
     "klygenixplay://watch/abc123": "/watch/abc123",
@@ -77,9 +78,20 @@ files, err = render(APPLE_TEAM_ID="team", ANDROID_CERT_SHA256="AB:CD")
 check("malformed values serve nothing", (files, "Team ID" in err, "fingerprints" in err), ({}, True, True))
 
 print("\n== the app's associated domains follow the domain")
-r = subprocess.run(["npx", "expo", "config", "--type", "public", "--json"], cwd=MOBILE, capture_output=True, text=True,
-                   env={**os.environ, "EXPO_PUBLIC_DOMAIN": "play.example.test"}, timeout=180)
-cfg = json.loads(r.stdout or "{}")
+
+
+def expo_config(**env):
+    r = subprocess.run(["npx", "expo", "config", "--type", "public", "--json"], cwd=MOBILE, capture_output=True, text=True,
+                       env={**os.environ, **env}, timeout=180)
+    return json.loads(r.stdout or "{}")
+
+
+flat = expo_config(EXPO_PUBLIC_DOMAIN="play.example.test")
+check("production hosts are flat by default (play-studio.…, one certificate level)",
+      (flat.get("ios", {}).get("associatedDomains"),
+       sorted({d["host"] for f in flat.get("android", {}).get("intentFilters") or [] for d in f["data"]})),
+      (["applinks:play.example.test", "applinks:play-studio.example.test"], ["play-studio.example.test", "play.example.test"]))
+cfg = expo_config(EXPO_PUBLIC_DOMAIN="play.example.test", EXPO_PUBLIC_HOST_STYLE="nested")
 check("iOS associated domains", cfg.get("ios", {}).get("associatedDomains"),
       ["applinks:play.example.test", "applinks:studio.play.example.test"])
 filters = cfg.get("android", {}).get("intentFilters") or []

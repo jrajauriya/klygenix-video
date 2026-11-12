@@ -213,6 +213,13 @@ def update_tenant(
             if owner_name is not None:
                 owner.name = owner_name
 
+    legal = updates.pop("legal", None)
+    if legal is not None:
+        merged = dict(tenant.settings or {})
+        officer = {k: str(v).strip() for k, v in (legal.pop("grievance_officer", None) or {}).items()}
+        merged.update({k: str(v).strip() for k, v in legal.items()})
+        merged["grievance_officer"] = officer
+        tenant.settings = merged
     for field, value in updates.items():
         setattr(tenant, field, value)
     db.commit()

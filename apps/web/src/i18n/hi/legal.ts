@@ -7,6 +7,8 @@ const hi: Record<string, string> = {
   "Grievance Officer": "शिकायत अधिकारी",
   "Creator Monetisation Terms": "क्रिएटर कमाई की शर्तें",
   "Live Streaming Rules": "लाइव स्ट्रीमिंग के नियम",
+  "Refunds & cancellations": "रिफ़ंड और रद्द करना",
+  "Contact us": "संपर्क करें",
   "Draft of {date}": "{date} का मसौदा",
   "Effective date:": "लागू होने की तिथि:",
   "Draft — pending legal review": "मसौदा — कानूनी समीक्षा बाकी",

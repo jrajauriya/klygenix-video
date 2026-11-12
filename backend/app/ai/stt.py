@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import time
 from dataclasses import dataclass
 
 import httpx
@@ -81,19 +82,40 @@ def _openai(src: str, work: str, language: str | None) -> Transcription:
     return Transcription(_lang_code(detected), cues, "openai")
 
 
+AZURE_RETRIES = 4
+
+
+def _retry_after(resp: httpx.Response, attempt: int) -> float:
+    try:
+        wait = float(resp.headers.get("Retry-After") or 0)
+    except ValueError:
+        wait = 0
+    return min(60.0, max(1.0, wait) if wait else 2.0 * 2 ** attempt)
+
+
 def _azure(src: str, work: str, language: str | None) -> Transcription:
     import json
 
     url = (f"https://{settings.AZURE_SPEECH_REGION}.api.cognitive.microsoft.com/speechtotext/"
            "transcriptions:transcribe?api-version=2024-11-15")
     locales = [{"en": "en-IN", "hi": "hi-IN", "mr": "mr-IN", "bn": "bn-IN", "ta": "ta-IN", "te": "te-IN", "gu": "gu-IN", "kn": "kn-IN", "ml": "ml-IN", "pa": "pa-IN", "or": "or-IN"}.get(language or "en", "en-IN")]
+    def post(path: str, definition: dict) -> httpx.Response:
+        with open(path, "rb") as fh:
+            return httpx.post(url, headers={"Ocp-Apim-Subscription-Key": settings.AZURE_SPEECH_KEY},
+                              files={"audio": ("audio.wav", fh, "audio/wav"),
+                                     "definition": (None, json.dumps(definition), "application/json")},
+                              timeout=httpx.Timeout(600.0, connect=10.0))
+
     cues: list[Cue] = []
     for path, offset in _chunks(src, work):
-        with open(path, "rb") as fh:
-            resp = httpx.post(url, headers={"Ocp-Apim-Subscription-Key": settings.AZURE_SPEECH_KEY},
-                              files={"audio": ("audio.wav", fh, "audio/wav"),
-                                     "definition": (None, json.dumps({"locales": locales}), "application/json")},
-                              timeout=httpx.Timeout(600.0, connect=10.0))
+        for attempt in range(AZURE_RETRIES + 1):
+            resp = post(path, {"locales": locales})
+            if resp.status_code not in (429, 503) or attempt == AZURE_RETRIES:
+                break
+            time.sleep(_retry_after(resp, attempt))
+        # Some regions refuse a locale outright ("Resource Exhausted" for hi-IN in centralus); auto-detect still answers, romanised.
+        if resp.status_code == 429 and locales != ["en-IN"]:
+            resp = post(path, {})
         if resp.status_code >= 400:
             raise SttError(f"transcription refused: {resp.status_code} {resp.text[:200]}")
         for ph in resp.json().get("phrases") or []:

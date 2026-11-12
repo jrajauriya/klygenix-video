@@ -22,15 +22,19 @@ All behind Cloudflare (proxied) in `klygenix.com`. **The domain is one value**: 
 | Host | Record | Serves |
 |---|---|---|
 | `play.klygenix.com` | A → VPS | `apps/web`; `/` goes through `/api/video/render` for share previews; `/api/*` proxied |
-| `studio.play.klygenix.com` | A → VPS | `apps/studio` |
-| `admin.play.klygenix.com` | A → VPS | `apps/admin` (put Cloudflare Access in front) |
-| `api.play.klygenix.com` | A → VPS | API + WebSocket (`/api/video/ws/…`); Bunny, Razorpay and Lemon Squeezy webhooks |
+| `play-studio.klygenix.com` | A → VPS | `apps/studio` |
+| `play-admin.klygenix.com` | A → VPS | `apps/admin` (put Cloudflare Access in front) |
+| `play-api.klygenix.com` | A → VPS | API + WebSocket (`/api/video/ws/…`); Bunny, Razorpay and Lemon Squeezy webhooks |
+| `play-tv.klygenix.com` | A → VPS | `apps/tv` |
+
+Hosts are flat (`HOST_STYLE=flat` in `infra/.env` and `backend/.env.prod`): one level under `klygenix.com`, so Cloudflare's free
+Universal SSL covers them. `HOST_STYLE=nested` (`studio.play.…`) is the local stack's default and needs ACM on a real domain.
 
 - [ ] Cloudflare → Network → **WebSockets on**, IP Geolocation on (`CF-IPCountry` picks the MoR currency).
 - [ ] Bunny's pull zone host (`BUNNY_CDN_HOST`) is Bunny's, not ours — no DNS needed unless a custom CDN host is wanted.
 
 ## 2. TLS
-- [ ] Full (strict). Origin certificate for `play.klygenix.com` + `*.play.klygenix.com` → `infra/nginx/ssl/origin.pem` / `origin-key.pem` on the VPS only (mode 600).
+- [ ] Full (strict) — the `klygenix.com` zone is on Full (automatic); make Play strict with a Configuration Rule on its five hosts rather than the whole zone. Origin certificate for the five hosts (`play`, `play-studio`, `play-admin`, `play-api`, `play-tv`) → `infra/nginx/ssl/origin.pem` / `origin-key.pem` on the VPS only (mode 600).
 
 ## 3. Server
 - [ ] Ubuntu 24.04 in India. **Video needs more than Store:** 4 vCPU / 16 GB / 200 GB (Hostinger KVM 4) — the render worker is CPU-bound (`KV_RENDER_CPUS`, default 2). Encoding itself is Bunny's.
@@ -89,7 +93,7 @@ Each open warning needs a written reason.
 
 ## 9. Smoke test
 ```bash
-backend/venv/bin/python tests/smoke/post_deploy.py --base https://play.klygenix.com --metrics-token "$METRICS_TOKEN" --skip-purchase
+backend/venv/bin/python tests/smoke/post_deploy.py --base https://play.klygenix.com --metrics-token "$METRICS_TOKEN" --skip-purchase --skip-live
 ```
 Health, share previews, headers, caching, compression, CORS for studio/admin, the consoles. On a
 staging host (sandbox on) run it without `--skip-purchase`: it signs up a creator, uploads a

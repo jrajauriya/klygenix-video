@@ -147,6 +147,7 @@ services:
     environment:
       PUBLIC_DOMAIN: ${PUBLIC_DOMAIN:-play.klygenix.com}
       PUBLIC_PORT: ${PUBLIC_PORT:-}
+      HOST_STYLE: ${HOST_STYLE:-nested}
       APPLE_TEAM_ID: ${APPLE_TEAM_ID:-}
       ANDROID_CERT_SHA256: ${ANDROID_CERT_SHA256:-}
     command: ["sh", "/etc/nginx/render.sh"]
@@ -156,6 +157,7 @@ services:
     volumes:
       - ./nginx/render.sh:/etc/nginx/render.sh:ro
       - ./nginx/applinks.sh:/etc/nginx/applinks.sh:ro
+      - ./nginx/hosts.sh:/etc/nginx/hosts.sh:ro
       - ./nginx/prod.conf.template:/etc/nginx/prod.conf.template:ro
       - ./nginx/snippets:/etc/nginx/snippet-templates:ro
       - ./nginx/ssl:/etc/nginx/ssl:ro

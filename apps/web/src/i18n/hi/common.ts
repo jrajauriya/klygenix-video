@@ -28,6 +28,8 @@ const hi: Record<string, string> = {
   "Grievance officer": "शिकायत अधिकारी",
   "Creator monetisation": "क्रिएटर कमाई",
   "Live rules": "लाइव के नियम",
+  Refunds: "रिफ़ंड",
+  Contact: "संपर्क",
   "For brands": "ब्रांड्स के लिए",
   "Skip to content": "सामग्री पर जाएँ",
 

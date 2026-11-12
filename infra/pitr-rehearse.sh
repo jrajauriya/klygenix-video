@@ -4,7 +4,7 @@ set -euo pipefail
 # Point-in-time recovery, rehearsed end to end in throwaway containers (§23).
 # PITR_SEED_FROM=klygenix-video-postgres seeds the scratch source from a read-only pg_dump of that container.
 
-IMAGE="${PITR_IMAGE:-postgres:17}"
+IMAGE="${PITR_IMAGE:-pgvector/pgvector:pg17}"
 SEED_FROM="${PITR_SEED_FROM:-}"
 SEED_DB="${PITR_SEED_DB:-klygenix_video}"
 SEED_USER="${PITR_SEED_USER:-klygenix_video}"
@@ -43,9 +43,9 @@ if [ -n "$SEED_FROM" ]; then
   sql "$SRC" "CREATE ROLE klygenix_video_app NOLOGIN;" >/dev/null 2>&1 || true
   docker exec "$SEED_FROM" pg_dump -U "$SEED_USER" -d "$SEED_DB" --no-owner --no-privileges \
     | docker exec -i "$SRC" psql -U "$DB" -d "$DB" -q -v ON_ERROR_STOP=1 >/dev/null
-  TABLES="$(sql "$SRC" "SELECT count(*) FROM information_schema.tables WHERE table_schema LIKE 'ks\_%'")"
-  ORDERS="$(sql "$SRC" "SELECT count(*) FROM kv_commerce.orders")"
-  echo "  $TABLES kv_* tables, $ORDERS orders"
+  TABLES="$(sql "$SRC" "SELECT count(*) FROM information_schema.tables WHERE table_schema LIKE 'kv\_%'")"
+  CHECKOUTS="$(sql "$SRC" "SELECT count(*) FROM kv_commerce.checkouts")"
+  echo "  $TABLES kv_* tables, $CHECKOUTS checkouts"
 fi
 sql "$SRC" "CREATE SCHEMA pitr; SET search_path TO pitr; CREATE TABLE pitr.ledger (id serial primary key, note text); CREATE TABLE pitr.audit (id serial, note text);"
 sql "$SRC" "ALTER ROLE $DB SET search_path TO pitr, public;"
@@ -98,9 +98,9 @@ check "and the table the mistake dropped" "$(sql "$DST" "SELECT note FROM audit"
 check "the restored database is writable again" \
   "$(sql "$DST" "INSERT INTO ledger (note) VALUES ('after recovery') RETURNING 1")" "1"
 if [ -n "$SEED_FROM" ]; then
-  check "every kv_* table of the seeded store is back" \
-    "$(sql "$DST" "SELECT count(*) FROM information_schema.tables WHERE table_schema LIKE 'ks\_%'")" "$TABLES"
-  check "and every order" "$(sql "$DST" "SELECT count(*) FROM kv_commerce.orders")" "$ORDERS"
+  check "every kv_* table of the seeded database is back" \
+    "$(sql "$DST" "SELECT count(*) FROM information_schema.tables WHERE table_schema LIKE 'kv\_%'")" "$TABLES"
+  check "and every checkout" "$(sql "$DST" "SELECT count(*) FROM kv_commerce.checkouts")" "$CHECKOUTS"
 fi
 echo "  restored to $TARGET in ${TOOK}s (a toy database; time it on staging with real data)"
 

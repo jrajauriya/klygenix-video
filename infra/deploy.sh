@@ -115,17 +115,18 @@ if [[ "$STAGING" == "1" ]]; then
   fi
   run bash infra/build-web.sh --env-file "$STAGING_ENV"
 else
-  for app in "${APPS[@]}"; do
-    run npm run build --workspace="apps/$app"
-    [[ "$DRY_RUN" == "1" ]] || test -f "apps/$app/dist/index.html" || { echo "apps/$app produced no index.html"; exit 1; }
-  done
+  PROD_ENV="${STAGING_ENV:-$ROOT/infra/.env}"
+  if [[ "$DRY_RUN" != "1" && ! -f "$PROD_ENV" ]]; then
+    echo "No production compose env at $PROD_ENV (PUBLIC_DOMAIN, HOST_STYLE): pass --env-file."; exit 1
+  fi
+  run bash infra/build-web.sh --env-file "$PROD_ENV"
 fi
 
 echo "[4/9] Uploading..."
 remote "mkdir -p $REMOTE_DIR/backend $REMOTE_DIR/infra/nginx$([[ "$STAGING" == "1" ]] && echo " $REMOTE_DIR/infra/staging $REMOTE_DIR/infra/build/staging")"
 upload backend/app backend/alembic backend/scripts backend/alembic.ini backend/requirements.txt \
        backend/Dockerfile backend/.dockerignore "$VPS_HOST:$REMOTE_DIR/backend/"
-upload infra/docker-compose.prod.yml infra/backup.sh infra/basebackup.sh infra/restore.sh infra/archive-metrics.sh \
+upload infra/docker-compose.prod.yml infra/backup.sh infra/backup-ship.sh infra/basebackup.sh infra/restore.sh infra/pitr-rehearse.sh infra/archive-metrics.sh \
        infra/docker-compose.monitoring.yml infra/prometheus "$VPS_HOST:$REMOTE_DIR/infra/"
 if [[ "$STAGING" == "1" ]]; then
   upload infra/docker-compose.staging.yml "$VPS_HOST:$REMOTE_DIR/infra/"
@@ -136,7 +137,7 @@ if [[ "$STAGING" == "1" ]]; then
     remote "if [ -d $d/dist ]; then rm -rf $d/dist.prev && cp -a $d/dist $d/dist.prev; fi"
     upload "apps/$app/dist" "$VPS_HOST:$REMOTE_DIR/apps/$app/"
   done
-  upload infra/nginx/prod.conf.template infra/nginx/render.sh infra/nginx/snippets "$VPS_HOST:$REMOTE_DIR/infra/nginx/"
+  upload infra/nginx/prod.conf.template infra/nginx/render.sh infra/nginx/applinks.sh infra/nginx/hosts.sh infra/nginx/snippets "$VPS_HOST:$REMOTE_DIR/infra/nginx/"
 else
   remote "mkdir -p $(printf "$REMOTE_DIR/apps/%s " "${APPS[@]}")"
   for app in "${APPS[@]}"; do
@@ -150,7 +151,7 @@ else
     snippets="$(mktemp -d)/snippets" && cp -R infra/nginx/snippets "$snippets"
     printf 'map $host $kv_csp_connect_extra { default "%s"; }\n' "$SENTRY_CONNECT_SRC" > "$snippets/csp-extra.conf"
   fi
-  upload infra/nginx/prod.conf.template infra/nginx/render.sh "$snippets" "$VPS_HOST:$REMOTE_DIR/infra/nginx/"
+  upload infra/nginx/prod.conf.template infra/nginx/render.sh infra/nginx/applinks.sh infra/nginx/hosts.sh "$snippets" "$VPS_HOST:$REMOTE_DIR/infra/nginx/"
 fi
 
 echo "[5/9] Building the backend image (the running one is kept as $IMAGE-prev for --rollback)..."
@@ -209,5 +210,5 @@ if [[ "$STAGING" == "1" ]]; then
   [[ -n "$PORT" && "$PORT" != "443" ]] && DOMAIN="$DOMAIN:$PORT"
   echo "Smoke: python3 tests/smoke/post_deploy.py --base https://${DOMAIN:-<staging-domain>}"
 else
-  echo "Smoke: python3 tests/smoke/post_deploy.py --base https://${PUBLIC_DOMAIN:-play.klygenix.com} --skip-purchase --metrics-token \$METRICS_TOKEN"
+  echo "Smoke: python3 tests/smoke/post_deploy.py --base https://${PUBLIC_DOMAIN:-play.klygenix.com} --skip-purchase --skip-live --metrics-token \$METRICS_TOKEN"
 fi

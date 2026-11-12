@@ -50,4 +50,29 @@ ok("filters by tenant", own and all(e["tenant_id"] == 1 for e in own))
 check("the admin is named as the actor", sql("SELECT actor_kind, actor_label FROM kv_admin.audit_log WHERE action = 'ops.retry.render' "
                                              "AND target_id = :i", i=clip["id"])[0], ("user", ADMIN_EMAIL))
 
+print("\n== company details for the legal pages")
+import httpx  # noqa: E402
+
+from harness import BASE  # noqa: E402
+
+admin_tid = sql("SELECT id FROM kv_admin.tenants WHERE slug = 'klygenix-video-admin'")[0][0]
+before = sql("SELECT gst_number, address, settings, city FROM kv_admin.tenants WHERE id = :i", i=admin_tid)[0]
+try:
+    r = a.patch(f"/api/admin/tenants/{admin_tid}", json={"address": "1 Test Road", "city": "Pune", "gst_number": "27AAACK1234A1Z5",
+                                                          "legal": {"cin": "U72900MH2026PTC000001", "privacy_email": "privacy@example.com",
+                                                                    "grievance_officer": {"name": "Test Officer", "email": "go@example.com"}}})
+    check("the admin saves company and legal details", r.status_code, 200)
+    co = httpx.get(f"{BASE}/api/video/company").json()
+    check("the public company endpoint returns them for the legal pages",
+          (co["address"], co["gstin"], co["cin"], co["privacy_email"], co["grievance_officer"]["name"], co["grievance_officer"]["email"]),
+          ("1 Test Road, Pune", "27AAACK1234A1Z5", "U72900MH2026PTC000001", "privacy@example.com", "Test Officer", "go@example.com"))
+    ok("other settings are kept", all(k in sql("SELECT settings FROM kv_admin.tenants WHERE id = :i", i=admin_tid)[0][0]
+                                      for k in (before[2] or {}) if k not in ("cin", "privacy_email", "legal_email", "grievance_officer")))
+    ok("nothing private is published", set(co) == {"name", "address", "gstin", "cin", "email", "phone", "privacy_email", "legal_email",
+                                                   "grievance_officer"})
+finally:
+    import json as _json
+    sql("UPDATE kv_admin.tenants SET gst_number = :g, address = :a, city = :c, settings = CAST(:s AS jsonb) WHERE id = :i",
+        g=before[0], a=before[1], c=before[3], s=_json.dumps(before[2] or {}), i=admin_tid)
+
 finish()

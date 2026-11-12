@@ -66,6 +66,14 @@ def _permissions_for(db: Session, tenant_id: int, app: str, role: str) -> dict[s
     return defaults_for_app(app, role)
 
 
+def _platform_off(features: dict[str, bool]) -> dict[str, bool]:
+    if "video.live" in features:
+        from app.video.live.service import available
+
+        features["video.live"] = features["video.live"] and available()
+    return features
+
+
 def build_router(app: str, *, admin_only: bool = False) -> APIRouter:
     """Return the four permission endpoints for one app."""
     router = APIRouter(prefix=f"/api/{app}", tags=[f"{app}-permissions"])
@@ -202,7 +210,7 @@ def build_router(app: str, *, admin_only: bool = False) -> APIRouter:
         ):
             """Gate one, as this tenant sees it. A missing key means enabled."""
             if not user.tenant_id:
-                return {k: True for k in keys}
+                return _platform_off({k: True for k in keys})
             rows = (
                 db.query(TenantFeature)
                 .filter(
@@ -212,7 +220,7 @@ def build_router(app: str, *, admin_only: bool = False) -> APIRouter:
                 .all()
             )
             saved = {r.feature_key: r.is_enabled for r in rows}
-            return {k: saved.get(k, True) for k in keys}
+            return _platform_off({k: saved.get(k, True) for k in keys})
 
     else:
 

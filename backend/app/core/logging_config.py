@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import sys
 import uuid
 from contextvars import ContextVar
@@ -13,6 +14,7 @@ _request_id: ContextVar[str | None] = ContextVar("request_id", default=None)
 # Never log these, whatever the key's casing or nesting.
 REDACT = {"password", "password_hash", "token", "access_token", "secret", "api_key",
           "authorization", "smtp_password", "card", "pan", "cvv", "account_number"}
+URL_SECRET = re.compile(r"([?&](?:secret|token|access_token|key|signature|sig|code)=)[^&\s\"']+", re.I)
 
 
 def set_request_id(value: str | None = None) -> str:
@@ -31,7 +33,7 @@ class JsonFormatter(logging.Formatter):
             "ts": self.formatTime(record, "%Y-%m-%dT%H:%M:%S%z"),
             "level": record.levelname,
             "logger": record.name,
-            "msg": record.getMessage(),
+            "msg": URL_SECRET.sub(r"\1***", record.getMessage()),
         }
         rid = _request_id.get()
         if rid:

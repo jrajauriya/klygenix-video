@@ -5,6 +5,7 @@ import { toast } from "sonner"
 import { api } from "@klygenixvideo/auth"
 import { Button, Card, Field, Input, PageHeader, Tabs, useConfirm } from "@klygenixvideo/ui"
 import type { Tenant } from "@klygenixvideo/types"
+import { TenantCompany } from "./TenantCompany"
 import { TenantFeaturesEditor } from "./TenantFeaturesEditor"
 import { TenantModules } from "./TenantModules"
 import { TenantPayments } from "./TenantPayments"
@@ -73,6 +74,7 @@ export default function TenantDetail() {
           onChange={setTab}
           tabs={[
             { key: "details", label: "Details" },
+            { key: "company", label: "Company" },
             { key: "modules", label: "Products" },
             { key: "features", label: "Features" },
             { key: "payments", label: "Payments" },
@@ -148,6 +150,7 @@ export default function TenantDetail() {
         </Card>
       )}
 
+      {!isNew && tab === "company" && tenant && <TenantCompany tenant={tenant} />}
       {!isNew && tab === "modules" && <TenantModules tenantId={Number(tenantId)} />}
       {!isNew && tab === "features" && <TenantFeaturesEditor tenantId={Number(tenantId)} />}
       {!isNew && tab === "payments" && <TenantPayments tenantId={Number(tenantId)} />}

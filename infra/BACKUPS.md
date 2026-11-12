@@ -26,10 +26,9 @@ docker exec klygenix-video-postgres psql -U klygenix_video -tAc "select archived
 
 `failed_count` should stay put while `archived_count` climbs.
 
-**Not yet done:** shipping `/opt/klygenix-video/backups` off the host, and the seven-year
-retention §23 asks of tax documents. Both wait on the bucket (§22 residency: S3 `ap-south-1`,
-versioned). Until then a backup on the same disk as the database protects against mistakes, not
-against losing the machine.
+**Off the host:** `backup.sh` ships the backup folder to R2 (`BACKUP_TARGET`, `BACKUP_S3_*` in `/opt/klygenix-video/infra/backup.env`, cron in `/etc/cron.d/klygenix-video`). Off-host pruning keeps
+daily dumps for 30 days and the first dump of every month for 7 years (§23's seven-year rule); base
+backups and WAL leave R2 once they are gone from the host and older than 14 days. The bucket is R2 APAC, not versioned.
 
 ## Restore to a moment
 
@@ -43,7 +42,7 @@ docker compose -f infra/docker-compose.prod.yml stop backend worker scheduler
 ls /opt/klygenix-video/backups/base
 
 # 3. Restore it beside the live data, never over it.
-docker run --rm -v /opt/klygenix-video/backups:/x postgres:17 bash -c "
+docker run --rm -v /opt/klygenix-video/backups:/x pgvector/pgvector:pg17 bash -c "
   mkdir -p /x/restore && tar -xzf /x/base/<stamp>/base.tar.gz -C /x/restore \
   && touch /x/restore/recovery.signal \
   && printf \"restore_command = 'cp /wal-archive/%%f %%p'\nrecovery_target_time = '<target>'\nrecovery_target_action = 'promote'\n\" >> /x/restore/postgresql.auto.conf \
@@ -52,7 +51,7 @@ docker run --rm -v /opt/klygenix-video/backups:/x postgres:17 bash -c "
 # 4. Start a database on it and let it replay to the target.
 docker run -d --name klygenix-video-restore -e PGDATA=/restore \
   -v /opt/klygenix-video/backups/restore:/restore \
-  -v /opt/klygenix-video/backups/wal:/wal-archive:ro postgres:17
+  -v /opt/klygenix-video/backups/wal:/wal-archive:ro pgvector/pgvector:pg17
 docker exec klygenix-video-restore psql -U klygenix_video -c "select pg_is_in_recovery()"   # until 'f'
 
 # 5. Check it is the database you wanted, before switching anything.
@@ -73,7 +72,7 @@ bash infra/pitr-rehearse.sh                                            # toy dat
 PITR_SEED_FROM=klygenix-video-postgres bash infra/pitr-rehearse.sh     # with a copy of the real schema and data
 ```
 
-Needs Docker and the `postgres:17` image, nothing else — no ports are published and nothing
+Needs Docker and the `pgvector/pgvector:pg17` image (the one production runs), nothing else — no ports are published and nothing
 is written outside a `mktemp` directory, which is removed on exit with both containers
 (`klygenix-video-pitr-src-<pid>`, `klygenix-video-pitr-dst-<pid>`).
 

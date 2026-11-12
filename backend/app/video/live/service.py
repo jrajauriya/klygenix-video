@@ -60,13 +60,17 @@ def public_id(db: Session) -> str:
             return pid
 
 
+def available() -> bool:
+    if settings.LIVE_PROVIDER == "cloudflare":
+        return cloudflare.configured()
+    return settings.LIVE_PROVIDER == "sandbox" and settings.SANDBOX_ENABLED
+
+
 def create(db: Session, *, channel: Channel, title: str, description: str = "", scheduled_at: datetime | None = None,
            members_rank: int | None = None, replay_enabled: bool = True) -> LiveStream:
     if channel.is_suspended:
         raise err(403, "channel_cannot_take_money")
-    if settings.LIVE_PROVIDER == "sandbox" and not settings.SANDBOX_ENABLED:
-        raise err(409, "live_unavailable")
-    if settings.LIVE_PROVIDER == "cloudflare" and not cloudflare.configured():
+    if not available():
         raise err(409, "live_unavailable")
     if db.execute(select(LiveStream.id).where(LiveStream.channel_id == channel.id, LiveStream.status.in_(ACTIVE))).first():
         raise err(409, "live_already_open")

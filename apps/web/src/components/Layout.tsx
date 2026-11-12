@@ -382,6 +382,8 @@ export function Footer({ onFeedback }: { onFeedback?: () => void }) {
     { to: "/legal/grievance", label: "Grievance officer" },
     { to: "/legal/monetisation", label: "Creator monetisation" },
     { to: "/legal/live", label: "Live rules" },
+    { to: "/legal/refunds", label: "Refunds" },
+    { to: "/legal/contact", label: "Contact" },
     { to: "/plans", label: "Plans" },
     { to: "/brands", label: "For brands" },
   ]
@@ -422,10 +424,10 @@ export function Layout() {
   }, [location.pathname, immersive])
 
   return (
-    <div className="min-h-dvh bg-bg text-ink">
+    <div className="flex min-h-dvh flex-col bg-bg text-ink">
       <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[60] focus:rounded-lg focus:bg-brand focus:px-3 focus:py-2 focus:text-white">{t("Skip to content")}</a>
       <TopBar onFeedback={openFeedback} />
-      <main id="main">
+      <main id="main" className="flex-1">
         <Outlet />
       </main>
       {!immersive && <Footer onFeedback={openFeedback} />}

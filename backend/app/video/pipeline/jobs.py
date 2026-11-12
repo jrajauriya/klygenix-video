@@ -123,10 +123,30 @@ def current_cues(db, video_id: int) -> list[Cue]:
     return [Cue(r.start_ms, r.end_ms, r.text) for r in rows]
 
 
+def _scan_frames(source: str | None, duration_ms: int, tmp: str, n: int = 6) -> list[str]:
+    if not source or not os.path.exists(source) or duration_ms <= 0:
+        return []
+    out = []
+    for i in range(n):
+        dst = os.path.join(tmp, f"f{i}.jpg")
+        try:
+            ffmpeg.thumbnail(source, dst, int(duration_ms * (i + 0.5) / n))
+        except Exception:
+            continue
+        if os.path.exists(dst) and os.path.getsize(dst) > 0:
+            out.append(dst)
+    return out
+
+
 def apply_scan(db, video: Video, text: str, source: str | None) -> str:
+    import tempfile
+
+    from app.config import settings
     from app.video.trust import scan as scanner
 
-    v = scanner.scan(text=text, source_path=source)
+    with tempfile.TemporaryDirectory(prefix="kv-scan-") as tmp:
+        frames = _scan_frames(source, video.duration_ms, tmp) if settings.SCAN_PROVIDER != "sandbox" else []
+        v = scanner.scan(text=text, source_path=source, frames=frames)
     db.add(ScanResult(tenant_id=video.tenant_id, video_id=video.id, provider=v.provider, verdict=v.verdict,
                       labels=v.labels, score=v.score, hash_match=v.hash_match))
     if v.verdict == "block":

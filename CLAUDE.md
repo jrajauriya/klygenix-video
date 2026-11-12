@@ -7,8 +7,9 @@ master estate (CRM / ERP / DMS / HR in `../ixaitech`), Klygenix Pay (`../klygeni
 control plane and server. Forked from Store (FastAPI, same conventions); the AI client is
 Insurance's; the Expo setup is Pay's. Those repos are read-only from here.
 
-Brand **Klygenix Play**, hosts `play.klygenix.com` (web), `studio.play.`, `admin.play.`, `api.play.`.
-The domain is one value: `PUBLIC_DOMAIN` (backend `.env.prod`, nginx env) and `VITE_PUBLIC_DOMAIN`.
+Brand **Klygenix Play**, hosts `play.klygenix.com` (web), `play-studio.`, `play-admin.`, `play-api.`, `play-tv.klygenix.com`.
+The domain is one value: `PUBLIC_DOMAIN` (backend `.env.prod`, nginx env) and `VITE_PUBLIC_DOMAIN`; `HOST_STYLE=flat` gives
+`play-studio.klygenix.com` (production), `nested` gives `studio.play.localhost` (the local stack's default).
 Internal names stay "video": npm `@klygenixvideo/*`, schemas `kv_*`, database and owner role
 `klygenix_video`, app role `klygenix_video_app`, containers `klygenix-video-*`, admin tenant
 `klygenix-video-admin`, feature keys `video.*`, metrics `kv_*`.
@@ -31,8 +32,8 @@ app / V5.5 trained recommender started early by the owner) and run 5 (ad integri
 viewer growth, creator AI v2, V5.4 regions and V5.6 view pool) and run 6 (run 5 gaps, channel teams, creator onboarding
 & admin support desk, partitions / tracing / slow-query report) and run 7 (error codes, account mails through the outbox,
 team mode finished, feed throughput, FastAPI 0.162) and run 8 (channel notices for team members, app links, Vite 8 /
-TypeScript 7 / Sonner 2 / lucide 1 / tailwind-merge 3) and run 9 (WebSocket upgrades off nginx's keepalive pool) built and running **locally on sandbox
-providers**, not deployed (Nov 2026). Creator money runs on the sandbox rail only: live money waits for
+TypeScript 7 / Sonner 2 / lucide 1 / tailwind-merge 3) and run 9 (WebSocket upgrades off nginx's keepalive pool) and run 10 (deploy prep: Content Safety scan, flat hosts, the Play VPS) built; **deployed 10 Nov 2026** to the Play VPS (189.72.147.237) as a closed beta on real Bunny, Azure, R2,
+Razorpay and SMTP (live, push, YouTube, Instagram, Route stay sandbox) — `docs/DEPLOY-PLAN.md` → Deployed. Creator money runs on the sandbox rail only: live money waits for
 CA sign-off, creator KYC and Play's Razorpay Route keys. Every provider has a sandbox adapter and a real
 one behind the same interface, switched by `.env`. See `docs/BUILD-PLAN.md` for what is proven,
 sandbox-only and blocked.
@@ -41,11 +42,11 @@ sandbox-only and blocked.
 | Service | Dev | Preview | Prod |
 |---|---|---|---|
 | apps/web | 5300 | 5310 | play.klygenix.com |
-| apps/studio | 5301 | 5311 | studio.play.klygenix.com |
-| apps/admin | 5302 | 5312 | admin.play.klygenix.com |
-| apps/tv (10-foot web) | 5303 | 5313 | tv.play.klygenix.com |
+| apps/studio | 5301 | 5311 | play-studio.klygenix.com |
+| apps/admin | 5302 | 5312 | play-admin.klygenix.com |
+| apps/tv (10-foot web) | 5303 | 5313 | play-tv.klygenix.com |
 | apps/mobile (Metro) | 8082 | — | iOS / Android (Expo) |
-| API (+ WebSocket) | 9300 | — | api.play.klygenix.com |
+| API (+ WebSocket) | 9300 | — | play-api.klygenix.com |
 | PostgreSQL 17 + pgvector | 25436 | — | 127.0.0.1:5432 |
 | Redis | 16383 | — | compose network |
 | Live RTMP gates (sandbox ingest) | 19350–19359 (ffmpeg listens on +1000, loopback) | — | Cloudflare Stream |
@@ -227,6 +228,15 @@ RLS: `tenant_isolation` (`tenant_id = current_tenant() OR is_platform()`) on eve
   the response is sent; if nginx reuses that pooled connection for a WebSocket upgrade inside the window, the old HTTP handler's
   timer closes the socket 5 s later with no close frame (1–4 of 200 under load). `/api/video/ws/` on the api and web hosts goes to
   `upstream kv_ws` (no `keepalive`) via `$kv_ws_backend`; `tests/test_nginx_conf.py` guards it.
+- **Bunny webhook `Status`**: 3 finished, 5 encoding failed, 8 upload failed; 4 (one rendition), 6/7 (TUS upload started/finished)
+  are progress — mapping 6 to failed failed every upload. Bunny sends `EventId`; key events on it.
+- **Azure fast transcription can refuse a locale** (`429 Resource Exhausted` for `hi-IN` in Central US while `en-IN` works on the
+  same key): `stt._azure` retries once with auto-detect (romanised text). "Reprocess" re-transcribes a hosted video with no cues.
+- **Host names come from one place.** `infra/nginx/hosts.sh` (nginx, `build-web.sh`), `Settings.public_host()` (backend) and
+  `EXPO_PUBLIC_HOST_STYLE` (mobile, default flat). Never write `studio.${PUBLIC_DOMAIN}` by hand — `tests/test_nginx_conf.py` fails.
+  Flat hosts stay one level under the zone so Universal SSL covers them (nested ones need ACM). Production builds every app through
+  `build-web.sh` with the prod `infra/.env`: a bare `npm run build` left the TV app without an API URL and the web app's studio
+  link on `localhost:5301`.
 - **Dev and the local stack use different RTMP ports**: dev 19350–19359 (inline worker), staging 19450–19459
   (`LIVE_RTMP_PORTS` in `infra/.env.staging`, read by both the app and the compose port mapping).
 - **Dates are IST**: invoices, credit notes, ledger business dates, number series and analytics windows use

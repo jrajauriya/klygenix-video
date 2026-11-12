@@ -58,5 +58,33 @@ for s in api_servers:
 check("no other location sends upgrades to the pooled upstream",
       [m for m in re.findall(r"location\s+(\S+)\s*\{", CONF) if "ws" in m.split("/")], ["/api/video/ws/", "/api/video/ws/"])
 
+print("\n== host names: one helper, nested for the local stack, flat for production")
+import subprocess  # noqa: E402
+
+NGINX = pathlib.Path(__file__).resolve().parent.parent / "infra" / "nginx"
+
+
+def hosts(style: str) -> list[str]:
+    out = subprocess.run(["sh", "-c", f'. "{NGINX / "hosts.sh"}"; echo $STUDIO_HOST $ADMIN_HOST $API_HOST $TV_HOST'],
+                         env={"PUBLIC_DOMAIN": "play.klygenix.com", "HOST_STYLE": style, "PATH": "/usr/bin:/bin"},
+                         capture_output=True, text=True, check=True).stdout.split()
+    return out
+
+
+check("flat", hosts("flat"), ["play-studio.klygenix.com", "play-admin.klygenix.com", "play-api.klygenix.com", "play-tv.klygenix.com"])
+check("nested", hosts("nested"), ["studio.play.klygenix.com", "admin.play.klygenix.com", "api.play.klygenix.com", "tv.play.klygenix.com"])
+templates = [CONF] + [p.read_text() for p in (NGINX / "snippets").glob("*.conf")]
+check("no template builds a nested host by hand",
+      [m for t in templates for m in re.findall(r"(?:studio|admin|api|tv)\.\$\{PUBLIC_DOMAIN\}", t)], [])
+render = (NGINX / "render.sh").read_text()
+check("render.sh loads the helper and substitutes every host",
+      (". /etc/nginx/hosts.sh" in render, all(f"${{{v}}}" in render for v in ("STUDIO_HOST", "ADMIN_HOST", "API_HOST", "TV_HOST"))),
+      (True, True))
+deploy = (NGINX.parent / "deploy.sh").read_text()
+compose = (NGINX.parent / "docker-compose.prod.yml").read_text()
+mounted = sorted(set(re.findall(r"\./nginx/([a-z]+\.sh):", compose)))
+check("every script nginx mounts is uploaded by deploy.sh",
+      [s for s in mounted if deploy.count(f"infra/nginx/{s}") < 2], [])
+
 print(f"\n{PASS} passed, {FAIL} failed")
 raise SystemExit(1 if FAIL else 0)

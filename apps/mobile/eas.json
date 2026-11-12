@@ -34,7 +34,7 @@
       "channel": "production",
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api.play.klygenix.com"
+        "EXPO_PUBLIC_API_URL": "https://play-api.klygenix.com"
       }
     }
   },

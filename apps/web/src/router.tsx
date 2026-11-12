@@ -94,6 +94,8 @@ export const router = createBrowserRouter([
       { path: "/legal/grievance", lazy: async () => ({ Component: (await import("./pages/legal/Legal")).GrievancePage }) },
       { path: "/legal/monetisation", lazy: async () => ({ Component: (await import("./pages/legal/Legal")).MonetisationPage }) },
       { path: "/legal/live", lazy: async () => ({ Component: (await import("./pages/legal/Legal")).LiveRulesPage }) },
+      { path: "/legal/refunds", lazy: async () => ({ Component: (await import("./pages/legal/Legal")).RefundsPage }) },
+      { path: "/legal/contact", lazy: async () => ({ Component: (await import("./pages/legal/Legal")).ContactPage }) },
       { path: "/:channel", lazy: page(() => import("./pages/Channel")) },
       { path: "*", element: <NotFound /> },
     ],

@@ -72,6 +72,13 @@ with configured(BUNNY_LIBRARY_ID=LIB, BUNNY_API_KEY=KEY, BUNNY_CDN_HOST=CDN, BUN
         check("status 3 is encoded, described", (evs[0].kind, evs[0].duration_ms, evs[0].width), ("encoded", 42500, 1080))
         check("status 5 is failed", prov.parse_webhook(b'{"VideoGuid":"g","Status":5}')[0].kind, "failed")
         check("status 1 is ignored", prov.parse_webhook(b'{"VideoGuid":"g","Status":1}'), [])
+        check("upload started (6), upload done (7) and one rendition (4) are progress, not failure",
+              [prov.parse_webhook(f'{{"VideoGuid":"g","Status":{n}}}'.encode()) for n in (4, 6, 7)], [[], [], []])
+        check("a failed upload (8) is failed, with Bunny's reason",
+              [(e.kind, e.detail) for e in prov.parse_webhook(b'{"VideoGuid":"g","Status":8,"Reason":"Upload failed"}')],
+              [("failed", "Upload failed")])
+        check("Bunny's EventId keys the event (redeliveries are dropped)",
+              prov.parse_webhook(b'{"VideoGuid":"g","Status":5,"EventId":"e-1"}')[0].event_id, "e-1")
         pb = prov.playback(video, 600)
         ok("playback is token-signed on the CDN", pb["url"].startswith(f"https://{CDN}/bcdn_token=") and "token_path=%2Fguid-1%2F" in pb["url"], pb["url"])
         check("fetch-by-URL imports provider to provider", prov.ingest_url(video, "https://example.cf/rec.mp4"), "guid-2")
@@ -429,6 +436,28 @@ with configured(AZURE_SPEECH_KEY="speech-key", AZURE_SPEECH_REGION="centralindia
         check("subscription key", calls[0].headers["Ocp-Apim-Subscription-Key"], "speech-key")
         ok("Hindi locale in the definition", b'"hi-IN"' in calls[0].content)
         check("phrases become cues, blanks dropped", [(c.start_ms, c.end_ms, c.text) for c in tr.cues], [(200, 1400, "Chai is ready")])
+    busy = iter([httpx.Response(429, headers={"Retry-After": "1"}, json={"code": "TooManyRequests"}), None])
+    real_sleep, slept = stt.time.sleep, []
+    stt.time.sleep = slept.append
+    try:
+        with fake(lambda r: next(busy) or speech(r)):
+            tr = stt._azure(FIX, work, "hi")
+            check("a 429 waits Retry-After and tries again", (len(calls), slept, len(tr.cues)), (2, [1.0], 1))
+        with fake(lambda r: httpx.Response(429, json={"code": "TooManyRequests"})):
+            slept.clear()
+            ok("still busy after the retries: refused", raises(lambda: stt._azure(FIX, work, "hi"), stt.SttError))
+            check("backs off 2, 4, 8, 16 s, then one auto-detect try", (len(calls), slept), (stt.AZURE_RETRIES + 2, [2.0, 4.0, 8.0, 16.0]))
+        with fake(lambda r: httpx.Response(429, json={"code": "TooManyRequests"}) if b'"hi-IN"' in r.content else speech(r)):
+            slept.clear()
+            tr = stt._azure(FIX, work, "hi")
+            check("a refused Hindi locale falls back to auto-detect, still a Hindi video",
+                  (b'"locales"' in calls[-1].content, tr.language, len(tr.cues)), (False, "hi", 1))
+        with fake(lambda r: httpx.Response(429, json={"code": "TooManyRequests"})):
+            slept.clear()
+            raises(lambda: stt._azure(FIX, work, "en"), stt.SttError)
+            check("English is never retried as auto-detect", len(calls), stt.AZURE_RETRIES + 1)
+    finally:
+        stt.time.sleep = real_sleep
 with configured(OPENAI_TRANSCRIBE_URL="https://kv.openai.azure.com/openai/deployments/whisper/audio/transcriptions?api-version=2024-06-01",
                 OPENAI_TRANSCRIBE_KEY="wk"):
     with fake(lambda r: httpx.Response(200, json={"language": "hindi", "segments": [{"start": 0.5, "end": 2.0, "text": " Namaste "}]})):
@@ -457,6 +486,52 @@ with configured(SCAN_PROVIDER="vendor", SCAN_API_URL="https://scan.example/v1/ch
         v = scan.scan(text="hello", source_path=None, frames=[])
         check("vendor verdict", (v.verdict, v.labels, v.score), ("review", ["violence"], 0.81))
         check("bearer key", calls[0].headers["Authorization"], "Bearer scan-key")
+
+
+def cs_reply(levels):
+    return lambda r: httpx.Response(200, json={"categoriesAnalysis": [{"category": k, "severity": v} for k, v in levels.items()]})
+
+
+frame = os.path.join(work, "frame.jpg")
+with open(frame, "wb") as fh:
+    fh.write(b"\xff\xd8\xff\xe0fakejpeg")
+with configured(SCAN_PROVIDER="azure_content_safety", SCAN_API_URL="https://cs.cognitiveservices.azure.com/",
+                SCAN_API_KEY="cs-key"):
+    with fake(cs_reply({"Hate": 0, "Sexual": 0, "Violence": 2, "SelfHarm": 0})):
+        v = scan.scan(text="a cooking video", source_path=None, frames=[frame, frame])
+        check("text then each frame, key header, api version", (
+            [c.url.path for c in calls], calls[0].headers["Ocp-Apim-Subscription-Key"], calls[0].url.params["api-version"]),
+              (["/contentsafety/text:analyze", "/contentsafety/image:analyze", "/contentsafety/image:analyze"], "cs-key",
+               "2024-09-01"))
+        check("frames go base64, text is capped", (body(calls[1])["image"]["content"], len(body(calls[0])["text"])),
+              (base64.b64encode(b"\xff\xd8\xff\xe0fakejpeg").decode(), len("a cooking video")))
+        check("low severity is clear", (v.verdict, v.labels, v.provider), ("clear", [], "azure_content_safety"))
+    with fake(cs_reply({"Violence": 4, "Hate": 2})):
+        v = scan.scan(text="x" * 12000, source_path=None, frames=[])
+        check("severity 4 goes to a moderator; text capped at 10,000", (v.verdict, v.labels, len(body(calls[0])["text"])),
+              ("review", ["violence"], 10000))
+    with fake(cs_reply({"Sexual": 6})):
+        v = scan.scan(text="", source_path=None, frames=[frame])
+        check("sexual at 6 is blocked; empty text skips the text call", (v.verdict, [c.url.path for c in calls]),
+              ("block", ["/contentsafety/image:analyze"]))
+    with fake(cs_reply({})):
+        v = scan.scan(text="kv-test-block", source_path=None, frames=[])
+        check("the local block marker wins before any call", (v.verdict, len(calls)), ("block", 0))
+    with fake(lambda r: httpx.Response(401, json={"error": {"code": "401"}})):
+        ok("a refused key raises, never a silent clear", raises(lambda: scan.scan(text="hi", source_path=None, frames=[]),
+                                                            httpx.HTTPStatusError))
+
+print("\n== Live switched off hides the studio's Live menu")
+from app.core.routers.permissions import _platform_off  # noqa: E402
+
+with configured(LIVE_PROVIDER="sandbox", SANDBOX_ENABLED=False):
+    check("production without Stream: Live off, other menus untouched",
+          _platform_off({"video.live": True, "video.uploads": True}), {"video.live": False, "video.uploads": True})
+with configured(LIVE_PROVIDER="cloudflare", SANDBOX_ENABLED=False, CF_ACCOUNT_ID="", CF_STREAM_TOKEN=""):
+    check("Stream chosen but not configured: still off", _platform_off({"video.live": True}), {"video.live": False})
+with configured(LIVE_PROVIDER="sandbox", SANDBOX_ENABLED=True):
+    check("sandbox ingest on: on, unless the plan turned it off",
+          (_platform_off({"video.live": True}), _platform_off({"video.live": False})), ({"video.live": True}, {"video.live": False}))
 
 print("\n== Azure OpenAI images (AI thumbnails)")
 from app.video.studio import creator_ai  # noqa: E402
