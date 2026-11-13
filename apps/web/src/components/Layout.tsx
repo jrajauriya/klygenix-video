@@ -9,6 +9,8 @@ import { useNavTrail } from "../lib/traffic"
 import { queryClient } from "../lib/queryClient"
 import { useInboxCount, useSubscriptionsCount } from "../lib/inbox"
 import { useInstallPrompt } from "../pwa"
+import { InstallSheet } from "./InstallSheet"
+import { InstallBar } from "./InstallBar"
 import { LANGS, setLang, useLang, useT, type Lang } from "../i18n"
 
 const FeedbackDialog = lazy(() => import("./Feedback"))
@@ -119,7 +121,7 @@ function InstallButton() {
       className="inline-flex h-9 items-center gap-1.5 rounded-full px-2.5 text-sm font-semibold text-ink hover:bg-white/10"
     >
       <Download size={17} aria-hidden="true" />
-      <span className="hidden xl:inline">{t("Install app")}</span>
+      <span className="hidden sm:inline">{t("Install app")}</span>
     </button>
   )
 }
@@ -319,8 +321,8 @@ function TopBar({ onFeedback }: { onFeedback: () => void }) {
               {signedIn ? (
                 <AccountMenu onFeedback={onFeedback} />
               ) : (
-                <Link to="/login" className="inline-flex h-9 items-center gap-2 rounded-full border border-brand/60 px-3.5 text-sm font-semibold text-brand-soft hover:bg-brand/15">
-                  <UserCircle2 size={17} aria-hidden="true" />
+                <Link to="/login" className="inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-full border border-brand/60 px-3 text-sm font-semibold text-brand-soft hover:bg-brand/15 sm:px-3.5">
+                  <UserCircle2 size={17} aria-hidden="true" className="hidden sm:block" />
                   {t("Sign in")}
                 </Link>
               )}
@@ -374,6 +376,7 @@ function BottomNav() {
 
 export function Footer({ onFeedback }: { onFeedback?: () => void }) {
   const t = useT()
+  const { available, install } = useInstallPrompt()
   const links = [
     { to: "/legal/terms", label: "Terms" },
     { to: "/legal/privacy", label: "Privacy" },
@@ -389,12 +392,24 @@ export function Footer({ onFeedback }: { onFeedback?: () => void }) {
   ]
   return (
     <footer className="mt-16 border-t border-line">
-      <div className="mx-auto flex max-w-[1800px] flex-col gap-4 px-4 py-8 sm:px-6 md:flex-row md:items-center md:justify-between">
+      <div className="mx-auto flex max-w-[1800px] flex-col gap-4 px-4 py-8 sm:px-6 md:flex-row md:flex-wrap md:items-center md:justify-between">
         <div className="flex items-center gap-3">
           <Logo compact />
           <p className="text-xs text-muted">© {new Date().getFullYear()} Klygenix Technologies Private Limited</p>
           <LangSwitch className="ml-1" />
         </div>
+        {available && (
+          <div className="flex items-center gap-3 rounded-2xl border border-line bg-white/[0.04] p-3">
+            <img src="/icon-192.png" alt="" width={40} height={40} className="size-10 rounded-xl" />
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-ink">{t("Get the Klygenix Play app")}</p>
+              <p className="text-xs text-muted">{t("iPhone, Android, Windows and Mac. Free, no app store needed.")}</p>
+            </div>
+            <button type="button" onClick={() => void install()} className="ml-auto inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-brand px-4 text-sm font-semibold text-white hover:bg-brand-hover">
+              <Download size={16} aria-hidden="true" /> {t("Install app")}
+            </button>
+          </div>
+        )}
         <ul className="flex flex-wrap gap-x-5 gap-y-2 text-xs text-muted">
           {links.map((l) => (
             <li key={l.to}><Link to={l.to} className="hover:text-ink">{t(l.label)}</Link></li>
@@ -433,6 +448,8 @@ export function Layout() {
       {!immersive && <Footer onFeedback={openFeedback} />}
       {!immersive && <div className="h-14 md:hidden" />}
       <BottomNav />
+      {!immersive && !/^\/(watch|live)\//.test(location.pathname) && <InstallBar />}
+      <InstallSheet />
       {feedbackUsed && (
         <Suspense fallback={null}>
           <FeedbackDialog open={feedback} onClose={() => setFeedback(false)} />
