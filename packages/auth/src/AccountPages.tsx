@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom"
 import companyLockup from "./brand/klygenix-lockup-company-light.svg"
 import { api } from "./api"
 import { useSignupOpen } from "./hooks"
+import { GoogleSignIn } from "./GoogleSignIn"
 import { useAuthStore } from "./store"
 import type { UserInfo } from "@klygenixvideo/types"
 import { useAuthText } from "./text"
@@ -119,6 +120,7 @@ export function SignupPage({ afterSignup = "/" }: { afterSignup?: string } = {})
 
   return (
     <Shell title={t("signup.title")} subtitle={t("signup.subtitle")}>
+      <GoogleSignIn onSignedIn={() => navigate(destination, { replace: true })}>
       <form onSubmit={submit} className="space-y-4">
         <Field label={t("signup.name")}>
           <input className={INPUT} value={form.name} onChange={(e) => set("name", e.target.value)} required autoComplete="name" />
@@ -179,6 +181,7 @@ export function SignupPage({ afterSignup = "/" }: { afterSignup?: string } = {})
         {error && <Notice tone="error">{error}</Notice>}
         <button type="submit" className={BUTTON} disabled={pending}>{pending ? t("signup.creating") : t("signup.submit")}</button>
       </form>
+      </GoogleSignIn>
     </Shell>
   )
 }

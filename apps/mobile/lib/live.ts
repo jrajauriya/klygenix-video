@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 
 import { WS_URL, api, openWeb } from "./api"
+import { session } from "./session"
 import type { LiveCard, LiveDetail, LiveEvent, LiveMessage } from "./types"
 
 export async function liveNow(): Promise<LiveCard[]> {
@@ -48,6 +49,9 @@ export function useLiveRoom(publicId: string | undefined, enabled: boolean, onEv
       socket.onopen = () => {
         attempt = 0
         setConnected(true)
+        void session.token().then((token) => {
+          if (token && socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: "auth", token }))
+        })
         ping = setInterval(() => socket?.readyState === WebSocket.OPEN && socket.send("ping"), 25_000)
       }
       socket.onmessage = (e) => {
@@ -60,7 +64,7 @@ export function useLiveRoom(publicId: string | undefined, enabled: boolean, onEv
       socket.onclose = (e) => {
         setConnected(false)
         if (ping) clearInterval(ping)
-        if (closed || e.code === 4404) return
+        if (closed || e.code === 4404 || e.code === 4403) return
         attempt += 1
         retry = setTimeout(connect, Math.min(30_000, 1000 * 2 ** Math.min(attempt, 5)))
       }

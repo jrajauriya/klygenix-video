@@ -949,7 +949,8 @@ CREATE TABLE kv_admin.users (
     totp_secret text,
     totp_enabled_at timestamp with time zone,
     totp_last_step bigint,
-    home_region character varying(4) DEFAULT 'in'::character varying NOT NULL
+    home_region character varying(4) DEFAULT 'in'::character varying NOT NULL,
+    google_sub character varying(64)
 );
 
 
@@ -6262,6 +6263,13 @@ CREATE INDEX ix_kv_admin_users_tenant_id ON kv_admin.users USING btree (tenant_i
 --
 
 CREATE UNIQUE INDEX uq_tenant_members_open ON kv_admin.tenant_members USING btree (tenant_id, email) WHERE ((status)::text <> 'removed'::text);
+
+
+--
+-- Name: ux_users_google_sub; Type: INDEX; Schema: kv_admin; Owner: -
+--
+
+CREATE UNIQUE INDEX ux_users_google_sub ON kv_admin.users USING btree (google_sub) WHERE (google_sub IS NOT NULL);
 
 
 --

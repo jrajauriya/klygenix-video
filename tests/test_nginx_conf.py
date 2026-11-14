@@ -86,5 +86,24 @@ mounted = sorted(set(re.findall(r"\./nginx/([a-z]+\.sh):", compose)))
 check("every script nginx mounts is uploaded by deploy.sh",
       [s for s in mounted if deploy.count(f"infra/nginx/{s}") < 2], [])
 
+print("\n== Sign in with Google: web and studio allow Google's button, admin does not")
+for name in ("web", "studio", "admin"):
+    csp = re.search(r'Content-Security-Policy "([^"]+)"', (NGINX / "snippets" / f"headers-{name}.conf").read_text()).group(1)
+    parts = {d.split()[0]: d.split()[1:] for d in (x.strip() for x in csp.split(";")) if d}
+    google = ("https://accounts.google.com/gsi/client" in parts["script-src"],
+              "https://accounts.google.com/gsi/style" in parts["style-src"],
+              "https://accounts.google.com/gsi/" in parts.get("connect-src", []),
+              any(x in ("https:", "https://accounts.google.com/gsi/") for x in parts.get("frame-src", [])))
+    check(f"{name}: Google sign-in in the CSP", google, (True,) * 4 if name != "admin" else (False, False, False, False))
+
+print("\n== the visitor's own IP reaches the API (Cloudflare in front)")
+realip = (NGINX / "snippets" / "realip.conf").read_text()
+check("the template includes realip.conf", "include /etc/nginx/snippets/realip.conf;" in CONF, True)
+check("CF-Connecting-IP is the real IP header", "real_ip_header CF-Connecting-IP;" in realip, True)
+check("Cloudflare's ranges are trusted", all(f"set_real_ip_from {r};" in realip for r in ("173.245.48.0/20", "104.16.0.0/13", "2606:4700::/32")), True)
+check("no one else is trusted", [l for l in realip.splitlines() if l.startswith("set_real_ip_from") and l.split()[1].rstrip(";") in ("0.0.0.0/0", "::/0")], [])
+proxy = (NGINX / "snippets" / "proxy-backend.conf").read_text()
+check("the client cannot add its own X-Forwarded-For", "proxy_set_header X-Forwarded-For $remote_addr;" in proxy, True)
+
 print(f"\n{PASS} passed, {FAIL} failed")
 raise SystemExit(1 if FAIL else 0)

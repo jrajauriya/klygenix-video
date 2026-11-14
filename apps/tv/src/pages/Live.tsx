@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react"
 import { Link, useNavigate, useParams } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
 import { HlsPlayer } from "@klygenixvideo/player"
+import { useAuthStore } from "@klygenixvideo/auth"
 import { PUBLIC_DOMAIN, api, errStatus, errText, getJson, sameOrigin, useSignedIn } from "../lib/api"
 import { when } from "../lib/format"
 import { slot, useLang, useT } from "../lib/i18n"
@@ -50,6 +51,8 @@ function useChat(id: string, open: boolean, onStatus: (s: string) => void) {
       socket = new WebSocket(socketUrl(id))
       socket.onopen = () => {
         attempt = 0
+        const token = useAuthStore.getState().token
+        if (token) socket?.send(JSON.stringify({ type: "auth", token }))
         ping = window.setInterval(() => socket?.readyState === WebSocket.OPEN && socket.send("ping"), 25_000)
       }
       socket.onmessage = (ev) => {
@@ -69,7 +72,7 @@ function useChat(id: string, open: boolean, onStatus: (s: string) => void) {
       }
       socket.onclose = (ev) => {
         window.clearInterval(ping)
-        if (stopped || ev.code === 4404) return
+        if (stopped || ev.code === 4404 || ev.code === 4403) return
         attempt += 1
         retry = window.setTimeout(connect, Math.min(15_000, 1000 * 2 ** Math.min(attempt, 4)))
       }

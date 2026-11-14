@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Request
 from fastapi.concurrency import run_in_threadpool
 
+from app.config import settings
 from app.core.messages import err
 from app.video.media.service import ingest_event
 
@@ -11,7 +12,7 @@ router = APIRouter(prefix="/api/video/webhooks", tags=["webhooks"])
 
 @router.post("/media/{provider}")
 async def media(provider: str, request: Request):
-    if provider not in ("bunny", "sandbox"):
+    if provider not in ("bunny", "sandbox") or (provider == "sandbox" and not settings.SANDBOX_ENABLED):
         raise err(404, "action_not_allowed")
     body = await request.body()
     headers = {k.lower(): v for k, v in request.headers.items()}

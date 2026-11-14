@@ -140,7 +140,7 @@ export function ReelTile({ video }: { video: VideoCard }) {
           </p>
         </div>
         <div className="absolute left-2 top-2 flex flex-col items-start gap-1">
-          {video.ai_generated && <AiBadge />}
+          {video.ai_generated && <AiBadge iconOnly />}
           <PaidPartnershipChip partnership={video.paid_partnership} />
         </div>
         <AccessBadge video={video} className="absolute right-2 top-2" />

@@ -210,10 +210,30 @@ def moderate(public_id: str, data: ModerateIn, ctx: Ctx = Depends(signed_in)):
         raise err(400, "action_not_allowed")
 
 
-_ROOMS: dict[str, tuple[float, tuple[int, int, str] | None]] = {}
+_ROOMS: dict[str, tuple[float, tuple[int, int, str, int] | None]] = {}
 
 
-def _room_lookup(public_id: str) -> tuple[int, int, str] | None:
+def _member_may_join(public_id: str, token: str | None) -> bool:
+    import jwt
+
+    from app.config import settings
+    from app.core.models.user import User
+
+    if not token:
+        return False
+    try:
+        claims = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+    except jwt.PyJWTError:
+        return False
+    with platform_session() as db:
+        user = db.get(User, claims.get("user_id") or 0)
+        if user is None or not user.is_active or int(claims.get("ep") or 0) != int(user.session_epoch or 0):
+            return False
+        s = db.execute(select(LiveStream).where(LiveStream.public_id == public_id)).scalars().first()
+        return s is not None and service.allowed(db, user, s)
+
+
+def _room_lookup(public_id: str) -> tuple[int, int, str, int] | None:
     import time
 
     hit = _ROOMS.get(public_id)
@@ -221,7 +241,7 @@ def _room_lookup(public_id: str) -> tuple[int, int, str] | None:
         return hit[1]
     with platform_session() as db:
         s = db.execute(select(LiveStream).where(LiveStream.public_id == public_id)).scalars().first()
-        found = None if s is None else (s.id, room_id(s), s.status)
+        found = None if s is None else (s.id, room_id(s), s.status, s.members_rank or 0)
     if len(_ROOMS) > 2000:
         _ROOMS.clear()
     _ROOMS[public_id] = (time.time() + 5, found)
@@ -237,8 +257,17 @@ async def live_room(websocket: WebSocket, public_id: str):
     if found is None:
         await websocket.close(code=4404)
         return
-    sid, rid, status = found
+    sid, rid, status, members_rank = found
     await websocket.accept()
+    if members_rank:
+        try:
+            first = json.loads(await asyncio.wait_for(websocket.receive_text(), timeout=10))
+        except (asyncio.TimeoutError, ValueError, WebSocketDisconnect):
+            first = {}
+        token = first.get("token") if isinstance(first, dict) and first.get("type") == "auth" else None
+        if not await asyncio.to_thread(_member_may_join, public_id, token if isinstance(token, str) else None):
+            await websocket.close(code=4403)
+            return
     client = await hub.client()
     q = await hub.subscribe(room_channel(rid))
     members = f"kv:live:{sid}:members"

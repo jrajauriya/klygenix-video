@@ -195,7 +195,9 @@ export function StudioLayout() {
         open={changing}
         onOpenChange={setChanging}
         onSubmit={async (currentPassword, newPassword) => {
-          await api.post("/api/auth/change-password", { current_password: currentPassword, new_password: newPassword })
+          const { data } = await api.post<{ access_token?: string }>("/api/auth/change-password", { current_password: currentPassword, new_password: newPassword })
+          const { user, setAuth } = useAuthStore.getState()
+          if (data.access_token && user) setAuth(data.access_token, user)
           toast.success(t("Password changed"))
         }}
       />

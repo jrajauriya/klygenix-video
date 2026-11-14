@@ -19,6 +19,7 @@ export VITE_API_URL="https://$API_HOST$SUFFIX"
 export VITE_WEB_URL="https://$DOMAIN$SUFFIX"
 export VITE_STUDIO_URL="https://$STUDIO_HOST$SUFFIX"
 export VITE_PUBLIC_DOMAIN="$DOMAIN"
+export VITE_GOOGLE_CLIENT_ID="$(value GOOGLE_CLIENT_ID)"
 cd "$ROOT"
 export VITE_TV_URL="https://$TV_HOST$SUFFIX"
 for app in web studio admin tv; do

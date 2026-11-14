@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { api } from "@klygenixvideo/auth"
+import { api, useAuthStore } from "@klygenixvideo/auth"
 import { getJson } from "./api"
 import type { LiveMessage, LiveStreamCard } from "./types"
 import { tr } from "../i18n"
@@ -139,6 +139,8 @@ export function useLiveRoom(publicId: string, opts: {
       socket.onopen = () => {
         attempt = 0
         setConnected(true)
+        const token = useAuthStore.getState().token
+        if (token) socket?.send(JSON.stringify({ type: "auth", token }))
         ping = window.setInterval(() => { if (socket?.readyState === WebSocket.OPEN) socket.send("ping") }, 25_000)
       }
       socket.onmessage = (ev) => {
@@ -165,7 +167,7 @@ export function useLiveRoom(publicId: string, opts: {
       socket.onclose = (ev) => {
         window.clearInterval(ping)
         setConnected(false)
-        if (stopped || ev.code === 4404) return
+        if (stopped || ev.code === 4404 || ev.code === 4403) return
         attempt += 1
         retry = window.setTimeout(connect, Math.min(15_000, 1000 * 2 ** Math.min(attempt, 4)))
       }

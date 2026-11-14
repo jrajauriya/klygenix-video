@@ -262,6 +262,11 @@ RLS: `tenant_isolation` (`tenant_id = current_tenant() OR is_platform()`) on eve
 - Sponsorship money reuses `splits.record_split` (purpose `sponsorship`, commission override) and holds the creator's
   `sale` transfer ~10 years until approval sets `hold_until = now`; `release_due()` then releases it.
 - Ad revenue share is a monthly Route **direct transfer** (`route.direct_transfer`, `RouteTransfer.kind = 'ad_share'`).
+- **Sign in with Google** (web + studio, never admin): GIS button (`packages/auth` `GoogleButton` loads `accounts.google.com/gsi/client`
+  on demand) → `POST /api/auth/google` → signed in, or `needs_profile` + ticket → `/api/auth/google/complete` (date of birth, country,
+  invite: the same `_create_account` as `/signup`). Accounts match on `users.google_sub`, else a Google-verified email. `GOOGLE_CLIENT_ID`
+  goes in backend `.env` and the infra env (`build-web.sh` → `VITE_GOOGLE_CLIENT_ID`); each host must be an Authorized JavaScript origin
+  of that OAuth client. Suites use `sandbox.<base64 json>` tokens (only with `SANDBOX_ENABLED`).
 - `SIGNUP_MODE` (open|invite|closed) overrides the legacy `SIGNUP_ENABLED`; `CREATOR_SIGNUP` gates opening a channel.
   Product mail goes through `core/services/mailer.py` (`EMAIL_PROVIDER=sandbox` captures to the outbox).
 

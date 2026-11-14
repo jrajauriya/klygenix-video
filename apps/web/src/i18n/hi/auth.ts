@@ -95,6 +95,10 @@ const hi: Record<string, string> = {
   "Terms": "शर्तें",
   "We sent a link to {email}. Open it to confirm your place on the waitlist. We'll email you an invite when there's room.": "हमने {email} पर एक लिंक भेजा है। वेटलिस्ट में अपनी जगह पक्की करने के लिए इसे खोलें। जगह होते ही हम आपको ईमेल से इनवाइट भेजेंगे।",
   "New channels aren't open yet. {link} and we'll invite you.": "नए चैनल अभी नहीं खुल रहे। {link}, हम आपको इनवाइट करेंगे।",
+  "One more step": "बस एक कदम और",
+  "Creating a Klygenix Play account for {email}.": "{email} के लिए Klygenix Play खाता बनाया जा रहा है।",
+  "Use a different account": "कोई दूसरा खाता इस्तेमाल करें",
+  "or": "या",
 }
 
 export default hi

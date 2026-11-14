@@ -105,6 +105,11 @@ async def _inline_sweeps() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     configure_logging(settings.LOG_LEVEL)
+    if not settings.SANDBOX_ENABLED:
+        from app.core.services.readiness import weak_secret
+
+        if problem := weak_secret(settings.SECRET_KEY or ""):
+            raise RuntimeError(f"Refusing to start: SECRET_KEY {problem}. Anyone could sign in as anyone.")
     import anyio.to_thread
 
     anyio.to_thread.current_default_thread_limiter().total_tokens = max(4, settings.DB_POOL_SIZE)

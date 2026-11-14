@@ -44,6 +44,12 @@ class Check:
         return asdict(self)
 
 
+def weak_secret(sk: str) -> str:
+    return ("is the development default" if sk == DEV_SECRET_KEY else
+            "is a placeholder" if _placeholder(sk) else
+            f"is only {len(sk)} characters" if len(sk) < 32 else "")
+
+
 def _placeholder(value: str | None) -> bool:
     v = (value or "").strip().lower()
     return any(p in v for p in PLACEHOLDERS)
@@ -152,9 +158,7 @@ def evaluate(s: Settings, *, mode: str = "app", env: dict | None = None) -> list
               f"LOG_LEVEL is {s.LOG_LEVEL}.", "Set LOG_LEVEL=INFO; debug logs can carry request bodies."))
 
     sk = s.SECRET_KEY or ""
-    sk_problem = ("is the development default" if sk == DEV_SECRET_KEY else
-                  "is a placeholder" if _placeholder(sk) else
-                  f"is only {len(sk)} characters" if len(sk) < 32 else "")
+    sk_problem = weak_secret(sk)
     add(Check("secret.key", "Token signing key is strong", "Secrets", BLOCK, not sk_problem,
               f"SECRET_KEY {sk_problem}; anyone who knows it can mint staff, buyer and affiliate tokens." if sk_problem
               else f"SECRET_KEY is set ({len(sk)} characters).",
@@ -414,10 +418,11 @@ def evaluate(s: Settings, *, mode: str = "app", env: dict | None = None) -> list
     add(Check("face.provider", "Face tracking for clip reframing", "Video & AI", WARN, s.FACE_PROVIDER == "opencv",
               "OpenCV face detection." if s.FACE_PROVIDER == "opencv" else "FACE_PROVIDER is sandbox: tracking follows the test marker only.",
               "Set FACE_PROVIDER=opencv (OpenCV is in the image)."))
-    g = bool(s.GOOGLE_CLIENT_ID and s.GOOGLE_CLIENT_SECRET)
-    add(Check("google.oauth", "Google sign-in", "Integrations", WARN, g,
-              "Set." if g else "GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET are empty: staff sign in with a password only.",
-              "Google Cloud console → APIs & Services → Credentials → OAuth client (web) with the admin and studio origins."))
+    g = bool(s.GOOGLE_CLIENT_ID)
+    add(Check("google.oauth", "Sign in with Google", "Integrations", WARN, g,
+              "Set." if g else "GOOGLE_CLIENT_ID is empty: viewers and creators sign in with a password only.",
+              "Google Cloud console → APIs & Services → Credentials → OAuth client (web): add the web and studio hosts as "
+              "Authorized JavaScript origins, set GOOGLE_CLIENT_ID in backend .env and in the infra env (build-web.sh)."))
     return out
 
 

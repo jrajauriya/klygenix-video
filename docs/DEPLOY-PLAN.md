@@ -87,6 +87,9 @@ Production is live on **189.72.147.237** behind Cloudflare: `play.klygenix.com`,
 | Not used | `50 Short Videos.zip` (filenames show it was downloaded from an Instagram account); rust and ASMR packs |
 | Workers | `worker-ai` runs 3 replicas (R10.25); three jobs cut off by a restart were re-queued by hand |
 
+### Sign-up opened (13 Nov 2026)
+Owner's choice: `SIGNUP_MODE=open` and `CREATOR_SIGNUP=open` in the server's `backend/.env.prod` (backup `.env.prod.bak-signup`) and the local `play.env.prod`; backend, workers and scheduler recreated. Anyone can sign up and open a channel; uploads still pass the Content Safety scan before publishing, and reports/strikes apply. To go back: set both to `invite` and recreate the same services.
+
 ### Waiting on the owner
 1. **Company details** — `https://play-admin.klygenix.com` → Accounts → Klygenix Technologies → **Company** tab: address, GSTIN, support email (today it shows `admin@klygenix.com`), phone, CIN, privacy/legal emails, grievance officer. The legal pages fill these in automatically.
 2. **Legal review** of `/legal/*` — about 45 yellow placeholders are decisions (refund rule, notice period, liability cap, jurisdiction, TCS/TDS with the CA…). Remove the draft banner after review.

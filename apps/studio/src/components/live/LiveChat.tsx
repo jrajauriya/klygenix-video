@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 import { Clock, EyeOff, Send, Snail } from "lucide-react"
-import { api } from "@klygenixvideo/auth"
+import { api, useAuthStore } from "@klygenixvideo/auth"
 import { formatMoney } from "@klygenixvideo/client"
 import { Badge, Button, Card, Input, Select, useConfirm } from "@klygenixvideo/ui"
 import { detail, when } from "../../lib/format"
@@ -77,6 +77,8 @@ export function LiveChat({ stream, ...events }: { stream: LiveStream } & ChatEve
       socket.onopen = () => {
         attempts = 0
         setConnected(true)
+        const token = useAuthStore.getState().token
+        if (token) socket?.send(JSON.stringify({ type: "auth", token }))
         ping = setInterval(() => socket?.readyState === WebSocket.OPEN && socket.send("ping"), 25_000)
       }
       socket.onmessage = (e) => {
@@ -102,7 +104,7 @@ export function LiveChat({ stream, ...events }: { stream: LiveStream } & ChatEve
       socket.onclose = (e) => {
         setConnected(false)
         if (ping) clearInterval(ping)
-        if (!alive || e.code === 4404) return
+        if (!alive || e.code === 4404 || e.code === 4403) return
         attempts += 1
         retry = setTimeout(open, Math.min(15_000, 1000 * 2 ** Math.min(attempts, 4)))
       }

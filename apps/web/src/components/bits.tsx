@@ -62,8 +62,16 @@ export function ChannelName({ channel, className }: { channel: ChannelCard | nul
   )
 }
 
-export function AiBadge({ className }: { className?: string }) {
+export function AiBadge({ className, iconOnly = false }: { className?: string; iconOnly?: boolean }) {
   const t = useT()
+  if (iconOnly) {
+    return (
+      <span title={t("AI-generated")} className={cn("inline-flex size-6 items-center justify-center rounded-full bg-black/60 text-brand-soft ring-1 ring-brand/50 backdrop-blur-sm", className)}>
+        <Sparkles size={13} aria-hidden="true" />
+        <span className="sr-only">{t("AI-generated")}</span>
+      </span>
+    )
+  }
   return (
     <span className={cn("inline-flex items-center gap-1 rounded-md bg-brand/20 px-1.5 py-0.5 text-[11px] font-semibold text-brand-soft ring-1 ring-brand/40", className)}>
       <Sparkles size={11} aria-hidden="true" />

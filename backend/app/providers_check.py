@@ -61,6 +61,7 @@ def providers(s: Settings) -> list[Provider]:
                  _real(s.SCAN_PROVIDER), ["SCAN_API_URL", "SCAN_API_KEY"]),
         Provider("mail", "Mail (Microsoft Graph)", bool(s.MS_GRAPH_CLIENT_ID),
                  ["MS_GRAPH_TENANT_ID", "MS_GRAPH_CLIENT_ID", "MS_GRAPH_CLIENT_SECRET", "MS_GRAPH_SENDER"]),
+        Provider("google_signin", "Sign in with Google", bool(s.GOOGLE_CLIENT_ID), ["GOOGLE_CLIENT_ID"]),
     ]
 
 

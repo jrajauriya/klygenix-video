@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 
-from fastapi import APIRouter, Depends, File, Form, Response, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Request, Response, UploadFile
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 
@@ -13,6 +13,7 @@ from app.ai.textkit import content_words, keywords
 from app.core.messages import err
 from app.core.models.user import User
 from app.core.redis_client import get_redis
+from app.core.services import rate_limit
 from app.video.models.ai import TextTranslation
 from app.video.models.community import ChannelModerator, PollOption, PollVote, Post
 from app.video.models.media import Video
@@ -243,12 +244,18 @@ class TranslateIn(BaseModel):
 
 
 @router.post("/translate")
-def translate(data: TranslateIn, viewer: Viewer = Depends(optional_viewer)):
+def translate(data: TranslateIn, request: Request, viewer: Viewer = Depends(optional_viewer)):
     if data.lang not in LANGS or data.kind not in ("comments", "danmaku"):
         raise err(400, "action_not_allowed")
+    ip = rate_limit.client_ip(request)
+    rate_limit.limit(f"translate:{ip}", 60, 60, message="Too many translations. Wait a minute and try again.", ip=ip)
     model = Comment if data.kind == "comments" else Danmaku
+    readable_video = (Video.status == "published") & Video.visibility.in_(("public", "unlisted"))
+    if viewer.user is not None and viewer.user.tenant_id:
+        readable_video = readable_video | (Video.tenant_id == viewer.user.tenant_id)
     with platform_session() as db:
-        rows = db.execute(select(model).where(model.id.in_(data.ids), model.status == "visible")).scalars().all()
+        rows = db.execute(select(model).join(Video, Video.id == model.video_id).where(
+            model.id.in_(data.ids), model.status == "visible", Video.is_deleted.is_(False), readable_video)).scalars().all()
         source = {r.id: (r.body if data.kind == "comments" else r.text) for r in rows}
         digests = {i: hashlib.sha256(t.encode()).hexdigest() for i, t in source.items()}
         cached = {t.digest: t for t in db.execute(select(TextTranslation).where(
@@ -270,6 +277,8 @@ def translate(data: TranslateIn, viewer: Viewer = Depends(optional_viewer)):
 
 @router.get("/videos/{public_id}/comments/summary")
 def comment_summary(public_id: str, lang: str = "en", viewer: Viewer = Depends(optional_viewer)):
+    if lang not in LANGS:
+        raise err(400, "action_not_allowed")
     v = readable(viewer, public_id)
     key = f"kv:csum:{v.id}:{lang}"
     try:

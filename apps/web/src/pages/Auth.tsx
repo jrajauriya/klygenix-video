@@ -8,6 +8,7 @@ import {
 } from "@klygenixvideo/auth"
 import type { UserInfo } from "@klygenixvideo/types"
 import { AuthShell, ErrorNote } from "../components/AuthShell"
+import { COUNTRY_NAMES, GoogleAuth } from "../components/GoogleAuth"
 import { Btn, Field, INPUT } from "../components/bits"
 import { errStatus, errText } from "../lib/api"
 import { useSignupState } from "../lib/beta"
@@ -16,11 +17,6 @@ import { LANG_NAMES } from "../lib/format"
 import { useTitle } from "../lib/title"
 import { useT } from "../i18n"
 import { rich } from "../i18n/rich"
-
-const COUNTRY_NAMES: Record<string, string> = {
-  IN: "India", US: "United States", GB: "United Kingdom", AE: "United Arab Emirates", SG: "Singapore",
-  CA: "Canada", AU: "Australia", DE: "Germany", other: "Somewhere else",
-}
 
 function safeReturn(raw: string | null): string {
   if (!raw || !raw.startsWith("/") || raw.startsWith("//") || raw.startsWith("/login") || raw.startsWith("/signup")) return "/"
@@ -77,6 +73,7 @@ export function LoginPage() {
         </>
       }
     >
+      <GoogleAuth back={back}>
       <form onSubmit={submit} className="space-y-4">
         <Field label={t("Email")}>
           <input className={INPUT} type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus />
@@ -97,6 +94,7 @@ export function LoginPage() {
         {error && <ErrorNote>{error}</ErrorNote>}
         <Btn type="submit" tone="brand" size="lg" className="w-full" disabled={login.isPending}>{login.isPending ? t("Signing in…") : t("Sign in")}</Btn>
       </form>
+      </GoogleAuth>
     </AuthShell>
   )
 }
@@ -203,6 +201,7 @@ export function SignupPage() {
       subtitle={t("Free. Ask videos, follow channels, send danmaku.")}
       footer={<p>{t("Already have an account?")} <Link to={`/login${back !== "/" ? `?returnUrl=${encodeURIComponent(back)}` : ""}`} className="font-semibold text-brand-soft hover:underline">{t("Sign in")}</Link></p>}
     >
+      <GoogleAuth back={back}>
       <form onSubmit={submit} className="space-y-4">
         <Field label={t("Your name")}>
           <input className={INPUT} value={form.name} onChange={(e) => set("name", e.target.value)} required autoComplete="name" maxLength={80} />
@@ -303,6 +302,7 @@ export function SignupPage() {
           })}
         </p>
       </form>
+      </GoogleAuth>
     </AuthShell>
   )
 }

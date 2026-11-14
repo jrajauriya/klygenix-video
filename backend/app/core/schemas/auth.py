@@ -1,5 +1,5 @@
 from typing import Literal, Optional
-from datetime import datetime
+from datetime import date, datetime
 from pydantic import BaseModel, ConfigDict
 
 
@@ -12,6 +12,25 @@ class LoginRequest(BaseModel):
 class GoogleLoginRequest(BaseModel):
     token: str
     code: str | None = None
+
+
+class GoogleNeedsProfile(BaseModel):
+    status: Literal["needs_profile"] = "needs_profile"
+    ticket: str
+    email: str
+    name: str = ""
+    invite_needed: bool = False
+
+
+class GoogleCompleteIn(BaseModel):
+    ticket: str
+    birth_date: date
+    country: str = "IN"
+    language: str = "en"
+    name: str | None = None
+    handle: str | None = None
+    channel_name: str | None = None
+    invite: str | None = None
 
 
 class TokenResponse(BaseModel):

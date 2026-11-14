@@ -1,36 +1,25 @@
-import { useState, useEffect, useRef, useCallback } from "react"
+import { useState, useCallback, type ReactNode } from "react"
 import companyLockup from "./brand/klygenix-lockup-company-light.svg"
 import { useNavigate, useSearchParams } from "react-router-dom"
-import { useLogin, useGoogleLogin, useSignupOpen } from "./hooks"
+import type { UserInfo } from "@klygenixvideo/types"
+import { GoogleSignIn } from "./GoogleSignIn"
+import { useLogin, useSignupOpen } from "./hooks"
 import { useAuthStore } from "./store"
 import { useAuthText } from "./text"
-
-declare global {
-  interface Window {
-    google?: {
-      accounts: {
-        id: {
-          initialize: (config: any) => void
-          renderButton: (element: HTMLElement, config: any) => void
-        }
-      }
-    }
-  }
-}
 
 interface LoginPageProps {
   productName: string
   productKey: string
   signupPath?: string
   forgotPath?: string
+  allowGoogle?: boolean
 }
 
-export function LoginPage({ productName, productKey, signupPath, forgotPath }: LoginPageProps) {
+export function LoginPage({ productName, productKey, signupPath, forgotPath, allowGoogle = true }: LoginPageProps) {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const { t, aside } = useAuthText()
   const login = useLogin()
-  const googleLogin = useGoogleLogin()
   const signupOpen = useSignupOpen()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -38,13 +27,10 @@ export function LoginPage({ productName, productKey, signupPath, forgotPath }: L
   const [error, setError] = useState("")
   const [code, setCode] = useState("")
   const [needsCode, setNeedsCode] = useState(false)
-  const googleBtnRef = useRef<HTMLDivElement>(null)
-  const googleInitRef = useRef(false)
 
   const returnUrl = searchParams.get("returnUrl") || "/"
-  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID
 
-  const validateAndNavigate = useCallback((user: any) => {
+  const validateAndNavigate = useCallback((user: UserInfo) => {
     if (user.role !== "global_admin" && !user.products.includes(productKey)) {
       useAuthStore.getState().clearAuth()
       setError(t("login.noAccess", { product: productName }))
@@ -52,52 +38,6 @@ export function LoginPage({ productName, productKey, signupPath, forgotPath }: L
     }
     navigate(returnUrl, { replace: true })
   }, [productKey, productName, returnUrl, navigate, t])
-
-  // Initialize Google Sign-In (once only)
-  useEffect(() => {
-    if (!googleClientId || googleInitRef.current) return
-
-    const initGoogle = () => {
-      if (!window.google?.accounts || !googleBtnRef.current || googleInitRef.current) return
-      googleInitRef.current = true
-
-      window.google.accounts.id.initialize({
-        client_id: googleClientId,
-        callback: async (response: any) => {
-          setError("")
-          try {
-            const result = await googleLogin.mutateAsync(response.credential)
-            validateAndNavigate(result.user)
-          } catch (err: any) {
-            setError(err?.response?.data?.detail || t("login.googleFailed"))
-          }
-        },
-      })
-
-      window.google.accounts.id.renderButton(googleBtnRef.current, {
-        type: "standard",
-        theme: "outline",
-        size: "large",
-        text: "signin_with",
-        shape: "rectangular",
-        width: googleBtnRef.current.offsetWidth || 360,
-      })
-    }
-
-    // If GIS already loaded
-    if (window.google?.accounts) {
-      initGoogle()
-    } else {
-      // Wait for script to load (added in index.html)
-      const interval = setInterval(() => {
-        if (window.google?.accounts) {
-          clearInterval(interval)
-          initGoogle()
-        }
-      }, 100)
-      return () => clearInterval(interval)
-    }
-  }, [googleClientId])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -137,22 +77,8 @@ export function LoginPage({ productName, productKey, signupPath, forgotPath }: L
             <p className="text-sm text-gray-500 mt-1">{t("login.subtitle")}</p>
           </div>
 
-          {/* Google Sign-In */}
-          {googleClientId ? (
-            <>
-              <div ref={googleBtnRef} className="w-full flex justify-center mb-5 [&>div]:!w-full" />
-              <div className="relative mb-5">
-                <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t border-gray-200" />
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-white px-3 text-gray-500">{t("login.or")}</span>
-                </div>
-              </div>
-            </>
-          ) : null}
-
           {/* Email/Password Form */}
+          <MaybeGoogle allow={allowGoogle} onSignedIn={validateAndNavigate}>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-1.5">
               <label htmlFor="email" className="block text-sm text-gray-600">{t("login.email")}</label>
@@ -231,6 +157,7 @@ export function LoginPage({ productName, productKey, signupPath, forgotPath }: L
               {login.isPending ? t("login.submitting") : t("login.submit")}
             </button>
           </form>
+          </MaybeGoogle>
           {(signupPath || forgotPath) && (
             <div className="mt-5 flex items-center justify-between text-sm">
               {forgotPath ? (
@@ -249,4 +176,8 @@ export function LoginPage({ productName, productKey, signupPath, forgotPath }: L
       </div>
     </main>
   )
+}
+
+function MaybeGoogle({ allow, onSignedIn, children }: { allow: boolean; onSignedIn: (user: UserInfo) => void; children: ReactNode }) {
+  return allow ? <GoogleSignIn onSignedIn={onSignedIn}>{children}</GoogleSignIn> : <>{children}</>
 }

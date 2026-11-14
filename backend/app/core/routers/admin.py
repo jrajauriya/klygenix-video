@@ -242,8 +242,9 @@ def reset_owner_password(
         raise HTTPException(status_code=404, detail="No owner found for this tenant")
 
     # Generate new password and update hash
-    new_password = secrets.token_urlsafe(8)
+    new_password = secrets.token_urlsafe(12)
     owner.password_hash = hash_password(new_password)
+    owner.session_epoch = int(owner.session_epoch or 0) + 1
     db.commit()
 
     # Send email with new credentials
@@ -268,7 +269,6 @@ def reset_owner_password(
             subject="Your password has been reset",
             body_html=html,
             tenant_name=tenant.name,
-            cc_emails=[current_user.email],
         )
     except Exception:  # noqa: BLE001 — the reset stands; the delivery is what failed
         sent = False

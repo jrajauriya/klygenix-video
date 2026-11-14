@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import BigInteger, String, Boolean, Integer, DateTime, ForeignKey, Text
+from sqlalchemy import BigInteger, String, Boolean, Integer, DateTime, ForeignKey, Index, Text, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -13,7 +13,10 @@ def _utcnow() -> datetime:
 
 class User(Base):
     __tablename__ = "users"
-    __table_args__ = {"schema": "kv_admin"}
+    __table_args__ = (
+        Index("ux_users_google_sub", "google_sub", unique=True, postgresql_where=text("google_sub IS NOT NULL")),
+        {"schema": "kv_admin"},
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     tenant_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("kv_admin.tenants.id"), index=True)
@@ -34,6 +37,7 @@ class User(Base):
     totp_secret: Mapped[str | None] = mapped_column(Text)
     totp_enabled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     totp_last_step: Mapped[int | None] = mapped_column(BigInteger)
+    google_sub: Mapped[str | None] = mapped_column(String(64))
 
     tenant = relationship("Tenant", back_populates="users")
 

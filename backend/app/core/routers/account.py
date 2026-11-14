@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import date
 
 import re
+import secrets
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
@@ -14,7 +15,7 @@ from app.core.middleware.auth import get_current_user, refuse_impersonated
 from app.core.models.tenant import Tenant
 from app.config import settings
 from app.core.models.user import User
-from app.core.schemas.auth import TokenResponse
+from app.core.schemas.auth import GoogleCompleteIn, TokenResponse
 from app.core.services import account
 from app.core.services.auth_service import hash_password, verify_password
 from app.core.services.tenant_service import create_tenant_with_admin
@@ -137,8 +138,9 @@ def signup_open():
     return {"open": mode != "closed", "mode": mode, "creator": beta.creator_mode()}
 
 
-@router.post("/signup", response_model=TokenResponse, status_code=201)
-def signup(data: SignupIn, request: Request, db: Session = Depends(get_db)):
+def _create_account(db: Session, request: Request, *, email: str, name: str, password: str | None, birth_date: date,
+                    country: str, language: str, handle: str | None, channel_name: str | None, invite: str | None,
+                    google_sub: str | None = None) -> User:
     from app.video.models.social import Profile
     from app.video.services.provisioning import open_channel
     from app.video.trust.age import minimum_age, old_enough
@@ -151,45 +153,74 @@ def signup(data: SignupIn, request: Request, db: Session = Depends(get_db)):
 
     if not _exempt(_host(request)) and _limited(f"signup:{_host(request)}", SIGNUPS_PER_HOUR):
         raise err(429, "too_many_sign_ups_from_here")
-    email = data.email.strip().lower()
+    email = email.strip().lower()
     if not EMAIL.match(email):
         raise err(400, "not_email_address")
-    if not data.name.strip():
+    name = name.strip()
+    if not name:
         raise err(400, "name_needed")
-    country = (data.country or "IN").strip().upper()[:2]
-    if not old_enough(data.birth_date, country):
+    country = (country or "IN").strip().upper()[:2]
+    if not old_enough(birth_date, country):
         raise err(403, "too_young_for_account", age=minimum_age(country))
-    try:
-        account.check_password(data.password)
-    except account.AccountError as exc:
-        raise _refused(exc, 400)
+    if password is not None:
+        try:
+            account.check_password(password)
+        except account.AccountError as exc:
+            raise _refused(exc, 400)
     if db.query(User).filter(User.email == email).first():
         raise err(409, "address_already_has_account_sign_reset")
-    handle = _chosen_handle(db, data.handle)
+    handle = _chosen_handle(db, handle)
     from app.core.services import region
 
     home = region.region_for(country)
     region.guard(home)
-    beta.gate_signup(db, email=email, invite=data.invite, opens_channel=bool(handle))
+    beta.gate_signup(db, email=email, invite=invite, opens_channel=bool(handle))
 
     tenant, owner, _ = create_tenant_with_admin(
-        db, name=data.name.strip(), slug=account.slug_for(db, data.name), owner_email=email,
-        owner_name=data.name.strip(), password=data.password, verified=False, email=email, max_users=3,
+        db, name=name, slug=account.slug_for(db, name), owner_email=email, owner_name=name,
+        password=password or secrets.token_urlsafe(24), verified=google_sub is not None, email=email, max_users=3,
     )
     audit.attribute(db, tenant_id=tenant.id, actor=Actor(USER, user_id=owner.id, label=owner.name))
     from app.video.sessions import bind_tenant
 
     bind_tenant(db, tenant.id)
-    owner.settings = {**(owner.settings or {}), "language": data.language}
+    owner.settings = {**(owner.settings or {}), "language": language}
     owner.home_region = home
-    db.add(Profile(user_id=owner.id, tenant_id=tenant.id, display_name=data.name.strip()[:80],
-                   birth_date=data.birth_date, country=country, language=data.language))
+    owner.google_sub = google_sub
+    db.add(Profile(user_id=owner.id, tenant_id=tenant.id, display_name=name[:80],
+                   birth_date=birth_date, country=country, language=language))
     if handle:
-        open_channel(db, tenant, name=(data.channel_name or data.name).strip(), handle=handle,
-                     language=data.language, country=country)
-    token = account.issue_token(db, owner, "verify")
-    db.commit()
-    account.send_link(db, owner, "verify", token)
+        open_channel(db, tenant, name=(channel_name or name).strip(), handle=handle,
+                     language=language, country=country)
+    if google_sub is None:
+        token = account.issue_token(db, owner, "verify")
+        db.commit()
+        account.send_link(db, owner, "verify", token)
+    else:
+        db.commit()
+    return owner
+
+
+@router.post("/signup", response_model=TokenResponse, status_code=201)
+def signup(data: SignupIn, request: Request, db: Session = Depends(get_db)):
+    owner = _create_account(db, request, email=data.email, name=data.name, password=data.password,
+                            birth_date=data.birth_date, country=data.country, language=data.language,
+                            handle=data.handle, channel_name=data.channel_name, invite=data.invite)
+    return token_for(db, owner, request)
+
+
+@router.post("/google/complete", response_model=TokenResponse, status_code=201)
+def google_complete(data: GoogleCompleteIn, request: Request, db: Session = Depends(get_db)):
+    from app.core.services import google_signin
+
+    claims = google_signin.read_ticket(data.ticket)
+    if db.query(User).filter(User.google_sub == claims["sub"]).first():
+        raise err(409, "address_already_has_account_sign_reset")
+    name = (data.name or claims.get("name") or claims["email"].split("@")[0]).strip()
+    owner = _create_account(db, request, email=claims["email"], name=name, password=None,
+                            birth_date=data.birth_date, country=data.country, language=data.language,
+                            handle=data.handle, channel_name=data.channel_name, invite=data.invite,
+                            google_sub=claims["sub"])
     return token_for(db, owner, request)
 
 

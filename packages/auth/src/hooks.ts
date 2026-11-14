@@ -33,19 +33,52 @@ export function useLogin() {
   })
 }
 
+export interface GoogleNeedsProfile {
+  status: "needs_profile"
+  ticket: string
+  email: string
+  name: string
+  invite_needed: boolean
+}
+
+export type GoogleResult = LoginResponse | GoogleNeedsProfile
+
+export function needsProfile(r: GoogleResult): r is GoogleNeedsProfile {
+  return (r as GoogleNeedsProfile).status === "needs_profile"
+}
+
 export function useGoogleLogin() {
   const setAuth = useAuthStore((s) => s.setAuth)
 
   return useMutation({
-    mutationFn: async (googleToken: string) => {
-      const { data } = await api.post<LoginResponse>("/api/auth/google", {
-        token: googleToken,
-      })
+    mutationFn: async (body: { token: string; code?: string }) => {
+      const { data } = await api.post<GoogleResult>("/api/auth/google", body)
       return data
     },
     onSuccess: (data) => {
-      setAuth(data.access_token, data.user)
+      if (!needsProfile(data)) setAuth(data.access_token, data.user)
     },
+  })
+}
+
+export interface GoogleCompleteBody {
+  ticket: string
+  birth_date: string
+  country: string
+  language: string
+  name?: string
+  invite?: string | null
+}
+
+export function useGoogleComplete() {
+  const setAuth = useAuthStore((s) => s.setAuth)
+
+  return useMutation({
+    mutationFn: async (body: GoogleCompleteBody) => {
+      const { data } = await api.post<LoginResponse>("/api/auth/google/complete", body)
+      return data
+    },
+    onSuccess: (data) => setAuth(data.access_token, data.user),
   })
 }
 

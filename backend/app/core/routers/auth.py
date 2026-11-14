@@ -9,6 +9,7 @@ from app.core.models.tenant import Tenant
 from app.core.schemas.auth import (
     LoginRequest,
     GoogleLoginRequest,
+    GoogleNeedsProfile,
     TokenResponse,
     UserResponse,
     ChangePasswordRequest,
@@ -20,7 +21,7 @@ from app.core.services.auth_service import verify_password, create_access_token,
 from app.core.middleware.auth import get_current_user, refuse_impersonated
 from app.core.middleware.activity import log_login
 from app.core.services import rate_limit
-from app.core.messages import err
+from app.core.messages import err, refused
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 TOO_MANY_LOGINS = "Too many sign-in attempts. Wait a while and try again."
@@ -100,31 +101,23 @@ def login(req: LoginRequest, request: Request, db: Session = Depends(get_db)):
     return _issue(db, user, request)
 
 
-@router.post("/google", response_model=TokenResponse)
+@router.post("/google", response_model=TokenResponse | GoogleNeedsProfile)
 def google_login(req: GoogleLoginRequest, request: Request, db: Session = Depends(get_db)):
-    if not settings.GOOGLE_CLIENT_ID:
-        raise err(status.HTTP_501_NOT_IMPLEMENTED, "google_oauth_not_configured_set_google")
+    from app.core.services import beta, google_signin
 
-    from google.oauth2 import id_token
-    from google.auth.transport import requests as google_requests
-
-    try:
-        idinfo = id_token.verify_oauth2_token(
-            req.token,
-            google_requests.Request(),
-            settings.GOOGLE_CLIENT_ID,
-        )
-    except ValueError:
-        raise err(status.HTTP_401_UNAUTHORIZED, "invalid_google_token")
-
-    email = idinfo.get("email")
-    if not email:
-        raise err(status.HTTP_401_UNAUTHORIZED, "no_email_found_google_token")
-
-    user = db.query(User).filter(User.email == email, User.is_active == True).first()
-    if not user:
-        raise err(status.HTTP_401_UNAUTHORIZED, "no_active_account_found_with_email")
-
+    ip = rate_limit.client_ip(request)
+    rate_limit.limit(f"login:ip:{ip}", settings.RL_LOGIN_IP_PER_HOUR, 3600, message=TOO_MANY_LOGINS, ip=ip)
+    info = google_signin.verify(req.token, request.client.host if request.client else None)
+    user = google_signin.find_user(db, info)
+    if user is None:
+        mode = beta.signup_mode()
+        if mode == "closed":
+            raise err(status.HTTP_403_FORBIDDEN, "sign_ups_closed")
+        return GoogleNeedsProfile(ticket=google_signin.make_ticket(info), email=info["email"],
+                                  name=(info.get("name") or "").strip(), invite_needed=mode == "invite")
+    if user.role == "global_admin":
+        db.rollback()
+        raise err(status.HTTP_403_FORBIDDEN, "google_not_for_admin")
     _check_tenant_status(user, db)
     _second_step(db, user, req.code)
     return _issue(db, user, request)
@@ -142,13 +135,19 @@ def change_password(
     refuse_impersonated(user)
     if not user.password_hash or not verify_password(req.current_password, user.password_hash):
         raise err(status.HTTP_401_UNAUTHORIZED, "not_current_password")
-    if len(req.new_password) < 6:
-        raise err(status.HTTP_400_BAD_REQUEST, "new_password_must_at_least_6")
+    from app.core.services import account
+
+    try:
+        account.check_password(req.new_password)
+    except account.AccountError as exc:
+        raise refused(status.HTTP_400_BAD_REQUEST, str(exc))
     if verify_password(req.new_password, user.password_hash):
         raise err(status.HTTP_400_BAD_REQUEST, "password_you_already_have")
     user.password_hash = hash_password(req.new_password)
+    user.session_epoch = int(user.session_epoch or 0) + 1
     db.commit()
-    return {"message": "Password changed successfully"}
+    token = create_access_token({"user_id": user.id, "tenant_id": user.tenant_id, "role": user.role, "ep": user.session_epoch})
+    return {"message": "Password changed successfully", "access_token": token}
 
 
 @router.get("/me", response_model=UserResponse)
