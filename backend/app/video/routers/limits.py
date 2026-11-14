@@ -29,6 +29,10 @@ def search(request: Request) -> None:
     per_ip(request, "search", settings.RL_SEARCH_PER_MIN, 60, BUSY)
 
 
+def suggest(request: Request) -> None:
+    per_ip(request, "suggest", settings.RL_SUGGEST_PER_MIN, 60, BUSY)
+
+
 def ask(request: Request) -> None:
     per_ip(request, "ask", settings.RL_ASK_PER_MIN, 60, BUSY)
 

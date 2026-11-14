@@ -25,7 +25,7 @@ PUBLIC = {
     "POST /api/auth/login", "POST /api/auth/google", "POST /api/auth/google/complete", "POST /api/auth/signup",
     "POST /api/auth/verify", "POST /api/auth/forgot", "POST /api/auth/reset", "POST /api/auth/invite/accept",
     "POST /api/auth/device/start", "POST /api/auth/device/poll", "POST /api/auth/handoff/redeem",
-    "GET /api/video/feed/home", "GET /api/video/feed/reels", "GET /api/video/search", "GET /api/video/render",
+    "GET /api/video/feed/home", "GET /api/video/feed/reels", "GET /api/video/search", "GET /api/video/search/suggest", "GET /api/video/render",
     "GET /api/video/videos/{public_id}", "GET /api/video/videos/{public_id}/related",
     "GET /api/video/videos/{public_id}/comments", "GET /api/video/videos/{public_id}/comments/summary",
     "GET /api/video/videos/{public_id}/danmaku", "GET /api/video/videos/{public_id}/captions/{lang}.vtt",

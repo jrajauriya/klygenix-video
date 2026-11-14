@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, Query, Request, Response
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select, text
+from sqlalchemy import case, false, func, or_, select, text
 
 from app.ai import embed as embedder
 from app.ai import intel
@@ -11,11 +11,12 @@ from app.ai.captions import parse, to_vtt
 from app.ai.textkit import fmt_ts, lexical
 from app.core.messages import err
 from app.video.commerce import access, quotas
+from app.video.media import service as media
 from app.video.models.ai import AskMessage, Segment, Transcript
 from app.video.models.media import CaptionTrack, Video
 from app.video.services.translit import roman
 from app.video.models.social import Channel
-from app.video.present import video_card
+from app.video.present import channel_card, video_card
 from app.video.routers import limits
 from app.video.routers.deps import Ctx, Viewer, optional_viewer, signed_in
 from app.video.routers.watch import LANGS, readable
@@ -137,6 +138,37 @@ def captions(public_id: str, lang: str, viewer: Viewer = Depends(optional_viewer
             db.add(CaptionTrack(tenant_id=video.tenant_id, video_id=video.id, language=lang, source="translation", vtt=vtt))
             db.commit()
     return PlainTextResponse(vtt, media_type="text/vtt")
+
+
+def _like(term: str) -> str:
+    return term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+@router.get("/search/suggest")
+def suggest(request: Request, q: str = Query(min_length=1, max_length=100), viewer: Viewer = Depends(optional_viewer)):
+    limits.suggest(request)
+    term = " ".join(q.split())
+    if not term:
+        return {"query": q, "channels": [], "videos": []}
+    db = viewer.db
+    t = _like(term)
+    rq = roman(term)
+    starts = Video.title.ilike(f"{t}%", escape="\\") | Video.title.ilike(f"% {t}%", escape="\\")
+    hit = Video.title.ilike(f"%{t}%", escape="\\") | (Video.roman.ilike(f"%{_like(rq)}%", escape="\\") if rq else false())
+    rows = db.execute(select(Video, Channel).join(Channel, Channel.id == Video.channel_id)
+                      .where(Video.status == "published", Video.visibility == "public", Video.is_deleted.is_(False),
+                             Channel.is_suspended.is_(False), hit)
+                      .order_by(case((starts, 0), else_=1), Video.view_count.desc(), Video.id.desc()).limit(6)).all()
+    cstarts = Channel.name.ilike(f"{t}%", escape="\\") | Channel.handle.ilike(f"{t.lstrip('@')}%", escape="\\")
+    chans = db.execute(select(Channel).where(Channel.is_suspended.is_(False), Channel.video_count > 0, or_(
+        Channel.name.ilike(f"%{t}%", escape="\\"), Channel.handle.ilike(f"%{t.lstrip('@')}%", escape="\\")))
+        .order_by(case((cstarts, 0), else_=1), Channel.follower_count.desc(), Channel.id).limit(3)).scalars().all()
+    return {
+        "query": term,
+        "channels": [channel_card(c, {}) for c in chans],
+        "videos": [{"id": v.public_id, "title": v.title, "kind": v.kind, "thumbnail": media.thumb(v), "channel": c.name}
+                   for v, c in rows],
+    }
 
 
 @router.get("/search")

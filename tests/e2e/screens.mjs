@@ -158,7 +158,7 @@ async function main() {
   check("web EN switch goes back to English", (await page.locator("body").innerText()).includes("isn't here"), "still Hindi")
   drain()
   const manifest = await (await fetch(`${WEB}/manifest.webmanifest`)).json().catch(() => null)
-  check("web manifest names Klygenix Play with 192/512/maskable icons", manifest?.name === "Klygenix Play" && manifest?.short_name === "Play"
+  check("web manifest names Klygenix Play with 192/512/maskable icons", manifest?.name === "Klygenix Play" && manifest?.short_name === "Klygenix Play"
     && ["192x192", "512x512"].every((s) => manifest.icons.some((i) => i.sizes === s)) && manifest.icons.some((i) => i.purpose === "maskable"), JSON.stringify(manifest)?.slice(0, 160))
   for (const icon of manifest?.icons ?? []) {
     const r = await fetch(`${WEB}${icon.src}`)

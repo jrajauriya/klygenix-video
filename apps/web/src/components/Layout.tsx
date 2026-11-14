@@ -1,5 +1,5 @@
-import { Suspense, lazy, useCallback, useEffect, useRef, useState, type FormEvent } from "react"
-import { Link, NavLink, Outlet, useLocation, useNavigate, useSearchParams } from "react-router-dom"
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react"
+import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom"
 import { Bell, Clapperboard, CreditCard, Download, Globe, Home, LogOut, MessageSquareText, Rss, Search, Upload, User, UserCircle2, X } from "lucide-react"
 import { api, openSignedIn, useAuthStore, useSession } from "@klygenixvideo/auth"
 import { cn } from "@klygenixvideo/ui"
@@ -11,6 +11,7 @@ import { useInboxCount, useSubscriptionsCount } from "../lib/inbox"
 import { useInstallPrompt } from "../pwa"
 import { InstallSheet } from "./InstallSheet"
 import { InstallBar } from "./InstallBar"
+import { SearchBox } from "./SearchBox"
 import { LANGS, setLang, useLang, useT, type Lang } from "../i18n"
 
 const FeedbackDialog = lazy(() => import("./Feedback"))
@@ -152,47 +153,6 @@ export function Logo({ compact = false }: { compact?: boolean }) {
         </span>
       )}
     </Link>
-  )
-}
-
-function SearchBox({ className, autoFocus, onDone }: { className?: string; autoFocus?: boolean; onDone?: () => void }) {
-  const t = useT()
-  const navigate = useNavigate()
-  const location = useLocation()
-  const [params] = useSearchParams()
-  const [q, setQ] = useState(location.pathname === "/search" ? params.get("q") ?? "" : "")
-
-  useEffect(() => {
-    if (location.pathname === "/search") setQ(params.get("q") ?? "")
-  }, [location.pathname, params])
-
-  function submit(e: FormEvent) {
-    e.preventDefault()
-    const term = q.trim()
-    if (!term) return
-    navigate(`/search?q=${encodeURIComponent(term)}`)
-    onDone?.()
-  }
-
-  return (
-    <form role="search" onSubmit={submit} className={cn("flex min-w-0 items-center", className)}>
-      <div className="relative min-w-0 flex-1">
-        <input
-          type="search"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder={t("Search videos and moments inside them")}
-          aria-label={t("Search")}
-          enterKeyHint="search"
-          autoComplete="off"
-          autoFocus={autoFocus}
-          className="h-10 w-full rounded-l-full border border-line bg-panel px-4 text-sm text-ink placeholder:text-faint outline-none focus:border-brand"
-        />
-      </div>
-      <button type="submit" aria-label={t("Search")} className="flex h-10 w-14 shrink-0 items-center justify-center rounded-r-full border border-l-0 border-line bg-panel-2 text-ink hover:bg-panel-3">
-        <Search size={18} />
-      </button>
-    </form>
   )
 }
 

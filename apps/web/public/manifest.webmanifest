@@ -1,6 +1,6 @@
 {
   "name": "Klygenix Play",
-  "short_name": "Play",
+  "short_name": "Klygenix Play",
   "description": "Watch, ask and clip. Videos and reels with AI summaries, search inside videos and danmaku.",
   "id": "/",
   "start_url": "/?source=pwa",

@@ -46,4 +46,37 @@ check("transliteration pairs agree", [roman(a) == roman(b) for a, b in (("दा
                                                                          ("में", "mein"), ("चाय", "chai"), ("पकौड़े", "pakode"))],
       [True] * 5)
 
+print("\n== Suggestions while typing")
+from harness import client, sql  # noqa: E402
+
+sname = f"Typeahead Studio {tag}"
+sc = creator(sname)
+handle = sql("SELECT ch.handle, ch.name FROM kv_social.channels ch JOIN kv_admin.users u ON u.tenant_id = ch.tenant_id "
+             "WHERE u.email = :e", e=sc.email)[0]
+sv = settled(sc, upload(sc, "reel-chai", f"Ginger lemon tonic {tag}")["id"])
+hidden = settled(sc, upload(sc, "reel-chai", f"Ginger secret draft {tag}")["id"])
+sc.patch(f"/api/video/studio/videos/{hidden['id']}", json={"visibility": "private"})
+anon = client()
+
+
+def suggest(q):
+    r = anon.get("/api/video/search/suggest", params={"q": q})
+    return r.status_code, r.json()
+
+
+status, body = suggest(f"ginger lemon tonic {tag}")
+check("suggest answers without signing in", status, 200)
+hit = [x for x in body["videos"] if x["id"] == sv["public_id"]]
+ok("the video is suggested from its title", bool(hit), body["videos"])
+ok("it says it is a reel", bool(hit) and hit[0]["kind"] == "reel" and hit[0]["channel"] == handle[1])
+ok("a word in the middle matches too", any(x["id"] == sv["public_id"] for x in suggest(f"tonic {tag}")[1]["videos"]))
+ok("a private video is never suggested", not any(x["id"] == hidden["public_id"] for x in suggest(f"ginger secret draft {tag}")[1]["videos"]))
+ok("the channel is suggested by name", any(c["handle"] == handle[0] for c in suggest(f"Typeahead Studio {tag}")[1]["channels"]))
+ok("and by @handle", any(c["handle"] == handle[0] for c in suggest("@" + handle[0])[1]["channels"]))
+ok("Hinglish finds the Devanagari title", any(x["id"] == dv["public_id"] for x in suggest(f"masala chai banane ka tarika {tag}")[1]["videos"]))
+check("% and _ are plain text", suggest("%_%_%")[1]["videos"], [])
+check("blank is an empty answer", suggest("   ")[1], {"query": "   ", "channels": [], "videos": []})
+check("nothing typed is refused", anon.get("/api/video/search/suggest", params={"q": ""}).status_code, 422)
+check("at most 6 videos and 3 channels", (len(suggest("a")[1]["videos"]) <= 6, len(suggest("a")[1]["channels"]) <= 3), (True, True))
+
 finish()

@@ -124,6 +124,7 @@ class Settings(BaseSettings):
     RL_COMMENT_PER_MIN: int = 10
     RL_ASK_PER_MIN: int = 10
     RL_SEARCH_PER_MIN: int = 60
+    RL_SUGGEST_PER_MIN: int = 240
     RL_UPLOAD_PER_HOUR: int = 30
     METRICS_TOKEN: str = ""
     SENTRY_DSN: str = ""
