@@ -2,11 +2,11 @@ import { useEffect, useRef, useState, type FormEvent } from "react"
 import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom"
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
-import { Bell, ChevronRight, Crown, Download, FileText, History, ListVideo, LogOut, PlayCircle, Scale, ShieldAlert, ShoppingBag, Trash2, UserX, Users, X } from "lucide-react"
+import { Bell, ChevronRight, Crown, Download, FileText, History, ListVideo, PlayCircle, Scale, ShieldAlert, ShoppingBag, Trash2, UserX, Users, X } from "lucide-react"
 import { api, useAuthStore } from "@klygenixvideo/auth"
 import { formatMoney } from "@klygenixvideo/client"
 import { cn, saveBlob, useConfirm } from "@klygenixvideo/ui"
-import { LangSwitch, PageShell } from "../components/Layout"
+import { LangSwitch, PageShell, toStudio } from "../components/Layout"
 import { Btn, ChannelAvatar, Empty, Field, INPUT, Skel, TEXTAREA } from "../components/bits"
 import { FollowButton } from "../components/FollowButton"
 import { TierBadge } from "../components/Support"
@@ -110,15 +110,15 @@ function Profile() {
             <ChannelAvatar channel={me.channel} size={44} />
             <div className="min-w-0 flex-1">
               <p className="font-semibold">{me.channel.name}</p>
-              <p className="text-xs text-muted">@{me.channel.handle} · {t("{n} followers", { n: compactNumber(me.channel.followers) })}</p>
+              <p className="text-xs text-muted">@{me.channel.handle} · {t(me.channel.followers === 1 ? "{n} follower" : "{n} followers", { n: compactNumber(me.channel.followers) })}</p>
             </div>
             <Link to={`/@${me.channel.handle}`} className="rounded-full bg-white/10 px-4 py-2 text-sm font-semibold hover:bg-white/15">{t("View channel")}</Link>
-            <a href={STUDIO_URL} className="rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-hover">{t("Open Studio")}</a>
+            <a href={STUDIO_URL} onClick={toStudio()} className="rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-hover">{t("Open Studio")}</a>
           </div>
         ) : (
           <div className="flex flex-wrap items-center gap-3">
             <p className="flex-1 text-sm text-muted">{t("You don't have a channel yet. Open one in Studio to upload videos and reels.")}</p>
-            <a href={STUDIO_URL} className="rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-hover">{t("Go to Studio")}</a>
+            <a href={STUDIO_URL} onClick={toStudio()} className="rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-hover">{t("Go to Studio")}</a>
           </div>
         )}
       </Panel>
@@ -432,7 +432,13 @@ function WatchHistory() {
             {rows.map((h) => (
               <li key={h.id} className="group/item relative">
                 <Link to={h.kind === "reel" ? `/reels?start=${h.id}` : `/watch/${h.id}`} className="group flex gap-3 pr-8">
-                  <Thumb video={h} className={cn("shrink-0", h.kind === "reel" ? "aspect-[9/16] w-20" : "aspect-video w-36")} progress={h.completed ? 1 : h.duration_ms ? h.position_ms / h.duration_ms : 0} rounded="rounded-lg" />
+                  {h.kind === "reel" ? (
+                    <div className="flex aspect-video w-36 shrink-0 justify-center rounded-lg bg-panel-2">
+                      <Thumb video={h} className="aspect-[9/16] h-full" progress={h.completed ? 1 : h.duration_ms ? h.position_ms / h.duration_ms : 0} rounded="rounded-lg" />
+                    </div>
+                  ) : (
+                    <Thumb video={h} className="aspect-video w-36 shrink-0" progress={h.completed ? 1 : h.duration_ms ? h.position_ms / h.duration_ms : 0} rounded="rounded-lg" />
+                  )}
                   <div className="min-w-0">
                     <p className="line-clamp-2 text-sm font-semibold">{h.title}</p>
                     <p className="mt-1 truncate text-xs text-muted">{h.channel?.name}</p>
@@ -550,7 +556,7 @@ function Following() {
                 <ChannelAvatar channel={c} size={40} />
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold">{c.name}</p>
-                  <p className="text-xs text-muted">@{c.handle} · {t("{n} followers", { n: compactNumber(c.followers) })}</p>
+                  <p className="text-xs text-muted">@{c.handle} · {t(c.followers === 1 ? "{n} follower" : "{n} followers", { n: compactNumber(c.followers) })}</p>
                 </div>
               </Link>
               <FollowButton handle={c.handle} following size="sm" />
@@ -661,7 +667,15 @@ export default function AccountPage() {
   const clearAuth = useAuthStore((s) => s.clearAuth)
   const qc = useQueryClient()
   const leaving = useRef(false)
+  const tabsRef = useRef<HTMLDivElement>(null)
   const tab = (TABS.some((t) => t.key === params.get("tab")) ? params.get("tab") : "profile") as Tab
+  useEffect(() => {
+    const row = tabsRef.current
+    const on = row?.querySelector<HTMLElement>('[aria-selected="true"]')
+    if (!row || !on || row.scrollWidth <= row.clientWidth) return
+    const left = on.offsetLeft - row.offsetLeft
+    if (left < row.scrollLeft || left + on.offsetWidth > row.scrollLeft + row.clientWidth) row.scrollTo({ left: Math.max(0, left - 16) })
+  }, [tab])
   if (!signedIn) return leaving.current ? null : <Navigate to="/login?returnUrl=%2Faccount" replace />
 
   function signOut() {
@@ -673,11 +687,8 @@ export default function AccountPage() {
 
   return (
     <PageShell className="max-w-5xl">
-      <div className="mb-5 flex items-center gap-3">
-        <h1 className="flex-1 text-2xl font-bold">{t("Account")}</h1>
-        <Btn tone="ghost" size="sm" onClick={signOut}><LogOut size={15} aria-hidden="true" /> {t("Sign out")}</Btn>
-      </div>
-      <div role="tablist" className="-mx-3 mb-6 flex gap-1 overflow-x-auto px-3 scrollbar-none sm:mx-0 sm:px-0">
+      <h1 className="mb-5 text-2xl font-bold">{t("Account")}</h1>
+      <div ref={tabsRef} role="tablist" className="-mx-3 mb-6 flex gap-1 overflow-x-auto px-3 scrollbar-none [mask-image:linear-gradient(to_right,black_88%,transparent)] sm:mx-0 sm:[mask-image:none] sm:flex-wrap sm:gap-1.5 sm:overflow-visible sm:px-0">
         {TABS.map((tab2) => (
           <button
             key={tab2.key}

@@ -1,6 +1,6 @@
 from typing import Literal, Optional
 from datetime import date, datetime
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class LoginRequest(BaseModel):
@@ -20,6 +20,14 @@ class GoogleNeedsProfile(BaseModel):
     email: str
     name: str = ""
     invite_needed: bool = False
+
+
+class HandoffOut(BaseModel):
+    code: str
+
+
+class HandoffIn(BaseModel):
+    code: str = Field(min_length=20, max_length=80)
 
 
 class GoogleCompleteIn(BaseModel):

@@ -202,3 +202,24 @@ async def tunnel(request: Request) -> Response:
     logger.warning("error report tunnel: upstream answered %s", upstream.status_code)
     return Response(status_code=502, content=b'{"detail":"The error tracker refused the report."}',
                     media_type="application/json")
+
+
+@router.post("/client-error", status_code=204)
+async def client_error(request: Request) -> Response:
+    rate_limit.per_ip(request, "observe-client-error", 10, 60, "Too many error reports from this address; try again in a minute.")
+    raw = await request.body()
+    if len(raw) > 2048:
+        raise _refuse(413, "That report is too large.")
+    try:
+        data = json.loads(raw or b"{}")
+    except (ValueError, UnicodeDecodeError):
+        raise _refuse(400, "That report could not be read.") from None
+    if not isinstance(data, dict):
+        raise _refuse(400, "That report could not be read.")
+
+    def field(key: str, size: int) -> str:
+        return str(data.get(key) or "")[:size].replace("\n", " ")
+
+    logger.warning("client error app=%s path=%s user=%s name=%s message=%s", field("app", 20), field("path", 200),
+                   field("user", 20), field("name", 80), field("message", 600))
+    return Response(status_code=204)

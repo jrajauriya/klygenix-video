@@ -1,7 +1,7 @@
 import { Suspense, lazy, useCallback, useEffect, useRef, useState, type FormEvent } from "react"
 import { Link, NavLink, Outlet, useLocation, useNavigate, useSearchParams } from "react-router-dom"
-import { Bell, Clapperboard, CreditCard, Download, Home, Languages, LogOut, MessageSquareText, Rss, Search, Upload, User, UserCircle2, X } from "lucide-react"
-import { api, useAuthStore, useSession } from "@klygenixvideo/auth"
+import { Bell, Clapperboard, CreditCard, Download, Globe, Home, LogOut, MessageSquareText, Rss, Search, Upload, User, UserCircle2, X } from "lucide-react"
+import { api, openSignedIn, useAuthStore, useSession } from "@klygenixvideo/auth"
 import { cn } from "@klygenixvideo/ui"
 import { STUDIO_URL, useMe, useSignedIn } from "../lib/api"
 import { hue, initials } from "../lib/format"
@@ -17,6 +17,14 @@ const FeedbackDialog = lazy(() => import("./Feedback"))
 const InboxPanel = lazy(() => import("./InboxPanel"))
 
 const SERVER_WORDED = new Set(["video", "feed", "related", "search", "channel"])
+
+export function toStudio(path = "/") {
+  return (e: React.MouseEvent) => {
+    if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+    e.preventDefault()
+    void openSignedIn(STUDIO_URL, path)
+  }
+}
 
 export async function chooseLang(next: Lang) {
   setLang(next)
@@ -34,7 +42,7 @@ export function LangSwitch({ className }: { className?: string }) {
   const lang = useLang()
   return (
     <div role="group" aria-label={t("Language")} className={cn("inline-flex h-8 items-center rounded-full bg-white/[0.08] p-0.5 text-xs font-semibold", className)}>
-      <Languages size={14} aria-hidden="true" className="mx-1.5 hidden text-muted lg:block" />
+      <Globe size={14} aria-hidden="true" className="mx-1.5 hidden text-muted lg:block" />
       {LANGS.map((l) => (
         <button
           key={l.value}
@@ -240,7 +248,7 @@ function AccountMenu({ onFeedback }: { onFeedback: () => void }) {
           <Link to="/notifications" className={item} onClick={() => setOpen(false)} role="menuitem">
             <Bell size={17} className="text-muted" /> {t("Notifications")}
           </Link>
-          <a href={STUDIO_URL} className={item} role="menuitem">
+          <a href={STUDIO_URL} className={item} role="menuitem" onClick={toStudio()}>
             <Clapperboard size={17} className="text-muted" /> Klygenix Studio
           </a>
           <Link to="/account" className={item} onClick={() => setOpen(false)} role="menuitem">
@@ -310,7 +318,8 @@ function TopBar({ onFeedback }: { onFeedback: () => void }) {
                 <Search size={20} />
               </button>
               <a
-                href={STUDIO_URL}
+                href={`${STUDIO_URL}/videos?upload=1`}
+                onClick={toStudio("/videos?upload=1")}
                 className="inline-flex h-9 items-center gap-2 rounded-full bg-white/[0.08] px-3 text-sm font-semibold text-ink hover:bg-white/15 sm:px-4"
                 aria-label={t("Upload in Klygenix Studio")}
               >

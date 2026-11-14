@@ -22,6 +22,7 @@ const hi: Record<string, string> = {
   "Saving…": "सहेजा जा रहा है…",
   "Save changes": "बदलाव सहेजें",
   "Creator channel": "क्रिएटर चैनल",
+  "{n} follower": "{n} फ़ॉलोअर",
   "{n} followers": "{n} फ़ॉलोअर्स",
   "View channel": "चैनल देखें",
   "Open Studio": "Studio खोलें",
@@ -110,6 +111,7 @@ const hi: Record<string, string> = {
   "Deleting…": "हटाया जा रहा है…",
 
   "Channels you follow": "आपके फ़ॉलो किए गए चैनल",
+  Manage: "मैनेज करें",
   "You don't follow anyone yet": "आप अभी किसी को फ़ॉलो नहीं करते",
   "Follow channels to see their new videos in your Subscriptions feed.": "चैनलों को फ़ॉलो करें ताकि उनके नए वीडियो आपकी सब्सक्रिप्शन फ़ीड में दिखें।",
   "Find channels on Home": "होम पर चैनल खोजें",

@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useNavigate } from "react-router-dom"
-import { api } from "@klygenixvideo/auth"
+import { api, openSignedIn } from "@klygenixvideo/auth"
 import { STUDIO_URL, getJson, useSignedIn } from "./api"
 
 export type NoteKind = "new_video" | "reply" | "published" | "render_ready" | "live" | "membership" | "deal"
@@ -63,7 +63,7 @@ export function useOpenNote() {
     const url = note.url ?? ""
     if (/^https?:\/\//i.test(url)) window.location.assign(url)
     else if (url.startsWith("/") && !url.startsWith("//")) {
-      if (note.app === "studio" || STUDIO_KINDS.has(note.kind)) window.location.assign(`${STUDIO_URL}${url}`)
+      if (note.app === "studio" || STUDIO_KINDS.has(note.kind)) void openSignedIn(STUDIO_URL, url)
       else navigate(url)
     }
   }

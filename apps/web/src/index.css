@@ -37,6 +37,10 @@ html[data-theme="dark"] {
     color: var(--color-ink);
   }
 
+  html {
+    scrollbar-gutter: stable;
+  }
+
   body {
     overscroll-behavior-y: none;
   }

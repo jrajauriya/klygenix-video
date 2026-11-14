@@ -86,6 +86,8 @@ PLAY_MESSAGES: dict[str, dict[str, str]] = {
     "google_not_for_admin": {"en": "Admin accounts sign in with email, password and the authenticator code.", "hi": "एडमिन अकाउंट ईमेल, पासवर्ड और ऑथेंटिकेटर कोड से साइन इन करते हैं।"},
     "google_email_not_verified": {"en": "Google has not verified this email address yet. Verify it with Google, then try again.", "hi": "Google ने अभी यह ईमेल पता सत्यापित नहीं किया है। Google पर सत्यापित करें, फिर दोबारा कोशिश करें।"},
     "google_ticket_expired": {"en": "That took too long. Choose Continue with Google again.", "hi": "बहुत समय लग गया। फिर से Continue with Google चुनें।"},
+    "handoff_invalid": {"en": "That sign-in link has expired. Sign in again.", "hi": "यह साइन-इन लिंक पुराना हो गया है। फिर से साइन इन करें।"},
+    "handoff_not_for_keys": {"en": "API keys and support sessions cannot open another Klygenix app.", "hi": "API कुंजी और सपोर्ट सेशन से दूसरा Klygenix ऐप नहीं खोला जा सकता।"},
     "google_other_account_linked": {"en": "This Klygenix Play account is already linked to a different Google account.", "hi": "यह Klygenix Play अकाउंट पहले से किसी दूसरे Google अकाउंट से जुड़ा है।"},
     "live_plan_required": {"en": "Live streaming is part of Creator Pro and Creator Business. Upgrade your plan to go live.", "hi": "लाइव स्ट्रीमिंग Creator Pro और Creator Business में शामिल है। लाइव जाने के लिए अपना प्लान अपग्रेड करें।"},
     "live_not_live": {"en": "This stream is not live right now.", "hi": "यह स्ट्रीम अभी लाइव नहीं है।"},

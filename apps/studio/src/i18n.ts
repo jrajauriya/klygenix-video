@@ -29,6 +29,7 @@ const HI: Record<string, string> = {
   "View channel": "चैनल देखें",
   Upload: "अपलोड करें",
   "Change password": "पासवर्ड बदलें",
+  "Open Klygenix Play": "Klygenix Play खोलें",
   "Two-step sign-in": "दो-चरण साइन-इन",
   "(on)": "(चालू)",
   Language: "भाषा",

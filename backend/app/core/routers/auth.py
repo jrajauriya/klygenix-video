@@ -1,3 +1,6 @@
+import hashlib
+import json
+import secrets
 from datetime import date, datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
@@ -10,6 +13,8 @@ from app.core.schemas.auth import (
     LoginRequest,
     GoogleLoginRequest,
     GoogleNeedsProfile,
+    HandoffIn,
+    HandoffOut,
     TokenResponse,
     UserResponse,
     ChangePasswordRequest,
@@ -80,6 +85,39 @@ def _issue(db: Session, user: User, request: Request) -> TokenResponse:
         {"user_id": user.id, "tenant_id": user.tenant_id, "role": user.role, "ep": user.session_epoch}
     )
     return TokenResponse(access_token=token, user=user_response(user))
+
+
+HANDOFF_TTL = 60
+
+
+def _handoff_key(code: str) -> str:
+    return "kv:handoff:" + hashlib.sha256(code.encode()).hexdigest()
+
+
+@router.post("/handoff", response_model=HandoffOut)
+def handoff(request: Request, user: User = Depends(get_current_user)):
+    from app.core.redis_client import get_redis
+
+    if getattr(request.state, "api_key", None) is not None or getattr(user, "impersonated_by", None):
+        raise err(status.HTTP_403_FORBIDDEN, "handoff_not_for_keys")
+    code = secrets.token_urlsafe(32)
+    get_redis().setex(_handoff_key(code), HANDOFF_TTL, json.dumps({"user_id": user.id, "ep": user.session_epoch}))
+    return HandoffOut(code=code)
+
+
+@router.post("/handoff/redeem", response_model=TokenResponse)
+def redeem_handoff(req: HandoffIn, request: Request, db: Session = Depends(get_db)):
+    from app.core.redis_client import get_redis
+
+    ip = rate_limit.client_ip(request)
+    rate_limit.limit(f"handoff:ip:{ip}", settings.RL_LOGIN_IP_PER_HOUR, 3600, message=TOO_MANY_LOGINS, ip=ip)
+    raw = get_redis().getdel(_handoff_key(req.code))
+    data = json.loads(raw) if raw else None
+    user = db.get(User, data["user_id"]) if data else None
+    if user is None or not user.is_active or user.session_epoch != data["ep"]:
+        raise err(status.HTTP_401_UNAUTHORIZED, "handoff_invalid")
+    _check_tenant_status(user, db)
+    return _issue(db, user, request)
 
 
 @router.post("/login", response_model=TokenResponse)

@@ -3,10 +3,10 @@ import { Link, Navigate, Outlet, useLocation } from "react-router-dom"
 import {
   AppShell, ChangePasswordDialog, Header, KlygenixIcon, KlygenixWordmark, Sidebar, Spinner, ThemeSheet, isThemeKey,
 } from "@klygenixvideo/ui"
-import { api, useAuthStore, useLogout, useThemePreference } from "@klygenixvideo/auth"
+import { api, openSignedIn, useAuthStore, useLogout, useThemePreference } from "@klygenixvideo/auth"
 import { useHasFeature, usePermissions } from "@klygenixvideo/client"
 import { toast } from "sonner"
-import { Ban, ExternalLink, KeyRound, ShieldCheck, Upload } from "lucide-react"
+import { Ban, ExternalLink, KeyRound, PlaySquare, ShieldCheck, Upload } from "lucide-react"
 import type { NavItem, NavSection } from "@klygenixvideo/ui"
 import { sections, topLinks } from "./nav"
 import TwoStep from "../TwoStep"
@@ -14,7 +14,7 @@ import { FeedbackButton } from "../FeedbackButton"
 import { LanguagePicker } from "../LanguagePicker"
 import { NotificationBell } from "./NotificationBell"
 import { useChannel } from "../../lib/hooks"
-import { channelUrl } from "../../lib/format"
+import { WEB_URL, channelUrl } from "../../lib/format"
 import { roleLabel, switchChannel, teamLevel, useActing, useHasPermission, useMyChannels, useTeamMe } from "../../lib/team"
 import { ChannelSwitcher } from "../team/ChannelSwitcher"
 import { useHtmlLang, useT } from "../../i18n"
@@ -105,6 +105,11 @@ export function StudioLayout() {
                   href={channelUrl(channel.handle)}
                   target="_blank"
                   rel="noopener noreferrer"
+                  onClick={(e) => {
+                    if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+                    e.preventDefault()
+                    void openSignedIn(WEB_URL.replace(/\/$/, ""), `/@${channel.handle}`, true)
+                  }}
                   className="hidden items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:border-brand hover:text-brand sm:flex"
                 >
                   <ExternalLink size={15} /> {t("View channel")}
@@ -131,6 +136,9 @@ export function StudioLayout() {
                   <span className="text-sm font-medium text-slate-600">{t("Language")}</span>
                   <LanguagePicker compact onSaved={() => toast.success(t("Language saved"))} />
                 </div>
+                <a href={WEB_URL} className={menuButton} onClick={(e) => { e.preventDefault(); void openSignedIn(WEB_URL.replace(/\/$/, ""), "/") }}>
+                  <PlaySquare size={16} /> {t("Open Klygenix Play")}
+                </a>
                 <button onClick={() => setChanging(true)} className={menuButton}>
                   <KeyRound size={16} /> {t("Change password")}
                 </button>

@@ -90,6 +90,13 @@ Production is live on **189.72.147.237** behind Cloudflare: `play.klygenix.com`,
 ### Sign-up opened (13 Nov 2026)
 Owner's choice: `SIGNUP_MODE=open` and `CREATOR_SIGNUP=open` in the server's `backend/.env.prod` (backup `.env.prod.bak-signup`) and the local `play.env.prod`; backend, workers and scheduler recreated. Anyone can sign up and open a channel; uploads still pass the Content Safety scan before publishing, and reports/strikes apply. To go back: set both to `invite` and recreate the same services.
 
+### Google sign-in and API security (14 Nov 2026, commit `b1fc43f`)
+`GOOGLE_CLIENT_ID` (the "Klygenix Apps" client) set in the server's `backend/.env.prod` (it was empty; backup `.env.prod.bak-google`);
+deployed with `--env-file vps3-kvm4-play/play-infra.env`; migration `kv0000000021` applied; nginx loads `realip.conf`. Checked after
+deploy: private routes 403 without a token, `alg:none` 401, Google sandbox and garbage tokens 401, sandbox media webhook 404, docs/openapi
+404, metrics 403, web and studio CSP allow `accounts.google.com/gsi`, both bundles carry the client id, and nginx logs the visitor's own
+IP (not Cloudflare's).
+
 ### Waiting on the owner
 1. **Company details** — `https://play-admin.klygenix.com` → Accounts → Klygenix Technologies → **Company** tab: address, GSTIN, support email (today it shows `admin@klygenix.com`), phone, CIN, privacy/legal emails, grievance officer. The legal pages fill these in automatically.
 2. **Legal review** of `/legal/*` — about 45 yellow placeholders are decisions (refund rule, notice period, liability cap, jurisdiction, TCS/TDS with the CA…). Remove the draft banner after review.

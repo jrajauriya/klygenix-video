@@ -9,6 +9,7 @@ import {
   BilibiliEmbed, DanmakuLayer, DanmakuRail, HlsPlayer, YouTubeEmbed, useDanmaku,
   type CaptionTrack, type EmbedController,
 } from "@klygenixvideo/player"
+import { toStudio } from "../../components/Layout"
 import { STUDIO_URL, apiUrl, errStatus, errText, getJson, loginPath, useMe, useSignedIn } from "../../lib/api"
 import { clock, compactNumber, langName, longDate, timeAgo, views } from "../../lib/format"
 import { useDanmakuPrefs, useMediaQuery, useTranslateLang } from "../../lib/prefs"
@@ -444,7 +445,7 @@ export default function WatchPage() {
                     <p className="text-xs text-muted">{t(video.channel.followers === 1 ? "{n} follower" : "{n} followers", { n: compactNumber(video.channel.followers) })}</p>
                   </div>
                   {video.is_owner ? (
-                    <a href={STUDIO_URL} className="ml-1 inline-flex h-9 items-center rounded-full bg-white/10 px-4 text-sm font-semibold hover:bg-white/15">{t("Edit in Studio")}</a>
+                    <a href={STUDIO_URL} onClick={toStudio()} className="ml-1 inline-flex h-9 items-center rounded-full bg-white/10 px-4 text-sm font-semibold hover:bg-white/15">{t("Edit in Studio")}</a>
                   ) : (
                     <FollowButton
                       handle={video.channel.handle}

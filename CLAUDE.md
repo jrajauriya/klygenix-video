@@ -267,6 +267,10 @@ RLS: `tenant_isolation` (`tenant_id = current_tenant() OR is_platform()`) on eve
   invite: the same `_create_account` as `/signup`). Accounts match on `users.google_sub`, else a Google-verified email. `GOOGLE_CLIENT_ID`
   goes in backend `.env` and the infra env (`build-web.sh` → `VITE_GOOGLE_CLIENT_ID`); each host must be an Authorized JavaScript origin
   of that OAuth client. Suites use `sandbox.<base64 json>` tokens (only with `SANDBOX_ENABLED`).
+- **One sign-in across Play and Studio**: each host keeps its own `klygenix-video-auth` in localStorage, so links between them go through
+  `openSignedIn(base, path)` (`packages/auth/src/Handoff.tsx`): a 60 s one-use code from `/api/auth/handoff`, passed in the URL fragment to
+  `/auth/continue` and redeemed for a normal token. A plain `<a href={STUDIO_URL}>` asks the user to sign in again.
+- Web route errors are logged by `POST /api/observe/client-error` (`docker logs klygenix-video-backend | grep "client error"`).
 - `SIGNUP_MODE` (open|invite|closed) overrides the legacy `SIGNUP_ENABLED`; `CREATOR_SIGNUP` gates opening a channel.
   Product mail goes through `core/services/mailer.py` (`EMAIL_PROVIDER=sandbox` captures to the outbox).
 

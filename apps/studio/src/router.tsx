@@ -1,5 +1,5 @@
 import type { ReactNode } from "react"
-import { ForgotPage, InvitePage, ResetPage, SignupPage, VerifyPage } from "@klygenixvideo/auth"
+import { ForgotPage, HandoffPage, InvitePage, ResetPage, SignupPage, VerifyPage } from "@klygenixvideo/auth"
 import { createBrowserRouter } from "react-router-dom"
 import { StudioLayout } from "./components/layout/StudioLayout"
 import { Guard } from "./components/team/Guard"
@@ -34,6 +34,7 @@ import TeamAccept from "./pages/TeamAccept"
 const guard = (key: string, element: ReactNode) => <Guard k={key}>{element}</Guard>
 
 export const router = createBrowserRouter([
+  { path: "/auth/continue", element: <HandoffPage /> },
   { path: "/login", element: <Login /> },
   { path: "/signup", element: <SignupPage /> },
   { path: "/verify", element: <VerifyPage /> },

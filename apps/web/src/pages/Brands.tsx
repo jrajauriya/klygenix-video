@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
 import { ArrowRight, BadgeCheck, Clapperboard, Globe2, Handshake, MonitorPlay, ShieldCheck, Target, Wallet } from "lucide-react"
-import { PageShell } from "../components/Layout"
+import { PageShell, toStudio } from "../components/Layout"
 import { Skel } from "../components/bits"
 import { STUDIO_URL, getJson } from "../lib/api"
 import { compactNumber } from "../lib/format"
@@ -54,7 +54,7 @@ export default function BrandsPage() {
           {t("Run video ads on long videos from creators who opted in, or sponsor creators directly. Everything is set up, funded and reported in Klygenix Studio.")}
         </p>
         <div className="relative mt-8 flex flex-wrap gap-3">
-          <a href={studio} className="inline-flex h-11 items-center gap-2 rounded-full bg-brand px-6 text-sm font-semibold text-white hover:bg-brand-hover">
+          <a href={studio} onClick={toStudio("/brand")} className="inline-flex h-11 items-center gap-2 rounded-full bg-brand px-6 text-sm font-semibold text-white hover:bg-brand-hover">
             {t("Open your brand profile")} <ArrowRight size={16} aria-hidden="true" />
           </a>
           <a href="#how" className="inline-flex h-11 items-center rounded-full bg-white/10 px-6 text-sm font-semibold text-ink hover:bg-white/15">{t("How it works")}</a>

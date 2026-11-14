@@ -7,6 +7,7 @@ import { api } from "@klygenixvideo/auth"
 import App from "./App"
 import "./i18n"
 import { registerServiceWorker } from "./pwa"
+import { reloadOnce, settleReloads } from "./lib/crash"
 import "@klygenixvideo/fonts/console.css"
 import "./index.css"
 
@@ -15,6 +16,10 @@ api.defaults.headers["X-Klygenix-App"] = "web"
 applyTheme("dark")
 
 startErrorTracking("web")
+
+window.addEventListener("vite:preloadError", (e) => {
+  if (reloadOnce()) e.preventDefault()
+})
 
 createRoot(document.getElementById("root")!, rootOptions()).render(
   withReporting(
@@ -25,3 +30,4 @@ createRoot(document.getElementById("root")!, rootOptions()).render(
 )
 
 registerServiceWorker()
+settleReloads()

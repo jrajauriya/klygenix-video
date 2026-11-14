@@ -1,6 +1,8 @@
+import { useEffect, useState } from "react"
 import { createBrowserRouter, useRouteError, type LoaderFunctionArgs } from "react-router-dom"
-import { useAuthStore } from "@klygenixvideo/auth"
+import { HandoffPage, useAuthStore } from "@klygenixvideo/auth"
 import { getJson } from "./lib/api"
+import { isChunkError, reloadOnce, reportClientError } from "./lib/crash"
 import { reelsKey, reelsPage } from "./lib/reelsFeed"
 import { queryClient } from "./lib/queryClient"
 import { preloadHls, warmHls } from "@klygenixvideo/player/src/preload"
@@ -10,14 +12,25 @@ import NotFound from "./pages/NotFound"
 import { useT } from "./i18n"
 
 function RouteError() {
-  const error = useRouteError() as { status?: number } | undefined
+  const error = useRouteError() as { status?: number; name?: string; message?: string } | undefined
   const t = useT()
+  const [reloading, setReloading] = useState(() => error?.status !== 404 && isChunkError(error))
+  useEffect(() => {
+    if (error?.status === 404) return
+    if (isChunkError(error) && reloadOnce()) return
+    setReloading(false)
+    console.error(error)
+    reportClientError(error)
+  }, [error])
   if (error?.status === 404) return <NotFound />
+  if (reloading) return null
+  const detail = [error?.name, error?.message].filter(Boolean).join(": ")
   return (
     <div className="mx-auto max-w-md px-6 py-24 text-center">
       <h1 className="text-xl font-bold">{t("Something went wrong")}</h1>
       <p className="mt-2 text-sm text-muted">{t("Reload the page to try again.")}</p>
       <button type="button" onClick={() => window.location.reload()} className="mt-6 rounded-full bg-brand px-5 py-2 text-sm font-semibold text-white">{t("Reload")}</button>
+      {detail && <p className="mt-6 break-words font-mono text-xs text-faint">{detail.slice(0, 300)}</p>}
     </div>
   )
 }
@@ -64,6 +77,7 @@ function prefetchReels({ params, request }: LoaderFunctionArgs) {
 const page = (load: () => Promise<{ default: React.ComponentType }>) => async () => ({ Component: (await load()).default })
 
 export const router = createBrowserRouter([
+  { path: "/auth/continue", element: <HandoffPage /> },
   {
     element: <Layout />,
     errorElement: <RouteError />,

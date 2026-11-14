@@ -1,14 +1,14 @@
 import { useEffect } from "react"
 import { Link, Navigate } from "react-router-dom"
-import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query"
+import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Users } from "lucide-react"
 import { api } from "@klygenixvideo/auth"
 import { PageShell } from "../components/Layout"
-import { Btn, CardSkeletons, Empty } from "../components/bits"
+import { Btn, CardSkeletons, ChannelAvatar, Empty } from "../components/bits"
 import { VideoGridCard } from "../components/VideoCards"
-import { useSignedIn } from "../lib/api"
+import { getJson, useSignedIn } from "../lib/api"
 import { useTitle } from "../lib/title"
-import type { VideoCard } from "../lib/types"
+import type { ChannelCard, VideoCard } from "../lib/types"
 import { useT } from "../i18n"
 
 const PAGE = 24
@@ -39,6 +39,7 @@ export default function SubscriptionsPage() {
     getNextPageParam: (last) => (last.items.length === PAGE ? last.offset + PAGE : undefined),
   })
   const first = q.data?.pages[0]
+  const following = useQuery({ queryKey: ["following"], enabled: signedIn, queryFn: () => getJson<ChannelCard[]>("/api/video/me/following") })
 
   useEffect(() => {
     if (first) qc.setQueryData(["subs-count"], { new_count: 0 })
@@ -59,6 +60,19 @@ export default function SubscriptionsPage() {
           </p>
         )}
       </div>
+      {(following.data ?? []).length > 0 && (
+        <nav aria-label={t("Channels you follow")} className="-mx-3 mb-7 flex items-start gap-4 overflow-x-auto px-3 pb-1 scrollbar-none sm:mx-0 sm:px-0">
+          {(following.data ?? []).map((c) => (
+            <Link key={c.id} to={`/@${c.handle}`} className="group flex w-20 shrink-0 flex-col items-center gap-1.5 text-center">
+              <ChannelAvatar channel={c} size={56} />
+              <span className="line-clamp-2 text-xs font-medium text-ink group-hover:text-brand-soft">{c.name}</span>
+            </Link>
+          ))}
+          <Link to="/account?tab=following" className="ml-auto flex h-14 shrink-0 items-center self-start rounded-full px-3 text-sm font-semibold text-brand-soft hover:bg-white/10">
+            {t("Manage")}
+          </Link>
+        </nav>
+      )}
       {q.isLoading ? (
         <div className="grid gap-x-4 gap-y-8 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4"><CardSkeletons count={8} /></div>
       ) : !first || first.channels === 0 ? (
