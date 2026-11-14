@@ -4,7 +4,7 @@ import {
   AppShell, ChangePasswordDialog, Header, KlygenixIcon, KlygenixWordmark, Sidebar, Spinner, ThemeSheet, isThemeKey,
 } from "@klygenixvideo/ui"
 import { api, openSignedIn, useAuthStore, useLogout, useThemePreference } from "@klygenixvideo/auth"
-import { useHasFeature, usePermissions } from "@klygenixvideo/client"
+import { useTenantFeatures, usePermissions } from "@klygenixvideo/client"
 import { toast } from "sonner"
 import { Ban, ExternalLink, KeyRound, PlaySquare, ShieldCheck, Upload } from "lucide-react"
 import type { NavItem, NavSection } from "@klygenixvideo/ui"
@@ -27,8 +27,8 @@ export function StudioLayout() {
   const logout = useLogout()
   const location = useLocation()
   const perms = usePermissions()
-  const features = useHasFeature
-  const liveOn = useHasFeature("video.live")
+  const features = useTenantFeatures()
+  const liveOn = features["video.live"] !== false
   const t = useT()
   useHtmlLang()
   const [changing, setChanging] = useState(false)
@@ -67,7 +67,7 @@ export function StudioLayout() {
   const canSee = (item: NavItem) => {
     if (item.featureKey === "video.live" && !liveOn) return false
     if (acting !== null) return Boolean(item.permissionKey) && teamLevel(teamMe, item.permissionKey!) !== "none"
-    if (item.featureKey && !features(item.featureKey)) return false
+    if (item.featureKey && features[item.featureKey] === false) return false
     if (!item.permissionKey) return true
     if (user.role === "owner" || user.role === "global_admin") return true
     return (perms[item.permissionKey] ?? "none") !== "none"

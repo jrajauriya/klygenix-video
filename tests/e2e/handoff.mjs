@@ -31,6 +31,10 @@ console.log("\n== Play → Studio without signing in again")
 const viewer = await account(null)
 {
   const ctx = await signedInContext(viewer)
+  await ctx.route("**/api/video/tenant-features", async (route) => {
+    await new Promise((r) => setTimeout(r, 800))
+    await route.fulfill({ json: { "video.live": false } })
+  })
   const p = await ctx.newPage()
   await p.goto(WEB + "/")
   await p.getByRole("button", { name: "Account menu" }).click()
@@ -41,6 +45,8 @@ const viewer = await account(null)
   check("not the login page", !url.pathname.startsWith("/login"), url.pathname)
   check("no code left in the address bar", !p.url().includes("code="))
   check("Studio has its own session", Boolean(await stored(p)))
+  await p.waitForTimeout(2500)
+  check("Studio renders without a crash", (await p.getByText(/Unexpected Application Error|Something went wrong/).count()) === 0, p.url())
   const r = await p.evaluate(async ([api, k]) => {
     const t = JSON.parse(localStorage.getItem(k)).state.token
     return (await fetch(`${api}/api/auth/me`, { headers: { Authorization: `Bearer ${t}` } })).json()
